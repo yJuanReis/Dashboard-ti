@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Layout } from "@/components/Layout";
 import Home from "./pages/Home";
 import Assinaturas from "./pages/Assinaturas";
 import BaseConhecimento from "./pages/BaseConhecimento";
@@ -23,21 +24,23 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/assinaturas" element={<Assinaturas />} />
-          <Route path="/base-conhecimento" element={<BaseConhecimento />} />
-          <Route path="/chamados" element={<Chamados />} />
-          <Route path="/configuracoes" element={<Configuracoes />} />
-          <Route path="/controle-nvr" element={<ControleNVR />} />
-          <Route path="/crachas" element={<Crachas />} />
-          <Route path="/evolucao-hds" element={<EvolucaoHDs />} />
-          <Route path="/fluxo-stepper" element={<FluxoStepper />} />
-          <Route path="/servidores" element={<Servidores />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/home" element={<Home />} />
+            <Route path="/assinaturas" element={<Assinaturas />} />
+            <Route path="/base-conhecimento" element={<BaseConhecimento />} />
+            <Route path="/chamados" element={<Chamados />} />
+            <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/controle-nvr" element={<ControleNVR />} />
+            <Route path="/crachas" element={<Crachas />} />
+            <Route path="/evolucao-hds" element={<EvolucaoHDs />} />
+            <Route path="/fluxo-stepper" element={<FluxoStepper />} />
+            <Route path="/servidores" element={<Servidores />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Layout>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
