@@ -14,6 +14,10 @@ import Crachas from "./pages/Crachas";
 import EvolucaoHDs from "./pages/EvolucaoHDs";
 import FluxoStepper from "./pages/FluxoStepper";
 import Servidores from "./pages/Servidores";
+import Senhas from "./pages/Senhas";
+import GestaoRede from "./pages/GestaoRede";
+import TermoEntrega from "./pages/TermoEntrega";
+import Utilizadores from "./pages/Utilizadores";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +41,10 @@ const App = () => (
             <Route path="/evolucao-hds" element={<EvolucaoHDs />} />
             <Route path="/fluxo-stepper" element={<FluxoStepper />} />
             <Route path="/servidores" element={<Servidores />} />
+            <Route path="/senhas" element={<Senhas />} />
+            <Route path="/gestaorede" element={<GestaoRede />} />
+            <Route path="/termo" element={<TermoEntrega />} />
+            <Route path="/utilizadores" element={<Utilizadores />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

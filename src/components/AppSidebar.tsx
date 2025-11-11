@@ -11,7 +11,8 @@ import {
   Wrench,
   Users,
   Settings,
-  Bell
+  Bell,
+  Key
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -45,6 +46,11 @@ const navigationItems = [
     badge: { text: "Teste", variant: "blue" as const }
   },
   { 
+    title: "Senhas", 
+    url: "/senhas", 
+    icon: Key,
+  },
+  { 
     title: "Crachás", 
     url: "/crachas", 
     icon: IdCard,
@@ -68,13 +74,8 @@ const navigationItems = [
   },
   { 
     title: "Termo de Entrega", 
-    url: "/inventario", 
+    url: "/termo", 
     icon: FileText,
-  },
-  { 
-    title: "Guia de Estilos", 
-    url: "/exemploestilo", 
-    icon: LayoutDashboard,
   },
   { 
     title: "Gestão de Rede", 
