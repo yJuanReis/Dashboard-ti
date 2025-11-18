@@ -74,7 +74,7 @@ export default function Chamados() {
       case "critica": return "bg-red-100 text-red-700 border-red-200";
       case "alta": return "bg-orange-100 text-orange-700 border-orange-200";
       case "media": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-      case "baixa": return "bg-blue-100 text-blue-700 border-blue-200";
+      case "baixa": return "bg-primary/10 text-primary border-primary/30";
       default: return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
@@ -84,7 +84,7 @@ export default function Chamados() {
       case "aberto":
         return { icon: AlertCircle, label: "Aberto", color: "bg-red-100 text-red-700 border-red-200" };
       case "em_andamento":
-        return { icon: Clock, label: "Em Andamento", color: "bg-blue-100 text-blue-700 border-blue-200" };
+        return { icon: Clock, label: "Em Andamento", color: "bg-primary/10 text-primary border-primary/30" };
       case "resolvido":
         return { icon: CheckCircle2, label: "Resolvido", color: "bg-green-100 text-green-700 border-green-200" };
       default:
@@ -150,9 +150,9 @@ export default function Chamados() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-slate-600">Em Andamento</p>
-                  <p className="text-2xl font-bold text-blue-600">{emAndamentoCount}</p>
+                  <p className="text-2xl font-bold text-primary">{emAndamentoCount}</p>
                 </div>
-                <Clock className="w-8 h-8 text-blue-500" />
+                <Clock className="w-8 h-8 text-primary" />
               </div>
             </CardContent>
           </Card>

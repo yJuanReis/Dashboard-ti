@@ -12,12 +12,14 @@ import {
   Users,
   Settings,
   Bell,
-  Key
+  Key,
+  LogOut
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 import {
   Sidebar,
@@ -40,12 +42,6 @@ const navigationItems = [
     icon: LayoutDashboard,
   },
   { 
-    title: "Base de Conhecimento", 
-    url: "/base-conhecimento", 
-    icon: Shield,
-    badge: { text: "Teste", variant: "blue" as const }
-  },
-  { 
     title: "Senhas", 
     url: "/senhas", 
     icon: Key,
@@ -64,30 +60,29 @@ const navigationItems = [
     title: "Controle NVR", 
     url: "/controle-nvr", 
     icon: Video,
-    badge: { text: "Teste", variant: "blue" as const }
   },
   { 
-    title: "Evolução HDs", 
-    url: "/evolucao-hds", 
+    title: "Controle de HDs", 
+    url: "/controle-hds", 
     icon: HardDrive,
-    badge: { text: "Teste", variant: "blue" as const }
+    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
-    title: "Termo de Entrega", 
-    url: "/termo", 
+    title: "Termo de Responsabilidade", 
+    url: "/termos", 
     icon: FileText,
   },
   { 
     title: "Gestão de Rede", 
     url: "/gestaorede", 
     icon: Network,
-    badge: { text: "Dev", variant: "gray" as const }
+    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
     title: "Servidores", 
     url: "/servidores", 
     icon: Server,
-    badge: { text: "Dev", variant: "gray" as const }
+    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
     title: "Chamados", 
@@ -96,15 +91,10 @@ const navigationItems = [
     badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
-    title: "Utilizadores", 
-    url: "/utilizadores", 
-    icon: Users,
-    badge: { text: "Dev", variant: "gray" as const }
-  },
-  { 
     title: "Configurações", 
     url: "/configuracoes", 
     icon: Settings,
+    badge: { text: "Dev", variant: "gray" as const }
   },
 ];
 
@@ -124,10 +114,21 @@ const getBadgeClasses = (variant: "blue" | "gray" | "yellow") => {
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const isCollapsed = state === "collapsed";
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      navigate("/login");
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error);
+    }
   };
 
   return (
@@ -225,23 +226,43 @@ export function AppSidebar() {
       {/* Footer */}
       <SidebarFooter className="border-t border-slate-200/60 p-3">
         {!isCollapsed ? (
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-gradient-to-br from-slate-300 to-slate-400 rounded-full flex items-center justify-center">
-              <span className="text-slate-700 font-semibold text-[10px]">TI</span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 bg-gradient-to-br from-slate-300 to-slate-400 rounded-full flex items-center justify-center">
+                <span className="text-slate-700 font-semibold text-[10px]">TI</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-slate-900 text-xs truncate">Equipa de TI</p>
+                <p className="text-[10px] text-slate-500 truncate">{user?.email || "admin@brmarinas.com"}</p>
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7">
+                <Bell className="w-3.5 h-3.5 text-slate-600" />
+              </Button>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-slate-900 text-xs truncate">Equipa de TI</p>
-              <p className="text-[10px] text-slate-500 truncate">admin@brmarinas.com</p>
-            </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7">
-              <Bell className="w-3.5 h-3.5 text-slate-600" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="w-full justify-start text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            >
+              <LogOut className="w-3.5 h-3.5 mr-2" />
+              Sair
             </Button>
           </div>
         ) : (
-          <div className="flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
             <div className="w-7 h-7 bg-gradient-to-br from-slate-300 to-slate-400 rounded-full flex items-center justify-center">
               <span className="text-slate-700 font-semibold text-[10px]">TI</span>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="h-7 w-7"
+              title="Sair"
+            >
+              <LogOut className="w-3.5 h-3.5 text-slate-600" />
+            </Button>
           </div>
         )}
       </SidebarFooter>

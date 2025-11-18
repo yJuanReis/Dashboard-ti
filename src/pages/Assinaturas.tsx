@@ -1,14 +1,26 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, forwardRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Mail, Download, Trash2, Copy, ArrowLeft, Check, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+// Importações de ícone atualizadas: Copy e Check removidos
+import { Mail, Download, Trash2, ArrowLeft, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import html2canvas from "html2canvas";
+import { toast } from "sonner";
 
 export default function Assinaturas() {
   const [layout, setLayout] = useState("default");
@@ -18,8 +30,10 @@ export default function Assinaturas() {
   const [telefone, setTelefone] = useState("");
   const [celular, setCelular] = useState("");
   const [email, setEmail] = useState("");
-  const [copied, setCopied] = useState(false);
-  const assinaturaRef = useRef(null);
+  // Estado 'copied' removido
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  // 'assinaturaRef' removida, não é mais necessária
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const handleLimpar = () => {
     setNome("");
@@ -30,100 +44,176 @@ export default function Assinaturas() {
     setEmail("");
   };
 
-  const handleCopiar = () => {
-    if (!assinaturaRef.current) return;
-
-    const range = document.createRange();
-    range.selectNodeContents(assinaturaRef.current);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    
-    try {
-      document.execCommand("copy");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Erro ao copiar:", err);
-    }
-    
-    selection.removeAllRanges();
-  };
+  // Função 'handleCopiar' removida
 
   const handleBaixar = () => {
-    alert("Para salvar como imagem, use Print Screen ou a ferramenta de captura de tela do seu sistema operacional.");
+    if (!nome.trim() || !email.trim()) {
+      toast.error("Preencha Nome e E-mail para baixar.");
+      return;
+    }
+
+    if (!previewRef.current) {
+      toast.error("Erro: Não foi possível encontrar a pré-visualização.");
+      return;
+    }
+
+    // Define o fundo como branco para o PNG
+    const originalBackgroundColor = previewRef.current.style.backgroundColor;
+    previewRef.current.style.backgroundColor = '#FFFFFF';
+
+    html2canvas(previewRef.current, {
+      scale: 3, // Aumenta a resolução
+      useCORS: true, // Permite que o canvas leia as imagens (logos)
+      backgroundColor: '#FFFFFF', // Define o fundo do canvas como branco
+    })
+      .then((canvas) => {
+        const link = document.createElement("a");
+        link.download = `assinatura_${nome.replace(/\s+/g, "_").toLowerCase()}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+        toast.success("Download da assinatura iniciado.");
+
+        // Restaura o fundo original (se houver)
+        if (previewRef.current) {
+          previewRef.current.style.backgroundColor = originalBackgroundColor;
+        }
+      })
+      .catch((err) => {
+        console.error("Erro no html2canvas:", err);
+        toast.error("Ocorreu um problema ao gerar a imagem.");
+        // Restaura o fundo original em caso de erro
+        if (previewRef.current) {
+          previewRef.current.style.backgroundColor = originalBackgroundColor;
+        }
+      });
   };
 
-  const AssinaturaPreview = () => {
-    const logoUrl = layout === "default" 
+  // Componente de Layout Padrão (Baseado no defaultLayoutHtmlTemplate)
+  const LayoutDefault = ({ nome, setor, local, telefone, celular, email, logoUrl, iconTelefone, iconWhatsapp, iconEmail }: any) => (
+    <table cellPadding={0} cellSpacing={0} border={0} style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px', lineHeight: 1.5, color: '#333', borderCollapse: 'collapse', minHeight: '120px' }}>
+      <tbody>
+        <tr>
+          <td style={{ paddingRight: '12px', borderRight: '1px solid #0055A5', verticalAlign: 'top', width: '110px', textAlign: 'center' }}>
+            <img src={logoUrl} alt="Logo BR Marinas" width="100" style={{ display: 'block', margin: '0 auto' }} />
+          </td>
+          <td style={{ paddingLeft: '12px', verticalAlign: 'top', width: '300px' }}>
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#0055A5', fontSize: '14px' }}>
+              {nome || "Seu Nome"}
+            </p>
+            <p style={{ margin: 0 }}>
+              {setor || "Seu Cargo"}
+            </p>
+            <p style={{ margin: 0 }}>
+              {local ? `BR Marinas | ${local}` : "BR Marinas"}
+            </p>
+
+            {telefone && (
+              <p style={{ margin: 0 }}>
+                {telefone}
+              </p>
+            )}
+
+            {celular && (
+              <p style={{ margin: 0 }}>
+                {celular}
+              </p>
+            )}
+
+            {email && (
+              <p style={{ margin: 0 }}>
+                <a href={`mailto:${email}`} style={{ color: '#333', textDecoration: 'none' }}>
+                  {email}
+                </a>
+              </p>
+            )}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+
+  // Componente de Layout Alternativo (Baseado no altLayoutHtmlTemplate)
+  const LayoutAlt = ({ nome, setor, local, telefone, celular, email, logoUrl, iconTelefone, iconWhatsapp, iconEmail }: any) => (
+    <table cellPadding={0} cellSpacing={0} border={0} style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px', lineHeight: 1.5, color: '#333', borderCollapse: 'collapse', width: '100%' }}>
+      <tbody>
+        <tr>
+          <td style={{ textAlign: 'left', verticalAlign: 'top' }}>
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#0055A5', fontSize: '14px' }}>
+              {nome || "Seu Nome"}
+            </p>
+            <p style={{ margin: 0 }}>
+              {setor || "Seu Cargo"}
+            </p>
+            <p style={{ margin: 0 }}>
+              {local || "BR Marinas JL"}
+            </p>
+
+            {telefone && (
+              <p style={{ margin: 0 }}>
+                {telefone}
+              </p>
+            )}
+
+            {celular && (
+              <p style={{ margin: 0 }}>
+                {celular}
+              </p>
+            )}
+
+            {email && (
+              <p style={{ margin: 0 }}>
+                <a href={`mailto:${email}`} style={{ color: '#333', textDecoration: 'none' }}>
+                  {email}
+                </a>
+              </p>
+            )}
+
+            <div style={{ marginTop: '8px' }}>
+              <img src={logoUrl} alt="Logo BR Marinas JL" width="220" style={{ display: 'block', marginTop: '10px' }} />
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  );
+
+  // AssinaturaPreview alterado: 'forwardRef' e 'ref' removidos
+  const AssinaturaPreview = (props: any) => {
+    const { layout, ...rest } = props;
+
+    // Define os URLs dos ícones (como no seu código original)
+    const iconWhatsapp = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/3ee888717_logo_whatsapp.png";
+    const iconTelefone = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/5714ec70c_logotelefone.png";
+    const iconEmail = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/39a92a30a_email_logo.png";
+
+    const logoUrl = layout === "default"
       ? "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/ccfa2b4aa_logo_br.png"
       : "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/03feda651_logo_jl.png";
 
-    const whatsappIcon = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/3ee888717_logo_whatsapp.png";
-    const telefoneIcon = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/5714ec70c_logotelefone.png";
-    const emailIcon = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/39a92a30a_email_logo.png";
+    const localFinal = (layout === 'alt' && !rest.local) ? 'BR Marinas Bracuhy' : rest.local;
 
     return (
-      <div ref={assinaturaRef} style={{ fontFamily: "Arial, sans-serif", fontSize: "13px", color: "#212529" }}>
-        <table cellPadding={0} cellSpacing={0} border={0} style={{ maxWidth: "500px" }}>
-          <tbody>
-            <tr>
-              <td style={{ paddingBottom: "10px" }}>
-                <img src={logoUrl} alt="BR Marinas" style={{ height: "50px", display: "block" }} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ borderTop: "2px solid #1e40af", paddingTop: "10px" }}>
-                <table cellPadding={0} cellSpacing={0} border={0}>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <div style={{ fontWeight: "bold", fontSize: "15px", color: "#1e40af", marginBottom: "4px" }}>
-                          {nome || "Seu Nome"}
-                        </div>
-                        <div style={{ color: "#666", marginBottom: "2px" }}>
-                          {setor || "Seu Cargo"}
-                        </div>
-                        {local && (
-                          <div style={{ color: "#666", marginBottom: "8px", fontSize: "12px" }}>
-                            {local}
-                          </div>
-                        )}
-                        <div style={{ marginTop: "8px" }}>
-                          {telefone && (
-                            <div style={{ marginBottom: "3px", display: "flex", alignItems: "center", gap: "6px" }}>
-                              <img src={telefoneIcon} alt="Tel" style={{ width: "14px", height: "14px" }} />
-                              <span>{telefone}</span>
-                            </div>
-                          )}
-                          {celular && (
-                            <div style={{ marginBottom: "3px", display: "flex", alignItems: "center", gap: "6px" }}>
-                              <img src={whatsappIcon} alt="WhatsApp" style={{ width: "14px", height: "14px" }} />
-                              <span>{celular}</span>
-                            </div>
-                          )}
-                          {email && (
-                            <div style={{ marginBottom: "3px", display: "flex", alignItems: "center", gap: "6px" }}>
-                              <img src={emailIcon} alt="Email" style={{ width: "14px", height: "14px" }} />
-                              <a href={`mailto:${email}`} style={{ color: "#1e40af", textDecoration: "none" }}>
-                                {email}
-                              </a>
-                            </div>
-                          )}
-                        </div>
-                        <div style={{ marginTop: "10px", fontSize: "11px", color: "#999" }}>
-                          <a href="https://www.brmarinas.com.br" style={{ color: "#1e40af", textDecoration: "none" }}>
-                            www.brmarinas.com.br
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      // 'ref' removido do div
+      <div style={{ fontFamily: "Arial, sans-serif", fontSize: "13px", color: "#212529" }}>
+        {layout === "default" ? (
+          <LayoutDefault
+            {...rest}
+            local={rest.local} // No layout default, o local é opcional e será tratado (Ex: "BR Marinas | Gloria")
+            logoUrl={logoUrl}
+            iconTelefone={iconTelefone}
+            iconWhatsapp={iconWhatsapp}
+            iconEmail={iconEmail}
+          />
+        ) : (
+          <LayoutAlt
+            {...rest}
+            local={localFinal} // No layout alt, se o local estiver vazio, usamos 'BR Marinas Bracuhy'
+            logoUrl={logoUrl}
+            iconTelefone={iconTelefone}
+            iconWhatsapp={iconWhatsapp}
+            iconEmail={iconEmail}
+          />
+        )}
       </div>
     );
   };
@@ -140,21 +230,15 @@ export default function Assinaturas() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Gerador de Assinaturas</h1>
-            <p className="text-slate-600">Crie assinaturas profissionais para email</p>
           </div>
         </div>
 
-        <Alert className="mb-6 border-blue-200 bg-blue-50">
-          <AlertCircle className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
-            Clique em "Selecionar Assinatura" para selecionar o HTML e depois copie com Ctrl+C (Cmd+C no Mac).
-          </AlertDescription>
-        </Alert>
+        {/* Alert sobre Copiar/Colar removido */}
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Form Section */}
           <div>
-            <Card>
+            <Card className="w-[600px] mx-auto">
               <CardHeader>
                 <CardTitle>Informações da Assinatura</CardTitle>
               </CardHeader>
@@ -184,6 +268,7 @@ export default function Assinaturas() {
                       onChange={(e) => setNome(e.target.value)}
                       placeholder="Seu Nome"
                       required
+                      autoComplete="off"
                     />
                   </div>
 
@@ -195,6 +280,7 @@ export default function Assinaturas() {
                       onChange={(e) => setSetor(e.target.value)}
                       placeholder="Seu Cargo"
                       required
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -206,6 +292,7 @@ export default function Assinaturas() {
                     value={local}
                     onChange={(e) => setLocal(e.target.value)}
                     placeholder="Ex: Glória, Verolme"
+                    autoComplete="off"
                   />
                 </div>
 
@@ -218,6 +305,7 @@ export default function Assinaturas() {
                       value={telefone}
                       onChange={(e) => setTelefone(e.target.value)}
                       placeholder="(XX) XXXX-XXXX"
+                      autoComplete="off"
                     />
                   </div>
 
@@ -229,6 +317,7 @@ export default function Assinaturas() {
                       value={celular}
                       onChange={(e) => setCelular(e.target.value)}
                       placeholder="(XX) XXXXX-XXXX"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -241,37 +330,25 @@ export default function Assinaturas() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu.email@brmarinas.com.br"
+                    autoComplete="off"
                     required
                   />
                 </div>
 
-                {/* Action Buttons */}
-                <div className="grid grid-cols-1 gap-3 pt-4 border-t">
+                {/* Action Buttons - MODIFICADO */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t">
                   <Button
-                    onClick={handleCopiar}
+                    onClick={handleBaixar} // Função de baixar (abre o modal)
                     disabled={!nome || !email}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Selecionado! Use Ctrl+C
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Selecionar Assinatura
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleBaixar}
-                    disabled={!nome || !email}
-                    variant="outline"
+                    className="bg-gradient-to-r from-primary to-accent hover:from-primary-dark hover:to-accent/90"
                   >
                     <Download className="w-4 h-4 mr-2" />
-                    Instruções para Salvar
+                    Baixar PNG
                   </Button>
+                  
+                  {/* Botão de Selecionar Assinatura removido */}
+                  {/* Botão de Instruções removido */}
+
                   <Button variant="outline" onClick={handleLimpar} className="text-red-600 hover:text-red-700">
                     <Trash2 className="w-4 h-4 mr-2" />
                     Limpar Campos
@@ -285,33 +362,60 @@ export default function Assinaturas() {
           <div>
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Pré-visualização</CardTitle>
-                  <Badge className="bg-indigo-100 text-indigo-700">Preview</Badge>
+                <div className="flex items-center justify-center">
+                  <Badge className="bg-indigo-100 text-md text--700">Preview</Badge>
                 </div>
+
+
               </CardHeader>
               <CardContent className="bg-white p-8 rounded-lg">
-                <AssinaturaPreview />
+                <div ref={previewRef} style={{ width: '330px', height: '120px', display: 'inline-block' }}>
+                  <AssinaturaPreview
+                    // 'ref' removido
+                    layout={layout}
+                    nome={nome}
+                    setor={setor}
+                    local={local}
+                    telefone={telefone}
+                    celular={celular}
+                    email={email}
+                  />
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-sm">Como usar</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm text-slate-600 space-y-2">
-                <p>1. Preencha todos os campos obrigatórios (*)</p>
-                <p>2. Clique em "Selecionar Assinatura" para selecionar</p>
-                <p>3. Pressione Ctrl+C (ou Cmd+C no Mac) para copiar</p>
-                <p>4. Cole nas configurações de assinatura do seu email</p>
-                <p className="text-xs text-slate-500 pt-2">
-                  Para Outlook: Arquivo → Opções → Email → Assinaturas
-                </p>
-              </CardContent>
-            </Card>
+            {/* Card "Como usar" removido */}
+            
           </div>
         </div>
       </div>
+
+      <Dialog open={showInstructionsModal} onOpenChange={setShowInstructionsModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            {/* Título do Modal atualizado para refletir "Baixar PNG" */}
+            <DialogTitle>Como Salvar como Imagem (PNG)</DialogTitle> 
+            <DialogDescription>
+              Este navegador não suporta o download direto da assinatura como imagem. Por favor, use a ferramenta de captura de tela do seu sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <div>
+              <h4 className="font-semibold">Windows:</h4>
+              <p className="text-sm text-slate-600">Pressione <Badge variant="outline">Windows + Shift + S</Badge> para abrir a Ferramenta de Captura.</p>
+            </div>
+            <div>
+              <h4 className="font-semibold">Mac:</h4>
+              <p className="text-sm text-slate-600">Pressione <Badge variant="outline">Cmd + Shift + 4</Badge> para capturar uma seleção.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button">Entendido</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

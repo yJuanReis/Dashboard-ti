@@ -1,18 +1,9 @@
-
-import React, { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { 
-  ArrowLeft, 
-  Plus,
-  HardDrive,
-  Camera
-} from "lucide-react";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
 import {
   Dialog,
   DialogContent,
@@ -20,424 +11,1040 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-// Removed unused Select imports
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select";
-// Removed unused Table imports, as plain HTML table is used
-// import {
-//   Table,
-//   TableBody,
-//   TableCell,
-//   TableHead,
-//   TableHeader,
-//   TableRow,
-// } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Search,
+  X,
+  Plus,
+  Edit,
+  Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Video,
+  HardDrive,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Link } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useNVR, NVR_MODELS, MARINA_OPTIONS, OWNER_OPTIONS, type NVR, type Slot } from "@/contexts/NVRContext";
 
-// Dados fictícios - matching com Evolução HDs
-const mockNVRs = [
-  {
-    id: 1,
-    responsavel: "BR Marinas",
-    marina: "Boa Vista",
-    numeracao: "02",
-    modelo: "INVO 6232 (6 slots)",
-    cameras: 31,
-    slots: [
-      { status: "active", size: 14 },
-      { status: "active", size: 18 },
-      { status: "active", size: 6 },
-      { status: "active", size: 4 },
-      { status: "empty", size: 0 },
-      { status: "empty", size: 0 },
-    ],
-    observacoes: "15 - Câmera IP\n1 - Câmera IP c/ áudio"
-  },
-  {
-    id: 2,
-    responsavel: "Tele Litorânea",
-    marina: "Buzios",
-    numeracao: "01",
-    modelo: "NVD 3332 (4 slots)",
-    cameras: 12,
-    slots: [
-      { status: "active", size: 4 },
-      { status: "active", size: 14 },
-      { status: "empty", size: 0 },
-      { status: "inactive", size: 4 },
-    ],
-    observacoes: "12 - Câmera IP\n2 - Câmera IP c/ áudio\n1 - Câmera analógica"
-  },
-  {
-    id: 3,
-    responsavel: "Tele Litorânea",
-    marina: "Glória",
-    numeracao: "03",
-    modelo: "INVO 9332 (4 slots)",
-    cameras: 32,
-    slots: [
-      { status: "active", size: 14 },
-      { status: "active", size: 6 },
-      { status: "active", size: 14 },
-      { status: "active", size: 14 },
-    ],
-    observacoes: "20 - Câmera IP\n3 - Câmera IP c/ áudio"
-  },
-  {
-    id: 4,
-    responsavel: "Tele Litorânea",
-    marina: "Glória",
-    numeracao: "02",
-    modelo: "INVO 9332 (4 slots)",
-    cameras: 32,
-    slots: [
-      { status: "active", size: 14 },
-      { status: "active", size: 6 },
-      { status: "active", size: 14 },
-      { status: "active", size: 14 },
-    ],
-    observacoes: "18 - Câmera IP"
-  },
-  {
-    id: 5,
-    responsavel: "Tele Litorânea",
-    marina: "Glória",
-    numeracao: "01",
-    modelo: "INVO 9332 (4 slots)",
-    cameras: 32,
-    slots: [
-      { status: "active", size: 14 },
-      { status: "active", size: 6 },
-      { status: "active", size: 14 },
-      { status: "empty", size: 0 },
-    ],
-    observacoes: "32 câmeras IP"
-  },
-  {
-    id: 6,
-    responsavel: "Tele Litorânea",
-    marina: "Glória",
-    numeracao: "04",
-    modelo: "INVO 9332 (4 slots)",
-    cameras: 32,
-    slots: [
-      { status: "active", size: 14 },
-      { status: "active", size: 6 },
-      { status: "active", size: 14 },
-      { status: "active", size: 14 },
-    ],
-    observacoes: "32 câmeras IP"
-  },
-  {
-    id: 7,
-    responsavel: "Tele Litorânea",
-    marina: "Itacuruçá",
-    numeracao: "01",
-    modelo: "INVO 9332 (4 slots)",
-    cameras: 31,
-    slots: [
-      { status: "active", size: 14 },
-      { status: "active", size: 14 },
-      { status: "active", size: 14 },
-      { status: "empty", size: 0 },
-    ],
-    observacoes: "31 câmeras IP"
-  },
-];
+// Funções auxiliares
+function getHDSizeClass(size: number): string {
+  if (!size || size <= 0) return "bg-gray-500";
+  if (size <= 3) return "bg-red-500";
+  if (size <= 4) return "bg-orange-500";
+  if (size <= 6) return "bg-yellow-600";
+  if (size <= 12) return "bg-yellow-400";
+  if (size <= 14) return "bg-lime-500";
+  if (size >= 18) return "bg-cyan-500";
+  return "bg-gray-500";
+}
 
-const getSlotColor = (size) => {
-  if (size === 0) return "#6b7280"; // gray-500
-  if (size <= 3) return "#ef4444"; // red-500
-  if (size === 4) return "#f97316"; // orange-500
-  if (size === 6) return "#eab308"; // yellow-600 (was yellow-700)
-  if (size === 12) return "#facc15"; // yellow-400
-  if (size === 14) return "#84cc16"; // lime-500
-  if (size >= 18) return "#06b6d4"; // cyan-500
-  return "#6b7280"; // Default gray-500
-};
+function getSlotStatusClass(status: string, hdSize: number): string {
+  const baseClass = getHDSizeClass(hdSize);
+  return status === "inactive" ? `${baseClass} opacity-50` : baseClass;
+}
+
+// Componente para o menu de slot posicionado dinamicamente
+function SlotMenu({
+  nvrId,
+  slotIndex,
+  slotButtonRefs,
+  slotSizes,
+  onSelectSize,
+}: {
+  nvrId: string;
+  slotIndex: number;
+  slotButtonRefs: React.MutableRefObject<Map<string, HTMLButtonElement>>;
+  slotSizes: Array<{ size: number; label: string }>;
+  onSelectSize: (size: number) => void;
+}) {
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const key = `${nvrId}-${slotIndex}`;
+    const button = slotButtonRefs.current.get(key);
+    
+    if (button && menuRef.current) {
+      const buttonRect = button.getBoundingClientRect();
+      const menuRect = menuRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY;
+      const scrollX = window.scrollX;
+
+      // Posicionar ao lado direito do botão por padrão
+      let top = buttonRect.top + scrollY;
+      let left = buttonRect.right + scrollX + 8;
+
+      // Ajustar se o menu sair da tela à direita - posicionar à esquerda
+      if (left + menuRect.width > window.innerWidth + scrollX) {
+        left = buttonRect.left + scrollX - menuRect.width - 8;
+      }
+
+      // Ajustar verticalmente se necessário
+      if (top + menuRect.height > window.innerHeight + scrollY) {
+        top = window.innerHeight + scrollY - menuRect.height - 8;
+      }
+
+      // Garantir que não saia do topo
+      if (top < scrollY) {
+        top = scrollY + 8;
+      }
+
+      setPosition({ top, left });
+    }
+  }, [nvrId, slotIndex, slotButtonRefs]);
+
+  return (
+    <div
+      ref={menuRef}
+      className="slot-editor-menu fixed z-[100] w-auto p-2 bg-popover border rounded-md shadow-lg"
+      style={{
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="grid grid-cols-2 gap-1">
+        {slotSizes.map(({ size, label }) => {
+          const colorClass = size === -1 
+            ? "bg-yellow-400 opacity-50" 
+            : size === 0 
+            ? "bg-gray-500" 
+            : getHDSizeClass(size);
+          
+          return (
+            <Button
+              key={size}
+              variant="outline"
+              size="sm"
+              className={`text-xs text-white font-bold border-2 ${
+                size === 0 
+                  ? `${colorClass} border-gray-600 hover:opacity-80` 
+                  : size === -1
+                  ? `${colorClass} border-yellow-500 hover:opacity-80`
+                  : `${colorClass} border-white/20 hover:opacity-80`
+              }`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectSize(size);
+              }}
+            >
+              {label}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+type SortField = "marina" | "name" | "model" | "owner" | "cameras";
+type SortDirection = "asc" | "desc";
 
 export default function ControleNVR() {
-  const [nvrs, setNvrs] = useState(mockNVRs);
+  const { nvrs, setNvrs, updateNVR, addNVR, deleteNVR, updateSlot, loading } = useNVR();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [marinaFilter, setMarinaFilter] = useState<string>("");
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const [modelFilter, setModelFilter] = useState<string>("");
+  const [sortField, setSortField] = useState<SortField>("marina");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [showDialog, setShowDialog] = useState(false);
-  const [editingNVR, setEditingNVR] = useState(null);
+  const [editingNVR, setEditingNVR] = useState<NVR | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [nvrToDelete, setNvrToDelete] = useState<string | null>(null);
+  const [slotEditorOpen, setSlotEditorOpen] = useState<{
+    nvrId: string;
+    slotIndex: number;
+  } | null>(null);
+  const [showUpdateAllDialog, setShowUpdateAllDialog] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+  const isLongPressRef = useRef<boolean>(false);
+  const slotButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
   const [formData, setFormData] = useState({
-    responsavel: "",
     marina: "",
-    numeracao: "",
-    modelo: "",
+    name: "",
+    model: "",
+    owner: "",
     cameras: 0,
-    observacoes: ""
+    notes: "",
   });
 
-  const handleOpenDialog = (nvr = null) => {
+  // Filtrar e ordenar NVRs
+  const filteredAndSortedNVRs = [...nvrs]
+    .filter((nvr) => {
+      const matchesSearch =
+        !searchTerm ||
+        `${nvr.marina} ${nvr.name} ${nvr.model} ${nvr.owner}`
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase());
+      const matchesMarina = !marinaFilter || nvr.marina === marinaFilter;
+      const matchesOwner = !ownerFilter || nvr.owner === ownerFilter;
+      const matchesModel = !modelFilter || nvr.model === modelFilter;
+      return matchesSearch && matchesMarina && matchesOwner && matchesModel;
+    })
+    .sort((a, b) => {
+      const fieldA = a[sortField];
+      const fieldB = b[sortField];
+      const compare = String(fieldA).localeCompare(String(fieldB), "pt-BR", {
+        numeric: true,
+      });
+      return sortDirection === "asc" ? compare : -compare;
+    });
+
+  // Handlers
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const handleOpenDialog = (nvr?: NVR) => {
     if (nvr) {
       setEditingNVR(nvr);
       setFormData({
-        responsavel: nvr.responsavel,
         marina: nvr.marina,
-        numeracao: nvr.numeracao,
-        modelo: nvr.modelo,
+        name: nvr.name,
+        model: nvr.model,
+        owner: nvr.owner,
         cameras: nvr.cameras,
-        observacoes: nvr.observacoes || ""
+        notes: nvr.notes || "",
       });
     } else {
       setEditingNVR(null);
       setFormData({
-        responsavel: "",
         marina: "",
-        numeracao: "",
-        modelo: "",
+        name: "",
+        model: "",
+        owner: "",
         cameras: 0,
-        observacoes: ""
+        notes: "",
       });
     }
     setShowDialog(true);
   };
 
-  const handleSave = () => {
-    if (editingNVR) {
-      setNvrs(nvrs.map(n => n.id === editingNVR.id ? { ...n, ...formData } : n));
-    } else {
-      const newNVR = {
-        id: Math.max(...nvrs.map(n => n.id)) + 1,
-        ...formData,
-        slots: [
-          { status: "empty", size: 0 },
-          { status: "empty", size: 0 },
-          { status: "empty", size: 0 },
-          { status: "empty", size: 0 },
-        ]
-      };
-      setNvrs([...nvrs, newNVR]);
+  const handleSave = async () => {
+    if (!formData.marina || !formData.name || !formData.model || !formData.owner) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
     }
-    setShowDialog(false);
+
+    try {
+      if (editingNVR) {
+        await updateNVR(editingNVR.id, formData);
+      } else {
+        const modelConfig = NVR_MODELS[formData.model];
+        const slotsCount = modelConfig?.slots || 0;
+        const slots: Slot[] = Array.from({ length: slotsCount }, () => ({
+          status: "empty",
+          hdSize: 0,
+          purchased: false,
+        }));
+
+        await addNVR({
+          ...formData,
+          slots,
+        });
+      }
+      setShowDialog(false);
+    } catch (error) {
+      // Erro já foi tratado no contexto
+      console.error('Erro ao salvar NVR:', error);
+    }
   };
 
+  const handleDelete = (id: string) => {
+    setNvrToDelete(id);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = async () => {
+    if (nvrToDelete) {
+      try {
+        await deleteNVR(nvrToDelete);
+        setShowDeleteDialog(false);
+        setNvrToDelete(null);
+      } catch (error) {
+        // Erro já foi tratado no contexto
+        console.error('Erro ao deletar NVR:', error);
+      }
+    }
+  };
+
+  const handleSlotUpdate = async (nvrId: string, slotIndex: number, size: number) => {
+    const nvr = nvrs.find((n) => n.id === nvrId);
+    if (!nvr) return;
+
+    const newStatus: "empty" | "active" | "inactive" =
+      size === 0 ? "empty" : size === -1 ? "inactive" : "active";
+    const sizeToSave = size < 0 ? nvr.slots[slotIndex].hdSize : size;
+
+    const updatedSlot = {
+      status: newStatus,
+      hdSize: sizeToSave,
+      purchased: nvr.slots[slotIndex].purchased || false,
+    };
+
+    try {
+      await updateSlot(nvrId, slotIndex, updatedSlot);
+      setSlotEditorOpen(null);
+      toast.success("Slot atualizado");
+    } catch (error) {
+      // Erro já foi tratado no contexto
+      console.error('Erro ao atualizar slot:', error);
+    }
+  };
+
+  const handleSlotClick = (e: React.MouseEvent<HTMLButtonElement>, nvrId: string, slotIndex: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Sempre abre o editor quando clica (toggle)
+    if (slotEditorOpen?.nvrId === nvrId && slotEditorOpen?.slotIndex === slotIndex) {
+      setSlotEditorOpen(null);
+    } else {
+      setSlotEditorOpen({ nvrId, slotIndex });
+      const key = `${nvrId}-${slotIndex}`;
+      slotButtonRefs.current.set(key, e.currentTarget);
+    }
+  };
+
+  const handleUpdateAllSlots = async () => {
+    let updatesCount = 0;
+    const updatePromises: Promise<void>[] = [];
+    
+    nvrs.forEach((nvr) => {
+      if (nvr.slots && Array.isArray(nvr.slots)) {
+        nvr.slots.forEach((slot, slotIndex) => {
+          // Mantém o tamanho do HD, mas muda o status para 'active' se houver HD
+          if (slot.hdSize > 0 && slot.status !== "active") {
+            updatePromises.push(
+              updateSlot(nvr.id, slotIndex, { ...slot, status: "active" })
+            );
+            updatesCount++;
+          }
+        });
+      }
+    });
+
+    try {
+      await Promise.all(updatePromises);
+      setShowUpdateAllDialog(false);
+      if (updatesCount > 0) {
+        toast.success(`${updatesCount} slots foram atualizados. Todos os slots com HD estão agora ativos.`);
+      } else {
+        toast.info("Não foram encontrados slots para atualizar.");
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar todos os slots:', error);
+      toast.error('Erro ao atualizar alguns slots');
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setMarinaFilter("");
+    setOwnerFilter("");
+    setModelFilter("");
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-3 h-3 opacity-50" />;
+    }
+    return sortDirection === "asc" ? (
+      <ArrowUp className="w-3 h-3" />
+    ) : (
+      <ArrowDown className="w-3 h-3" />
+    );
+  };
+
+  const slotSizes = [
+    { size: 0, label: "VAZIO" },
+    { size: 3, label: "3TB" },
+    { size: 4, label: "4TB" },
+    { size: 6, label: "6TB" },
+    { size: 12, label: "12TB" },
+    { size: 14, label: "14TB" },
+    { size: 18, label: "18TB" },
+    { size: -1, label: "INATIVO" },
+  ];
+
+  // Fechar menu de slot ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (slotEditorOpen && !target.closest('.slot-editor-menu') && !target.closest('button[class*="w-11 h-11"]')) {
+        setSlotEditorOpen(null);
+      }
+    };
+
+    if (slotEditorOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [slotEditorOpen]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-6">
-      <div className="max-w-[1600px] mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Link to={createPageUrl("Home")}>
-              <Button variant="outline" size="icon" className="bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-700/50 backdrop-blur-sm">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Controle de NVR</h1>
-              <p className="text-slate-400">Gerencie gravadores de vídeo e HDs</p>
-            </div>
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
+      {/* Header Fixo */}
+      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
+        <div className="flex flex-row justify-between items-center gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+              <Video className="w-6 h-6 text-primary" />
+              Controle de NVR
+            </h1>
+            <p className="text-sm text-muted-foreground">Gerencie gravadores de vídeo e status dos HDs</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link to={createPageUrl("EvolucaoHDs")}>
-              <Button variant="outline" className="gap-2 bg-slate-800/50 border-slate-700/50 text-white hover:bg-slate-700/50 backdrop-blur-sm">
+          <div className="flex items-center gap-2 ml-auto">
+            <Link to="/evolucao-hds">
+              <Button variant="outline" size="sm" className="gap-2">
                 <HardDrive className="w-4 h-4" />
                 Evolução
               </Button>
             </Link>
-            <Button 
-              onClick={() => handleOpenDialog()} 
-              className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg"
-            >
+            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2">
               <Plus className="w-4 h-4" />
               Novo NVR
             </Button>
           </div>
         </div>
-
-        {/* Legend */}
-        <Card className="bg-slate-800/50 border-slate-700/50 mb-6 backdrop-blur-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-white mr-2">Legenda:</span>
-              {[
-                { size: "3TB", color: "#ef4444" },
-                { size: "4TB", color: "#f97316" },
-                { size: "6TB", color: "#eab308" },
-                { size: "12TB", color: "#facc15" },
-                { size: "14TB", color: "#84cc16" },
-                { size: "18TB", color: "#06b6d4" },
-                { size: "Vazio", color: "#6b7280" },
-                { size: "Inativo", color: "#78350f" }, // Using a specific amber hex color
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center gap-1">
-                  <div className="w-8 h-6 rounded" style={{ backgroundColor: item.color }}></div>
-                  <span className="text-xs text-slate-300 mr-3">{item.size}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Table */}
-        <div className="overflow-x-auto rounded-lg">
-          <table className="w-full min-w-[800px] bg-slate-800/50 backdrop-blur-sm">
-            <thead className="sticky top-0 z-10">
-              <tr className="border-b-2 border-slate-700">
-                <th className="bg-slate-800/90 backdrop-blur-sm text-slate-300 font-semibold py-4 px-5 text-center" style={{width: "15%"}}>Responsável</th>
-                <th className="bg-slate-800/90 backdrop-blur-sm text-slate-300 font-semibold py-4 px-5 text-center" style={{width: "20%"}}>Marina / Numeração</th>
-                <th className="bg-slate-800/90 backdrop-blur-sm text-slate-300 font-semibold py-4 px-5 text-center" style={{width: "15%"}}>Modelo</th>
-                <th className="bg-slate-800/90 backdrop-blur-sm text-slate-300 font-semibold py-4 px-5 text-center">Câmeras</th>
-                <th className="bg-slate-800/90 backdrop-blur-sm text-slate-300 font-semibold py-4 px-5 text-center" colSpan={6}>Status dos Slots</th>
-                <th className="bg-slate-800/90 backdrop-blur-sm text-slate-300 font-semibold py-4 px-5 text-center" style={{width: "10%"}}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nvrs.map((nvr, rowIndex) => (
-                <tr 
-                  key={nvr.id} 
-                  className={`border-b border-slate-700/50 transition-colors hover:bg-blue-900/20 ${
-                    rowIndex % 2 === 0 ? 'bg-slate-800/40' : 'bg-slate-900/40'
-                  }`}
-                >
-                  <td className="py-4 px-5 text-white font-medium text-center">{nvr.responsavel}</td>
-                  <td className="py-4 px-5 text-white text-center">{nvr.marina} / {nvr.numeracao}</td>
-                  <td className="py-4 px-5 text-white text-center">{nvr.modelo}</td>
-                  <td className="py-4 px-5 text-center">
-                    <div className="flex items-center justify-center gap-1 text-white">
-                      <Camera className="w-4 h-4" />
-                      <span className="font-medium">{nvr.cameras}</span>
-                    </div>
-                  </td>
-                  {nvr.slots.map((slot, index) => (
-                    <td key={index} className="py-4 px-2">
-                      {slot.status !== "inactive" ? (
-                        <div className="flex justify-center">
-                          <div 
-                            className="w-11 h-11 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-lg border-2 transition-all"
-                            style={{ 
-                              backgroundColor: getSlotColor(slot.size),
-                              borderColor: slot.size === 0 ? '#4b5563' : 'rgba(255, 255, 255, 0.2)', // gray-600 for empty border, lighter for others
-                              opacity: slot.size === 0 ? 0.6 : 1
-                            }}
-                          >
-                            {slot.size > 0 && `${slot.size}TB`}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex justify-center">
-                          <div className="w-11 h-11 rounded-lg bg-amber-900/50 border-2 border-amber-700/50 flex items-center justify-center text-amber-400 text-xs font-bold shadow-lg opacity-50">
-                            --
-                          </div>
-                        </div>
-                      )}
-                    </td>
-                  ))}
-                  {Array.from({ length: 6 - nvr.slots.length }).map((_, index) => (
-                    <td key={`empty-${index}`} className="py-4 px-2">
-                      <div className="w-11 h-11"></div>
-                    </td>
-                  ))}
-                  <td className="py-4 px-5 text-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenDialog(nvr)}
-                      className="bg-slate-700/50 border-slate-600 text-white hover:bg-slate-600/50 backdrop-blur-sm"
-                    >
-                      Editar
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Dialog */}
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent className="max-w-2xl bg-slate-800 border-slate-700 text-white">
-            <DialogHeader>
-              <DialogTitle className="text-xl">{editingNVR ? "Editar NVR" : "Novo NVR"}</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="responsavel" className="text-slate-300">Responsável *</Label>
-                  <Input
-                    id="responsavel"
-                    value={formData.responsavel}
-                    onChange={(e) => setFormData({...formData, responsavel: e.target.value})}
-                    placeholder="Ex: BR Marinas"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="marina" className="text-slate-300">Marina *</Label>
-                  <Input
-                    id="marina"
-                    value={formData.marina}
-                    onChange={(e) => setFormData({...formData, marina: e.target.value})}
-                    placeholder="Ex: Glória"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="numeracao" className="text-slate-300">Numeração *</Label>
-                  <Input
-                    id="numeracao"
-                    value={formData.numeracao}
-                    onChange={(e) => setFormData({...formData, numeracao: e.target.value})}
-                    placeholder="Ex: 01"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="cameras" className="text-slate-300">Nº de Câmeras</Label>
-                  <Input
-                    id="cameras"
-                    type="number"
-                    value={formData.cameras}
-                    onChange={(e) => setFormData({...formData, cameras: parseInt(e.target.value) || 0})}
-                    placeholder="Ex: 32"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="modelo" className="text-slate-300">Modelo *</Label>
-                <Input
-                  id="modelo"
-                  value={formData.modelo}
-                  onChange={(e) => setFormData({...formData, modelo: e.target.value})}
-                  placeholder="Ex: INVO 9332 (4 slots)"
-                  className="bg-slate-700 border-slate-600 text-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="observacoes" className="text-slate-300">Observações</Label>
-                <textarea
-                  id="observacoes"
-                  value={formData.observacoes}
-                  onChange={(e) => setFormData({...formData, observacoes: e.target.value})}
-                  placeholder="Ex: 32 câmeras IP\n2 câmeras c/ áudio"
-                  rows={3}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-md text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDialog(false)} className="bg-slate-700 border-slate-600 text-white hover:bg-slate-600">
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleSave} 
-                disabled={!formData.responsavel || !formData.marina || !formData.numeracao || !formData.modelo}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              >
-                Salvar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
+
+      {/* Filtros Fixos - Compactos */}
+      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4 py-2 bg-background/95 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Buscar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 pr-8 h-8 text-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+              Marina:
+            </label>
+            <Select value={marinaFilter || undefined} onValueChange={(value) => setMarinaFilter(value || "")}>
+              <SelectTrigger className="h-8 min-w-[120px] text-xs">
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                {MARINA_OPTIONS.sort().map((marina) => (
+                  <SelectItem key={marina} value={marina}>
+                    {marina}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+              Proprietário:
+            </label>
+            <Select value={ownerFilter || undefined} onValueChange={(value) => setOwnerFilter(value || "")}>
+              <SelectTrigger className="h-8 min-w-[120px] text-xs">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                {OWNER_OPTIONS.sort().map((owner) => (
+                  <SelectItem key={owner} value={owner}>
+                    {owner}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+              Modelo:
+            </label>
+            <Select value={modelFilter || undefined} onValueChange={(value) => setModelFilter(value || "")}>
+              <SelectTrigger className="h-8 min-w-[120px] text-xs">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.keys(NVR_MODELS).sort().map((model) => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(searchTerm || marinaFilter || ownerFilter || modelFilter) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearFilters}
+              className="whitespace-nowrap h-8 text-xs"
+            >
+              <X className="w-3 h-3 mr-1" />
+              Limpar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Legenda Fixa */}
+      <div className="flex-shrink-0 border-b bg-background px-4 py-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-semibold text-muted-foreground">
+            Legenda:
+          </span>
+          {[
+            { size: 3, label: "3TB" },
+            { size: 4, label: "4TB" },
+            { size: 6, label: "6TB" },
+            { size: 12, label: "12TB" },
+            { size: 14, label: "14TB" },
+            { size: 18, label: "18TB" },
+            { size: 0, label: "Vazio" },
+          ].map((item) => (
+            <div key={item.label} className="flex items-center gap-1.5">
+              <div
+                className={`w-4 h-4 rounded ${getHDSizeClass(item.size)}`}
+              />
+              <span className="text-xs">{item.label}</span>
+            </div>
+          ))}
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-yellow-400 opacity-50" />
+            <span className="text-xs">Inativo</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabela com Scroll */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        <table className="w-full caption-bottom text-sm">
+            <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800">
+                <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
+                  <TableHead 
+                    className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    onClick={() => handleSort("owner")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Responsável
+                      <SortIcon field="owner" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    onClick={() => handleSort("marina")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Marina / Numeração
+                      <SortIcon field="marina" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    onClick={() => handleSort("model")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Modelo
+                      <SortIcon field="model" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    onClick={() => handleSort("cameras")}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Câmeras
+                      <SortIcon field="cameras" />
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center bg-slate-100 dark:bg-slate-800">Status dos Slots</TableHead>
+                  <TableHead className="text-right bg-slate-100 dark:bg-slate-800">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        <p className="text-muted-foreground">Carregando NVRs do banco de dados...</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : filteredAndSortedNVRs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <p className="text-muted-foreground">
+                        Nenhum NVR encontrado
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredAndSortedNVRs.map((nvr, index) => (
+                    <TableRow 
+                      key={nvr.id}
+                      className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
+                    >
+                      <TableCell className="text-center font-medium">
+                        {nvr.owner}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center gap-2 justify-center">
+                          <span className="marina-cell">{nvr.marina}</span>
+                          <span className="text-muted-foreground">/</span>
+                          <span className="name-cell font-medium">{nvr.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {nvr.model} ({NVR_MODELS[nvr.model]?.slots || 0} slots)
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {nvr.cameras || 0} câmeras
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex gap-3 justify-center">
+                            {nvr.slots.slice(0, 4).map((slot, index) => {
+                              const isEditorOpen =
+                                slotEditorOpen?.nvrId === nvr.id &&
+                                slotEditorOpen?.slotIndex === index;
+
+                              return (
+                                <div key={index} className="flex flex-col items-center gap-1">
+                                  <div className="text-xs text-muted-foreground">#{index + 1}</div>
+                                  <div className="relative">
+                                    <button
+                                      className={`w-11 h-11 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
+                                        slot.status === "inactive"
+                                          ? "opacity-50"
+                                          : ""
+                                      } ${getSlotStatusClass(
+                                        slot.status,
+                                        slot.hdSize
+                                      )} ${
+                                        slot.hdSize === 0
+                                          ? "border-gray-600"
+                                          : "border-white/20"
+                                      }`}
+                                      title={`Slot ${index + 1}${
+                                        slot.hdSize > 0
+                                          ? ` - ${slot.hdSize}TB`
+                                          : ""
+                                      }\n\nClique rápido para editar este slot.\nClique longo para marcar TODOS os slots como ativos.`}
+                                      onMouseDown={(e) => {
+                                        e.stopPropagation();
+                                        isLongPressRef.current = false;
+                                        const timer = setTimeout(() => {
+                                          isLongPressRef.current = true;
+                                          setShowUpdateAllDialog(true);
+                                          setSlotEditorOpen(null);
+                                        }, 1000);
+                                        longPressTimerRef.current = timer;
+                                      }}
+                                      onMouseUp={(e) => {
+                                        e.stopPropagation();
+                                        if (longPressTimerRef.current) {
+                                          clearTimeout(longPressTimerRef.current);
+                                          longPressTimerRef.current = null;
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (longPressTimerRef.current) {
+                                          clearTimeout(longPressTimerRef.current);
+                                          longPressTimerRef.current = null;
+                                        }
+                                      }}
+                                      ref={(el) => {
+                                        if (el) {
+                                          const key = `${nvr.id}-${index}`;
+                                          slotButtonRefs.current.set(key, el);
+                                        }
+                                      }}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Só abre o editor se não foi um clique longo
+                                        if (!isLongPressRef.current) {
+                                          handleSlotClick(e, nvr.id, index);
+                                        }
+                                        // Reset da flag após um pequeno delay
+                                        setTimeout(() => {
+                                          isLongPressRef.current = false;
+                                        }, 100);
+                                      }}
+                                    >
+                                      {slot.hdSize > 0 ? `${slot.hdSize}TB` : "-"}
+                                    </button>
+                                    {isEditorOpen && (
+                                      <SlotMenu
+                                        nvrId={nvr.id}
+                                        slotIndex={index}
+                                        slotButtonRefs={slotButtonRefs}
+                                        slotSizes={slotSizes}
+                                        onSelectSize={(size) => handleSlotUpdate(nvr.id, index, size)}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {nvr.slots.length > 4 && (
+                            <div className="flex gap-3 justify-center">
+                              {nvr.slots.slice(4).map((slot, index) => {
+                                const actualIndex = index + 4;
+                                const isEditorOpen =
+                                  slotEditorOpen?.nvrId === nvr.id &&
+                                  slotEditorOpen?.slotIndex === actualIndex;
+
+                                return (
+                                  <div key={actualIndex} className="flex flex-col items-center gap-1">
+                                    <div className="text-xs text-muted-foreground">#{actualIndex + 1}</div>
+                                    <div className="relative">
+                                      <button
+                                        className={`w-11 h-11 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
+                                          slot.status === "inactive"
+                                            ? "opacity-50"
+                                            : ""
+                                        } ${getSlotStatusClass(
+                                          slot.status,
+                                          slot.hdSize
+                                        )} ${
+                                          slot.hdSize === 0
+                                            ? "border-gray-600"
+                                            : "border-white/20"
+                                        }`}
+                                        title={`Slot ${actualIndex + 1}${
+                                          slot.hdSize > 0
+                                            ? ` - ${slot.hdSize}TB`
+                                            : ""
+                                        }\n\nClique rápido para editar este slot.\nClique longo para marcar TODOS os slots como ativos.`}
+                                        onMouseDown={(e) => {
+                                          e.stopPropagation();
+                                          isLongPressRef.current = false;
+                                          const timer = setTimeout(() => {
+                                            isLongPressRef.current = true;
+                                            setShowUpdateAllDialog(true);
+                                            setSlotEditorOpen(null);
+                                          }, 1000);
+                                          longPressTimerRef.current = timer;
+                                        }}
+                                        onMouseUp={(e) => {
+                                          e.stopPropagation();
+                                          if (longPressTimerRef.current) {
+                                            clearTimeout(longPressTimerRef.current);
+                                            longPressTimerRef.current = null;
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (longPressTimerRef.current) {
+                                            clearTimeout(longPressTimerRef.current);
+                                            longPressTimerRef.current = null;
+                                          }
+                                        }}
+                                        ref={(el) => {
+                                          if (el) {
+                                            const key = `${nvr.id}-${actualIndex}`;
+                                            slotButtonRefs.current.set(key, el);
+                                          }
+                                        }}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          // Só abre o editor se não foi um clique longo
+                                          if (!isLongPressRef.current) {
+                                            handleSlotClick(e, nvr.id, actualIndex);
+                                          }
+                                          // Reset da flag após um pequeno delay
+                                          setTimeout(() => {
+                                            isLongPressRef.current = false;
+                                          }, 100);
+                                        }}
+                                      >
+                                        {slot.hdSize > 0 ? `${slot.hdSize}TB` : "-"}
+                                      </button>
+                                      {isEditorOpen && (
+                                        <SlotMenu
+                                          nvrId={nvr.id}
+                                          slotIndex={actualIndex}
+                                          slotButtonRefs={slotButtonRefs}
+                                          slotSizes={slotSizes}
+                                          onSelectSize={(size) => handleSlotUpdate(nvr.id, actualIndex, size)}
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleOpenDialog(nvr)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(nvr.id)}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </table>
+          </div>
+
+      {/* Dialog de Edição/Criação */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingNVR ? "Editar NVR" : "Novo NVR"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="marina">
+                  Marina <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.marina}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, marina: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a marina" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MARINA_OPTIONS.sort().map((marina) => (
+                      <SelectItem key={marina} value={marina}>
+                        {marina}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">
+                  Numeração <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="Ex: 01, 02, etc."
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="model">
+                  Modelo <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.model}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, model: value });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o modelo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(NVR_MODELS).sort().map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model} ({NVR_MODELS[model].slots} slots, máx:{" "}
+                        {NVR_MODELS[model].maxCameras} câmeras)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.model && (
+                  <p className="text-xs text-muted-foreground">
+                    Máx: {NVR_MODELS[formData.model]?.maxCameras || 0} câmeras
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="owner">
+                  Proprietário <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.owner}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, owner: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o proprietário" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OWNER_OPTIONS.sort().map((owner) => (
+                      <SelectItem key={owner} value={owner}>
+                        {owner}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cameras">Câmeras</Label>
+              <Input
+                id="cameras"
+                type="number"
+                min="0"
+                value={formData.cameras}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    cameras: parseInt(e.target.value) || 0,
+                  })
+                }
+                placeholder="Número de câmeras"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Observações</Label>
+              <textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+                placeholder="Observações adicionais..."
+                rows={3}
+                className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            {editingNVR && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setShowDialog(false);
+                  handleDelete(editingNVR.id);
+                }}
+                className="mr-auto"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Remover
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setShowDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave}>
+              {editingNVR ? "Salvar Alterações" : "Adicionar NVR"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Confirmação de Exclusão */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este NVR? Esta ação não pode ser
+              desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Atualizar Todos os Slots */}
+      <AlertDialog open={showUpdateAllDialog} onOpenChange={setShowUpdateAllDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Atualizar Todos os Slots</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem a certeza que deseja marcar TODOS os slots de TODOS os NVRs
+              como 'Ativo'? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowUpdateAllDialog(false)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleUpdateAllSlots}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

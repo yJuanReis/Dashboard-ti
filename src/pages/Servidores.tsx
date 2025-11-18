@@ -16,7 +16,7 @@ import { createPageUrl } from "@/utils";
 const mockServidores = [
   { 
     id: 1, 
-    nome: "SRV-APP-01", 
+    nome: "VM-APP-01", 
     tipo: "Aplicação", 
     cpu: 45, 
     memoria: 68, 

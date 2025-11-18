@@ -19,7 +19,7 @@ const tools = [
     description: "Crie assinaturas profissionais personalizadas",
     icon: Mail,
     path: "/assinaturas",
-    gradient: "from-blue-500 to-cyan-500"
+    gradient: "from-primary to-accent"
   },
   {
     title: "Gerador de Crachás",
@@ -57,13 +57,6 @@ const tools = [
     gradient: "from-slate-600 to-slate-800"
   },
   {
-    title: "Base de Conhecimento",
-    description: "Acesse credenciais e documentação técnica",
-    icon: Shield,
-    path: "/base-conhecimento",
-    gradient: "from-indigo-500 to-purple-500"
-  },
-  {
     title: "Fluxo Stepper",
     description: "Navegue por processos com passos interativos",
     icon: Workflow,
@@ -81,7 +74,7 @@ const tools = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-background">
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome Section */}

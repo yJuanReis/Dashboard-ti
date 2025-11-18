@@ -1,11 +1,15 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import Cropper from "cropperjs";
+import html2canvas from "html2canvas";
+import "cropperjs/dist/cropper.css"; // Importar o CSS do Cropper
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Download, Trash2, ArrowLeft, AlertCircle, Edit } from "lucide-react";
+import { Upload, Download, Trash2, ArrowLeft, AlertCircle, Edit, ZoomIn, ZoomOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,25 +18,108 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function Crachas() {
   const [layout, setLayout] = useState("padrao");
   const [nome, setNome] = useState("");
   const [matricula, setMatricula] = useState("");
-  const [foto, setFoto] = useState(null);
-  const [fotoPreview, setFotoPreview] = useState(null);
+  const [originalImage, setOriginalImage] = useState<string | null>(null);
+  const [croppedImage, setCroppedImage] = useState<string | null>(null);
   const [showCropDialog, setShowCropDialog] = useState(false);
-  const [tempImage, setTempImage] = useState(null);
-  const fileInputRef = useRef(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
-  const handleFotoChange = (e) => {
-    const file = e.target.files[0];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const crachaPreviewRef = useRef<HTMLDivElement>(null);
+  const cropperRef = useRef<Cropper | null>(null);
+
+  // URLs dos layouts
+  const layouts = {
+    padrao: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/92ba092c5_layout_geral.png",
+    jl: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/ecd5f8f67_layout_jl.png",
+    brigadista: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/e879b5db2_layout_brigadista.png",
+  };
+  const getLayoutImage = () => layouts[layout] || layouts.padrao;
+
+  // Efeito para inicializar e destruir o Cropper.js
+  useEffect(() => {
+    // Só inicializa se o diálogo estiver aberto, houver imagem E a imagem estiver carregada
+    if (!showCropDialog || !originalImage || !imageLoaded) {
+      // Limpa o cropper quando o modal fecha
+      if (!showCropDialog && cropperRef.current) {
+        cropperRef.current.destroy();
+        cropperRef.current = null;
+      }
+      return;
+    }
+
+    // Aguarda um pouco para garantir que o DOM está pronto
+    const timeoutId = setTimeout(() => {
+      if (!imageRef.current) {
+        console.log("Elemento de imagem não encontrado");
+        return;
+      }
+
+      // Destrói instância anterior se existir
+      if (cropperRef.current) {
+        cropperRef.current.destroy();
+        cropperRef.current = null;
+      }
+
+      try {
+        const isBrigadista = layout === "brigadista";
+        console.log("Inicializando cropper...", { isBrigadista, layout });
+        
+        const cropper = new Cropper(imageRef.current, {
+          aspectRatio: isBrigadista ? 1 / 1 : 3 / 4,
+          viewMode: 1,
+          dragMode: 'move',
+          autoCropArea: 1,
+          responsive: true,
+          restore: false,
+          guides: true,
+          center: true,
+          highlight: true,
+          cropBoxMovable: false,
+          cropBoxResizable: false,
+          toggleDragModeOnDblclick: false,
+          minCropBoxWidth: 100,
+          minCropBoxHeight: 100,
+          ready() {
+            console.log("✅ Cropper pronto e funcionando!");
+          },
+        });
+        
+        cropperRef.current = cropper;
+        console.log("Cropper inicializado com sucesso");
+      } catch (error) {
+        console.error("❌ Erro ao inicializar o cropper:", error);
+      }
+    }, 200);
+
+    // Função de limpeza do useEffect
+    return () => {
+      clearTimeout(timeoutId);
+      if (cropperRef.current) {
+        cropperRef.current.destroy();
+        cropperRef.current = null;
+      }
+    };
+  }, [showCropDialog, originalImage, imageLoaded, layout]);
+
+  const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setTempImage(reader.result);
+        setImageLoaded(false); // Reset do estado de carregamento
+        setOriginalImage(reader.result as string);
         setShowCropDialog(true);
       };
       reader.readAsDataURL(file);
@@ -40,34 +127,108 @@ export default function Crachas() {
   };
 
   const handleCropConfirm = () => {
-    setFotoPreview(tempImage);
-    setFoto(tempImage);
-    setShowCropDialog(false);
+    if (!cropperRef.current) {
+      toast({
+        title: "Erro",
+        description: "O editor de imagem não está pronto. Tente novamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const canvas = cropperRef.current.getCroppedCanvas({
+        width: 300,
+        height: layout === "brigadista" ? 300 : 400,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: "high",
+      });
+
+      if (canvas) {
+        setCroppedImage(canvas.toDataURL("image/png"));
+        setShowCropDialog(false);
+        setImageLoaded(false); // Reset do estado
+        toast({
+          title: "Sucesso!",
+          description: "Foto ajustada com sucesso.",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao processar a imagem:", error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao processar a imagem. Tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleLimpar = () => {
     setNome("");
     setMatricula("");
-    setFoto(null);
-    setFotoPreview(null);
+    setOriginalImage(null);
+    setCroppedImage(null);
+    setImageLoaded(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
   const handleBaixar = () => {
-    // Placeholder for download functionality
-    alert("Funcionalidade de download estará disponível em breve!\n\nPor enquanto, você pode fazer screenshot do crachá.");
+    if (!nome.trim() || !matricula.trim() || !croppedImage) {
+      toast({
+        title: "Campos em falta",
+        description: "Preencha nome, matrícula e adicione uma foto para baixar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (crachaPreviewRef.current) {
+      html2canvas(crachaPreviewRef.current, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: null,
+      })
+        .then((canvas) => {
+          const link = document.createElement("a");
+          link.download = `cracha_${nome.replace(/\s+/g, "_").toLowerCase()}.png`;
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+          toast({
+            title: "Sucesso!",
+            description: "O seu crachá foi gerado e o download iniciado.",
+          });
+        })
+        .catch((err) => {
+          console.error("Erro no html2canvas:", err);
+          toast({
+            title: "Erro na Geração",
+            description: "Ocorreu um problema ao gerar a imagem do crachá.",
+            variant: "destructive",
+          });
+        });
+    }
   };
 
-  const getLayoutImage = () => {
-    const layouts = {
-      padrao: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/92ba092c5_layout_geral.png",
-      jl: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/ecd5f8f67_layout_jl.png",
-      brigadista: "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6904b41406c91fbe9801f18e/e879b5db2_layout_brigadista.png",
-    };
-    return layouts[layout];
+  const handleOpenAjustar = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!originalImage) {
+      toast({
+        title: "Aviso",
+        description: "Nenhuma foto foi carregada ainda.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setImageLoaded(false); // Reset para recarregar a imagem
+    setShowCropDialog(true);
   };
+
+  const isBrigadista = layout === "brigadista";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-50 p-6">
@@ -81,16 +242,8 @@ export default function Crachas() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Gerador de Crachás</h1>
-            <p className="text-slate-600">Crie e personalize crachás para colaboradores</p>
           </div>
         </div>
-
-        <Alert className="mb-6 border-blue-200 bg-blue-50">
-          <AlertCircle className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-800">
-            Preencha os campos e faça screenshot do crachá. Funcionalidade de download em desenvolvimento.
-          </AlertDescription>
-        </Alert>
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Form Section */}
@@ -122,30 +275,44 @@ export default function Crachas() {
                 {/* Photo Upload */}
                 <div className="space-y-3">
                   <Label htmlFor="foto" className="text-base font-semibold">Foto do Colaborador</Label>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-purple-500 hover:bg-purple-50/50 transition-all"
-                  >
-                    {fotoPreview ? (
-                      <div className="relative">
-                        <img src={fotoPreview} alt="Preview" className="w-32 h-32 mx-auto rounded-full object-cover" />
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="mt-3"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowCropDialog(true);
-                            setTempImage(fotoPreview);
-                          }}
-                        >
-                          <Edit className="w-3 h-3 mr-2" />
-                          Ajustar Foto
-                        </Button>
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center transition-all">
+                    {croppedImage ? (
+                      <div className="space-y-3">
+                        <img
+                          src={croppedImage}
+                          alt="Preview"
+                          className={cn(
+                            "w-32 h-40 mx-auto object-cover bg-slate-200",
+                            isBrigadista && "w-32 h-32 rounded-full"
+                          )}
+                        />
+                        <div className="flex gap-2 justify-center">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleOpenAjustar}
+                            disabled={!originalImage}
+                          >
+                            <Edit className="w-3 h-3 mr-2" />
+                            Ajustar Foto
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <Upload className="w-3 h-3 mr-2" />
+                            Trocar Foto
+                          </Button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                      <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="space-y-3 cursor-pointer hover:opacity-70 transition-opacity"
+                      >
                         <Upload className="w-12 h-12 mx-auto text-slate-400" />
                         <div>
                           <p className="text-sm font-medium text-slate-700">Clique para carregar foto</p>
@@ -174,9 +341,9 @@ export default function Crachas() {
                       onChange={(e) => setNome(e.target.value)}
                       placeholder="Ex: João Silva"
                       className="text-lg"
+                      autoComplete="off"
                     />
                   </div>
-
                   <div className="space-y-2">
                     <Label htmlFor="matricula">Matrícula</Label>
                     <Input
@@ -184,6 +351,7 @@ export default function Crachas() {
                       value={matricula}
                       onChange={(e) => setMatricula(e.target.value)}
                       placeholder="Ex: 12345"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
@@ -192,7 +360,7 @@ export default function Crachas() {
                 <div className="grid grid-cols-2 gap-3 pt-4">
                   <Button
                     onClick={handleBaixar}
-                    disabled={!nome || !fotoPreview}
+                    disabled={!nome || !matricula || !croppedImage}
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                   >
                     <Download className="w-4 h-4 mr-2" />
@@ -211,44 +379,84 @@ export default function Crachas() {
           <div>
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Pré-visualização</CardTitle>
-                  <Badge className="bg-purple-100 text-purple-700">Preview</Badge>
+                <div className="flex items-center justify-center">
+                <Badge className="bg-[rgb(243_232_255)] text-[rgb(126_34_206)] text-md selection:bg-[rgb(168_85_247)] selection:text-[rgb(255_255_255)]">
+                  Preview
+                </Badge>
                 </div>
               </CardHeader>
               <CardContent className="flex items-center justify-center p-8">
+                {/* Esta estrutura recria o cracha.html e cracha-generator.css
+                  usando Tailwind e classes dinâmicas para o posicionamento.
+                */}
                 <div
-                  id="cracha-preview"
-                  className="relative bg-white rounded-2xl shadow-2xl overflow-hidden"
-                  style={{ width: "280px", height: "420px" }}
+                  ref={crachaPreviewRef}
+                  className="relative w-full max-w-[380px] mx-auto grid place-items-center"
                 >
-                  {/* Layout Background */}
+                  {/* Layout Background (oculta/mostra baseado no layout) */}
                   <img
-                    src={getLayoutImage()}
-                    alt="Layout"
-                    className="absolute inset-0 w-full h-full object-cover"
+                    src={layouts.padrao}
+                    className={cn("w-full h-auto grid-row-1 grid-col-1", layout !== 'padrao' && 'hidden')}
                     crossOrigin="anonymous"
+                    alt="Layout Padrão"
+                  />
+                  <img
+                    src={layouts.jl}
+                    className={cn("w-full h-auto grid-row-1 grid-col-1", layout !== 'jl' && 'hidden')}
+                    crossOrigin="anonymous"
+                    alt="Layout JL"
+                  />
+                  <img
+                    src={layouts.brigadista}
+                    className={cn("w-full h-auto grid-row-1 grid-col-1", layout !== 'brigadista' && 'hidden')}
+                    crossOrigin="anonymous"
+                    alt="Layout Brigadista"
                   />
 
-                  {/* Photo Container */}
-                  <div className="absolute top-20 left-1/2 transform -translate-x-1/2 w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg bg-slate-200">
-                    {fotoPreview && (
-                      <img src={fotoPreview} alt="Foto" className="w-full h-full object-cover" />
+                  {/* Foto (posicionamento dinâmico) */}
+                  {croppedImage && (
+                    <img
+                      src={croppedImage}
+                      alt="Foto"
+                      className={cn(
+                        "absolute left-1/2 -translate-x-1/2 object-cover z-[2] grid-row-1 grid-col-1",
+                        // Estilos Padrão/JL:
+                        !isBrigadista && "w-[45%] h-[40%] top-[32%]",
+                        // Estilos Brigadista (redondo perfeito):
+                        isBrigadista && "w-[50%] aspect-[1/1] top-[20%] rounded-full"
+                      )}
+                      crossOrigin="anonymous"
+                    />
+                  )}
+
+                  {/* Nome (posicionamento dinâmico) */}
+                  <div
+                    className={cn(
+                      "absolute left-1/2 -translate-x-1/2 w-full text-center z-[3] grid-row-1 grid-col-1 font-bold",
+                      "text-[clamp(12px,3.5vw,20px)]", // Texto responsivo
+                      // Estilos Padrão/JL:
+                      "text-white top-[75%]",
+                      // Estilos Brigadista (sobrescreve):
+                      isBrigadista && "text-black top-[60%]"
                     )}
+                    style={{ textShadow: !isBrigadista ? '1px 1px 3px rgba(0, 0, 0, 0.8)' : 'none' }}
+                  >
+                    {nome.toUpperCase() || "NOME COMPLETO"}
                   </div>
 
-                  {/* Name */}
-                  <div className="absolute bottom-32 left-0 right-0 text-center px-4">
-                    <p className="text-xl font-bold text-white drop-shadow-lg" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-                      {nome || "Nome do Colaborador"}
-                    </p>
-                  </div>
-
-                  {/* Matricula */}
-                  <div className="absolute bottom-20 left-0 right-0 text-center">
-                    <p className="text-sm font-medium text-white drop-shadow-md" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.5)' }}>
-                      {matricula ? `Mat: ${matricula}` : "Matrícula"}
-                    </p>
+                  {/* Matrícula (posicionamento dinâmico) */}
+                  <div
+                    className={cn(
+                      "absolute left-1/2 -translate-x-1/2 w-full text-center z-[3] grid-row-1 grid-col-1 font-medium",
+                      "text-[clamp(11px,3vw,18px)]", // Texto responsivo
+                      // Estilos Padrão/JL:
+                      "text-white top-[85%]",
+                      // Estilos Brigadista (sobrescreve):
+                      isBrigadista && "text-black top-[70%]"
+                    )}
+                    style={{ textShadow: !isBrigadista ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none' }}
+                  >
+                    {matricula ? matricula : "MATRÍCULA"}
                   </div>
                 </div>
               </CardContent>
@@ -261,22 +469,75 @@ export default function Crachas() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Ajustar Foto</DialogTitle>
+              <DialogDescription>
+                Posicione e ajuste o zoom da foto para o crachá. Use os botões de zoom ou arraste a imagem para posicioná-la.
+              </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              {tempImage && (
-                <div className="flex justify-center">
-                  <img src={tempImage} alt="Crop" className="max-w-full max-h-96 rounded-lg" />
-                </div>
-              )}
-              <p className="text-sm text-slate-600 mt-4 text-center">
-                Clique em confirmar para usar esta imagem no crachá.
-              </p>
+              <div className="h-80 w-full bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden flex items-center justify-center">
+                {!imageLoaded && (
+                  <div className="absolute z-10 text-sm text-gray-500">
+                    Carregando imagem...
+                  </div>
+                )}
+                <img
+                  ref={imageRef}
+                  src={originalImage || ""}
+                  alt="Recortar"
+                  style={{ display: imageLoaded ? 'block' : 'none', maxWidth: '100%' }}
+                  onLoad={() => {
+                    console.log("📸 Imagem carregada!");
+                    setImageLoaded(true);
+                  }}
+                  onError={(e) => {
+                    console.error("❌ Erro ao carregar imagem:", e);
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => {
+                    if (cropperRef.current) {
+                      cropperRef.current.zoom(-0.1);
+                      console.log("🔍 Zoom out");
+                    } else {
+                      console.log("⚠️ Cropper não está pronto");
+                    }
+                  }}
+                  title="Diminuir zoom"
+                  disabled={!imageLoaded}
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => {
+                    if (cropperRef.current) {
+                      cropperRef.current.zoom(0.1);
+                      console.log("🔍 Zoom in");
+                    } else {
+                      console.log("⚠️ Cropper não está pronto");
+                    }
+                  }}
+                  title="Aumentar zoom"
+                  disabled={!imageLoaded}
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCropDialog(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleCropConfirm} className="bg-purple-600 hover:bg-purple-700">
+              <DialogClose asChild>
+                <Button variant="outline">Cancelar</Button>
+              </DialogClose>
+              <Button 
+                onClick={handleCropConfirm} 
+                className="bg-purple-600 hover:bg-purple-700"
+                disabled={!imageLoaded}
+              >
                 Confirmar
               </Button>
             </DialogFooter>
