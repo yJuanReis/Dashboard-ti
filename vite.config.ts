@@ -9,11 +9,12 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     headers: {
-      // Security Headers
+      // Security Headers - CONFIGURAÇÃO CORRIGIDA PARA PDF
       "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
+      "X-Frame-Options": "SAMEORIGIN", // Permite iframe do próprio site (necessário para o PDF)
       "X-XSS-Protection": "1; mode=block",
-      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.ipify.org wss://*.supabase.co wss://*.supabase.in;",
+      // CSP Permissiva para blob: (necessário para visualizar o PDF gerado)
+      "Content-Security-Policy": "default-src 'self' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.ipify.org wss://*.supabase.co wss://*.supabase.in; frame-src 'self' blob:;",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
     },
@@ -24,9 +25,9 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // 👇 AQUI ESTÁ A MÁGICA PARA CORRIGIR O BUILD
+  // 👇 SUA CONFIGURAÇÃO DE BUILD MANTIDA AQUI
   build: {
-    // Aumenta o limite do aviso para 1000kb (opcional, para limpar o log)
+    // Aumenta o limite do aviso para 1000kb
     chunkSizeWarningLimit: 1000, 
     rollupOptions: {
       output: {
