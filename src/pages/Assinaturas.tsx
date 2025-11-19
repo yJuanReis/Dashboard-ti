@@ -229,7 +229,7 @@ export default function Assinaturas() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Gerador de Assinaturas</h1>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Gerador de Assinaturas</h1>
           </div>
         </div>
 
@@ -340,7 +340,7 @@ export default function Assinaturas() {
                   <Button
                     onClick={handleBaixar} // Função de baixar (abre o modal)
                     disabled={!nome || !email}
-                    className="bg-gradient-to-r from-primary to-accent hover:from-primary-dark hover:to-accent/90"
+                    className="bg-primary hover:bg-primary/90"
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Baixar PNG
@@ -349,7 +349,7 @@ export default function Assinaturas() {
                   {/* Botão de Selecionar Assinatura removido */}
                   {/* Botão de Instruções removido */}
 
-                  <Button variant="outline" onClick={handleLimpar} className="text-red-600 hover:text-red-700">
+                  <Button variant="outline" onClick={handleLimpar} className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950">
                     <Trash2 className="w-4 h-4 mr-2" />
                     Limpar Campos
                   </Button>

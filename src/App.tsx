@@ -23,6 +23,7 @@ import Senhas from "./pages/Senhas";
 import GestaoRede from "./pages/GestaoRede";
 import TesteTermos from "./pages/Termos";
 import SecurityTest from "./pages/SecurityTest";
+import AuditLogs from "./pages/AuditLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
                           <Route path="/gestaorede" element={<PagePermissionGuard><GestaoRede /></PagePermissionGuard>} />
                           <Route path="/termos" element={<PagePermissionGuard><TesteTermos /></PagePermissionGuard>} />
                           <Route path="/security-test" element={<PagePermissionGuard><SecurityTest /></PagePermissionGuard>} />
+                          <Route path="/audit-logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />
                           <Route path="*" element={<NotFound />} />
                         </Routes>
                       </Layout>

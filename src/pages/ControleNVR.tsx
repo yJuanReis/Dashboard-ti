@@ -184,7 +184,7 @@ export default function ControleNVR() {
     slotIndex: number;
   } | null>(null);
   const [showUpdateAllDialog, setShowUpdateAllDialog] = useState(false);
-  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef<boolean>(false);
   const slotButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
@@ -262,8 +262,27 @@ export default function ControleNVR() {
 
     try {
       if (editingNVR) {
+        // Ao editar, verificar se a marina + numeração mudou e se já existe outro NVR com essa combinação
+        if (formData.marina !== editingNVR.marina || formData.name !== editingNVR.name) {
+          const exists = nvrs.some(
+            (nvr) => nvr.id !== editingNVR.id && nvr.marina === formData.marina && nvr.name === formData.name
+          );
+          if (exists) {
+            toast.error(`Já existe um NVR com a numeração "${formData.name}" na marina "${formData.marina}". Por favor, escolha outra numeração.`);
+            return;
+          }
+        }
         await updateNVR(editingNVR.id, formData);
       } else {
+        // Ao criar, verificar se já existe um NVR com a mesma marina + numeração
+        const exists = nvrs.some(
+          (nvr) => nvr.marina === formData.marina && nvr.name === formData.name
+        );
+        if (exists) {
+          toast.error(`Já existe um NVR com a numeração "${formData.name}" na marina "${formData.marina}". Por favor, escolha outra numeração.`);
+          return;
+        }
+
         const modelConfig = NVR_MODELS[formData.model];
         const slotsCount = modelConfig?.slots || 0;
         const slots: Slot[] = Array.from({ length: slotsCount }, () => ({
@@ -436,7 +455,7 @@ export default function ControleNVR() {
                 Evolução
               </Button>
             </Link>
-            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2">
+            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2 bg-primary hover:bg-primary/90">
               <Plus className="w-4 h-4" />
               Novo NVR
             </Button>
@@ -494,7 +513,17 @@ export default function ControleNVR() {
               </SelectTrigger>
               <SelectContent>
                 {OWNER_OPTIONS.sort().map((owner) => (
-                  <SelectItem key={owner} value={owner}>
+                  <SelectItem 
+                    key={owner} 
+                    value={owner}
+                    className={
+                      owner === "BR Marinas"
+                        ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/30"
+                        : owner === "Tele Litorânea"
+                        ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 focus:bg-orange-100 dark:focus:bg-orange-900/30"
+                        : ""
+                    }
+                  >
                     {owner}
                   </SelectItem>
                 ))}
@@ -633,7 +662,17 @@ export default function ControleNVR() {
                       className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
                     >
                       <TableCell className="text-center font-medium">
-                        {nvr.owner}
+                        <span
+                          className={`inline-block px-3 py-1 rounded-md transition-colors ${
+                            nvr.owner === "BR Marinas"
+                              ? "bg-blue-100 dark:bg-blue-900/30 cursor-default"
+                              : nvr.owner === "Tele Litorânea"
+                              ? "bg-orange-100 dark:bg-orange-900/30 cursor-default"
+                              : ""
+                          }`}
+                        >
+                          {nvr.owner}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center gap-2 justify-center">
@@ -861,6 +900,31 @@ export default function ControleNVR() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* 1. Responsável */}
+            <div className="space-y-2">
+              <Label htmlFor="owner">
+                Responsável <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.owner}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, owner: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  {OWNER_OPTIONS.sort().map((owner) => (
+                    <SelectItem key={owner} value={owner}>
+                      {owner}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 2. Marina + Numeração */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="marina">
@@ -891,71 +955,98 @@ export default function ControleNVR() {
                 <Input
                   id="name"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  placeholder="Ex: 01, 02, etc."
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="model">
-                  Modelo <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.model}
-                  onValueChange={(value) => {
-                    setFormData({ ...formData, model: value });
+                  onChange={(e) => {
+                    let value = e.target.value;
+                    // Remove caracteres não numéricos
+                    value = value.replace(/\D/g, '');
+                    // Não permite apenas "0" ou "00"
+                    if (value === '0' || value === '00') {
+                      value = '';
+                    }
+                    // Se for um número de 1 dígito (1-9), adiciona zero à esquerda
+                    else if (value.length === 1 && parseInt(value) >= 1 && parseInt(value) <= 9) {
+                      value = `0${value}`;
+                    }
+                    setFormData({ ...formData, name: value });
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o modelo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(NVR_MODELS).sort().map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model} ({NVR_MODELS[model].slots} slots, máx:{" "}
-                        {NVR_MODELS[model].maxCameras} câmeras)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.model && (
+                  onBlur={(e) => {
+                    // Ao sair do campo, garante formatação se necessário
+                    let value = e.target.value.trim();
+                    // Não permite apenas "0" ou "00"
+                    if (value === '0' || value === '00') {
+                      value = '';
+                      setFormData({ ...formData, name: value });
+                    }
+                    else if (value && value.length === 1 && parseInt(value) >= 1 && parseInt(value) <= 9) {
+                      value = `0${value}`;
+                      setFormData({ ...formData, name: value });
+                    }
+                  }}
+                  placeholder="Ex: 01, 02, 03, etc."
+                />
+                {formData.marina && formData.name && (
                   <p className="text-xs text-muted-foreground">
-                    Máx: {NVR_MODELS[formData.model]?.maxCameras || 0} câmeras
+                    {nvrs.some(
+                      (nvr) => nvr.marina === formData.marina && nvr.name === formData.name && (!editingNVR || nvr.id !== editingNVR.id)
+                    ) ? (
+                      <span className="text-red-600 dark:text-red-400">
+                        ⚠️ Já existe um NVR com esta numeração nesta marina
+                      </span>
+                    ) : (
+                      <span className="text-green-600 dark:text-green-400">
+                        ✓ Numeração disponível
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="owner">
-                  Proprietário <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.owner}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, owner: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o proprietário" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {OWNER_OPTIONS.sort().map((owner) => (
-                      <SelectItem key={owner} value={owner}>
-                        {owner}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
+
+            {/* 3. Modelo */}
             <div className="space-y-2">
-              <Label htmlFor="cameras">Câmeras</Label>
+              <Label htmlFor="model">
+                Modelo <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={formData.model}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, model: value });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o modelo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(NVR_MODELS).sort().map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model} ({NVR_MODELS[model].slots} slots, máx:{" "}
+                      {NVR_MODELS[model].maxCameras} câmeras)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {formData.model && (
+                <p className="text-xs text-muted-foreground">
+                  Este modelo possui {NVR_MODELS[formData.model]?.slots || 0} slots e suporta até {NVR_MODELS[formData.model]?.maxCameras || 0} câmeras
+                </p>
+              )}
+            </div>
+
+            {/* 4. Quantidade de Câmeras */}
+            <div className="space-y-2">
+              <Label htmlFor="cameras">
+                Quantidade de Câmeras
+                {formData.model && (
+                  <span className="text-muted-foreground text-xs ml-2">
+                    (máx: {NVR_MODELS[formData.model]?.maxCameras || 0})
+                  </span>
+                )}
+              </Label>
               <Input
                 id="cameras"
                 type="number"
                 min="0"
+                max={formData.model ? NVR_MODELS[formData.model]?.maxCameras : undefined}
                 value={formData.cameras}
                 onChange={(e) =>
                   setFormData({
@@ -963,9 +1054,16 @@ export default function ControleNVR() {
                     cameras: parseInt(e.target.value) || 0,
                   })
                 }
-                placeholder="Número de câmeras"
+                placeholder="Número de câmeras conectadas"
               />
+              {formData.model && formData.cameras > (NVR_MODELS[formData.model]?.maxCameras || 0) && (
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  ⚠️ O número de câmeras excede o máximo suportado por este modelo
+                </p>
+              )}
             </div>
+
+            {/* 5. Observações */}
             <div className="space-y-2">
               <Label htmlFor="notes">Observações</Label>
               <textarea
@@ -974,7 +1072,7 @@ export default function ControleNVR() {
                 onChange={(e) =>
                   setFormData({ ...formData, notes: e.target.value })
                 }
-                placeholder="Observações adicionais..."
+                placeholder="Observações adicionais sobre este NVR..."
                 rows={3}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
@@ -997,7 +1095,7 @@ export default function ControleNVR() {
             <Button variant="outline" onClick={() => setShowDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave}>
+            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
               {editingNVR ? "Salvar Alterações" : "Adicionar NVR"}
             </Button>
           </DialogFooter>

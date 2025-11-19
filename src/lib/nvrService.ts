@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { NVR, Slot } from '@/contexts/NVRContext';
+import { logCreate, logUpdate, logDelete } from './auditService';
 
 // Interface para o formato no banco de dados
 export interface NVRDB {
@@ -135,7 +136,17 @@ export async function createNVR(nvr: Omit<NVR, 'id'>): Promise<NVR> {
       throw error;
     }
 
-    return dbToNVR(data);
+    const createdNVR = dbToNVR(data);
+    
+    // Registra log de auditoria
+    logCreate(
+      'nvrs',
+      createdNVR.id,
+      nvrData as Record<string, any>,
+      `Criou NVR "${nvr.name}" (${nvr.marina})`
+    ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+
+    return createdNVR;
   } catch (error) {
     handleSupabaseError(error, 'criar NVR');
     throw error;
@@ -147,6 +158,13 @@ export async function createNVR(nvr: Omit<NVR, 'id'>): Promise<NVR> {
  */
 export async function updateNVR(id: string, updates: Partial<NVR>): Promise<NVR> {
   try {
+    // Busca os dados antigos antes de atualizar (para o log de auditoria)
+    const { data: oldData } = await supabase
+      .from('nvrs')
+      .select('*')
+      .eq('id', id)
+      .single();
+
     const updateData = nvrToDB(updates);
     
     // Remove campos undefined do updateData
@@ -166,7 +184,23 @@ export async function updateNVR(id: string, updates: Partial<NVR>): Promise<NVR>
       throw error;
     }
 
-    return dbToNVR(data);
+    const updatedNVR = dbToNVR(data);
+    
+    // Registra log de auditoria
+    if (oldData) {
+      const oldNVR = dbToNVR(oldData);
+      const nvrName = updatedNVR.name || oldNVR.name || 'Desconhecido';
+      
+      logUpdate(
+        'nvrs',
+        id,
+        oldData as Record<string, any>,
+        data as Record<string, any>,
+        `Atualizou NVR "${nvrName}"`
+      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+    }
+
+    return updatedNVR;
   } catch (error) {
     handleSupabaseError(error, 'atualizar NVR');
     throw error;
@@ -178,6 +212,13 @@ export async function updateNVR(id: string, updates: Partial<NVR>): Promise<NVR>
  */
 export async function deleteNVR(id: string): Promise<void> {
   try {
+    // Busca os dados antes de deletar (para o log de auditoria)
+    const { data: oldData } = await supabase
+      .from('nvrs')
+      .select('*')
+      .eq('id', id)
+      .single();
+
     const { error } = await supabase
       .from('nvrs')
       .delete()
@@ -186,6 +227,19 @@ export async function deleteNVR(id: string): Promise<void> {
     if (error) {
       handleSupabaseError(error, 'deletar NVR');
       throw error;
+    }
+
+    // Registra log de auditoria
+    if (oldData) {
+      const oldNVR = dbToNVR(oldData);
+      const nvrName = oldNVR.name || 'Desconhecido';
+      
+      logDelete(
+        'nvrs',
+        id,
+        oldData as Record<string, any>,
+        `Excluiu NVR "${nvrName}"`
+      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
     }
   } catch (error) {
     handleSupabaseError(error, 'deletar NVR');
@@ -234,7 +288,20 @@ export async function updateNVRSlot(
       throw error;
     }
 
-    return dbToNVR(data);
+    const updatedNVR = dbToNVR(data);
+    
+    // Registra log de auditoria para atualização de slot
+    if (currentNVR) {
+      logUpdate(
+        'nvrs',
+        nvrId,
+        currentNVR as Record<string, any>,
+        data as Record<string, any>,
+        `Atualizou slot ${slotIndex + 1} do NVR "${updatedNVR.name}"`
+      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+    }
+
+    return updatedNVR;
   } catch (error) {
     handleSupabaseError(error, 'atualizar slot do NVR');
     throw error;

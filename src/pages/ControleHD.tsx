@@ -644,6 +644,12 @@ export default function EvolucaoHDs() {
                       ownerFilter === owner
                         ? "text-blue-600 dark:text-blue-400"
                         : "text-slate-700 dark:text-slate-300"
+                    } ${
+                      owner === "BR Marinas"
+                        ? "hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                        : owner === "Tele Litorânea"
+                        ? "hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                        : ""
                     }`}
                   >
                     {owner}
@@ -781,7 +787,17 @@ export default function EvolucaoHDs() {
                       className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
                     >
                       <TableCell className="text-center font-medium">
-                        {nvr.owner}
+                        <span
+                          className={`inline-block px-3 py-1 rounded-md transition-colors ${
+                            nvr.owner === "BR Marinas"
+                              ? "bg-blue-100 dark:bg-blue-900/30 cursor-default"
+                              : nvr.owner === "Tele Litorânea" || nvr.owner === "Tele"
+                              ? "bg-orange-100 dark:bg-orange-900/30 cursor-default"
+                              : ""
+                          }`}
+                        >
+                          {nvr.owner}
+                        </span>
                       </TableCell>
                       <TableCell className="text-center font-semibold">
                         {nvr.marina} / {nvr.name}

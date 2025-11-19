@@ -241,7 +241,7 @@ export default function Crachas() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Gerador de Crachás</h1>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Gerador de Crachás</h1>
           </div>
         </div>
 
@@ -361,12 +361,12 @@ export default function Crachas() {
                   <Button
                     onClick={handleBaixar}
                     disabled={!nome || !matricula || !croppedImage}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                    className="bg-primary hover:bg-primary/90"
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Baixar
                   </Button>
-                  <Button variant="outline" onClick={handleLimpar}>
+                  <Button variant="outline" onClick={handleLimpar} className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950">
                     <Trash2 className="w-4 h-4 mr-2" />
                     Limpar
                   </Button>

@@ -36,7 +36,6 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import zxcvbn from "zxcvbn";
-
 import {
   Dialog,
   DialogContent,
@@ -579,35 +578,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* System Status Group */}
-        {!isCollapsed && (
-          <SidebarGroup className="p-2 mt-2">
-            <SidebarGroupLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5">
-              Status do Sistema
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <div className="px-2 py-1.5 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Servidores</span>
-                  <Badge variant="outline" className="bg-success text-success-foreground border-success text-[10px] px-1.5 py-0 h-4 shadow">
-                    Online
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">NVRs Ativos</span>
-                  <span className="font-semibold text-sidebar-foreground text-xs">12</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Chamados</span>
-                  <Badge variant="outline" className="bg-warning text-warning-foreground border-warning text-[10px] px-1.5 py-0 h-4 shadow">
-                    3
-                  </Badge>
-                </div>
-              </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
       </SidebarContent>
 
       {/* Footer */}

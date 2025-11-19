@@ -1,0 +1,356 @@
+/**
+ * Serviço de Auditoria - Sistema de Logs
+ * 
+ * Este serviço registra todas as mudanças feitas no sistema:
+ * - CREATE: Quando um registro é criado
+ * - UPDATE: Quando um registro é atualizado (com valores antigos e novos)
+ * - DELETE: Quando um registro é excluído (com dados do registro excluído)
+ * 
+ * Todas as informações são registradas: quem fez, quando, o que mudou
+ */
+
+import { supabase } from './supabaseClient';
+
+// Tipos de ação de auditoria
+export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE';
+
+// Interface para um log de auditoria
+export interface AuditLog {
+  id?: string;
+  action_type: AuditActionType;
+  table_name: string;
+  record_id: string;
+  user_id?: string;
+  user_email?: string;
+  user_name?: string;
+  old_data?: Record<string, any>;
+  new_data?: Record<string, any>;
+  changed_fields?: string[];
+  description?: string;
+  ip_address?: string;
+  created_at?: string;
+}
+
+// Interface para opções de busca de logs
+export interface FetchAuditLogsOptions {
+  table_name?: string;
+  action_type?: AuditActionType;
+  user_id?: string;
+  record_id?: string;
+  limit?: number;
+  offset?: number;
+  start_date?: string;
+  end_date?: string;
+  order_by?: 'created_at';
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Obtém o IP do usuário (se disponível)
+ */
+async function getUserIP(): Promise<string | undefined> {
+  try {
+    const response = await fetch('https://api.ipify.org/?format=json');
+    const data = await response.json();
+    return data.ip || undefined;
+  } catch (error) {
+    console.warn('Não foi possível obter IP do usuário:', error);
+    return undefined;
+  }
+}
+
+/**
+ * Obtém informações do usuário atual
+ */
+async function getCurrentUserInfo(): Promise<{
+  user_id?: string;
+  user_email?: string;
+  user_name?: string;
+}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {};
+    }
+
+    // Busca informações adicionais do perfil
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('nome, email')
+      .eq('user_id', user.id)
+      .single();
+
+    return {
+      user_id: user.id,
+      user_email: user.email || profile?.email,
+      user_name: profile?.nome || user.user_metadata?.nome || user.user_metadata?.name,
+    };
+  } catch (error) {
+    console.warn('Erro ao obter informações do usuário:', error);
+    // Tenta pelo menos pegar o user básico
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      return {
+        user_id: user?.id,
+        user_email: user?.email,
+      };
+    } catch {
+      return {};
+    }
+  }
+}
+
+/**
+ * Compara dois objetos e retorna os campos que foram alterados
+ */
+function getChangedFields(oldData: Record<string, any>, newData: Record<string, any>): string[] {
+  const changed: string[] = [];
+  
+  // Verifica campos que mudaram ou foram adicionados
+  for (const key in newData) {
+    if (oldData[key] !== newData[key]) {
+      changed.push(key);
+    }
+  }
+  
+  // Verifica campos que foram removidos
+  for (const key in oldData) {
+    if (!(key in newData)) {
+      changed.push(key);
+    }
+  }
+  
+  return changed;
+}
+
+/**
+ * Remove campos sensíveis dos dados antes de salvar no log
+ * (por exemplo, senhas não devem ser registradas em texto claro)
+ */
+function sanitizeData(data: Record<string, any>): Record<string, any> {
+  const sanitized = { ...data };
+  const sensitiveFields = ['password', 'senha', 'token', 'secret', 'api_key', 'apikey'];
+  
+  for (const field of sensitiveFields) {
+    if (sanitized[field]) {
+      sanitized[field] = '***REDACTED***';
+    }
+  }
+  
+  return sanitized;
+}
+
+/**
+ * Registra um log de auditoria
+ */
+export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Promise<void> {
+  try {
+    // Obtém informações do usuário atual
+    const userInfo = await getCurrentUserInfo();
+    
+    // Obtém IP do usuário
+    const ipAddress = await getUserIP();
+    
+    // Prepara o registro
+    const logRecord: Omit<AuditLog, 'id'> = {
+      action_type: entry.action_type,
+      table_name: entry.table_name,
+      record_id: entry.record_id,
+      user_id: entry.user_id || userInfo.user_id,
+      user_email: entry.user_email || userInfo.user_email,
+      user_name: entry.user_name || userInfo.user_name,
+      old_data: entry.old_data ? sanitizeData(entry.old_data) : null,
+      new_data: entry.new_data ? sanitizeData(entry.new_data) : null,
+      changed_fields: entry.changed_fields || [],
+      description: entry.description,
+      ip_address: ipAddress || entry.ip_address,
+      created_at: new Date().toISOString(),
+    };
+
+    // Insere no banco de dados
+    const { error } = await supabase
+      .from('audit_logs')
+      .insert(logRecord);
+
+    if (error) {
+      console.error('Erro ao registrar log de auditoria:', error);
+      // Não lança erro para não quebrar o fluxo da aplicação
+      // Mas registra no console para debug
+    }
+  } catch (error) {
+    console.error('Erro ao registrar log de auditoria:', error);
+    // Não lança erro para não quebrar o fluxo da aplicação
+  }
+}
+
+/**
+ * Registra uma ação de CREATE
+ */
+export async function logCreate(
+  tableName: string,
+  recordId: string,
+  newData: Record<string, any>,
+  description?: string
+): Promise<void> {
+  await logAudit({
+    action_type: 'CREATE',
+    table_name: tableName,
+    record_id: recordId,
+    new_data: newData,
+    description: description || `Criou registro em ${tableName}`,
+  });
+}
+
+/**
+ * Registra uma ação de UPDATE
+ */
+export async function logUpdate(
+  tableName: string,
+  recordId: string,
+  oldData: Record<string, any>,
+  newData: Record<string, any>,
+  description?: string
+): Promise<void> {
+  const changedFields = getChangedFields(oldData, newData);
+  
+  await logAudit({
+    action_type: 'UPDATE',
+    table_name: tableName,
+    record_id: recordId,
+    old_data: oldData,
+    new_data: newData,
+    changed_fields: changedFields,
+    description: description || `Atualizou registro em ${tableName}`,
+  });
+}
+
+/**
+ * Registra uma ação de DELETE
+ */
+export async function logDelete(
+  tableName: string,
+  recordId: string,
+  oldData: Record<string, any>,
+  description?: string
+): Promise<void> {
+  await logAudit({
+    action_type: 'DELETE',
+    table_name: tableName,
+    record_id: recordId,
+    old_data: oldData,
+    description: description || `Excluiu registro de ${tableName}`,
+  });
+}
+
+/**
+ * Busca logs de auditoria
+ * Apenas administradores podem buscar logs
+ */
+export async function fetchAuditLogs(options: FetchAuditLogsOptions = {}): Promise<AuditLog[]> {
+  try {
+    let query = supabase
+      .from('audit_logs')
+      .select('*');
+
+    // Aplica filtros
+    if (options.table_name) {
+      query = query.eq('table_name', options.table_name);
+    }
+
+    if (options.action_type) {
+      query = query.eq('action_type', options.action_type);
+    }
+
+    if (options.user_id) {
+      query = query.eq('user_id', options.user_id);
+    }
+
+    if (options.record_id) {
+      query = query.eq('record_id', options.record_id);
+    }
+
+    if (options.start_date) {
+      query = query.gte('created_at', options.start_date);
+    }
+
+    if (options.end_date) {
+      query = query.lte('created_at', options.end_date);
+    }
+
+    // Ordenação
+    const orderBy = options.order_by || 'created_at';
+    const ascending = options.order === 'asc';
+    query = query.order(orderBy, { ascending });
+
+    // Limite e offset
+    if (options.limit) {
+      query = query.limit(options.limit);
+    }
+
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + (options.limit || 100) - 1);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Erro ao buscar logs de auditoria:', error);
+      throw error;
+    }
+
+    return (data || []) as AuditLog[];
+  } catch (error) {
+    console.error('Erro ao buscar logs de auditoria:', error);
+    throw error;
+  }
+}
+
+/**
+ * Conta o total de logs (para paginação)
+ */
+export async function countAuditLogs(options: Omit<FetchAuditLogsOptions, 'limit' | 'offset' | 'order_by' | 'order'> = {}): Promise<number> {
+  try {
+    let query = supabase
+      .from('audit_logs')
+      .select('*', { count: 'exact', head: true });
+
+    // Aplica os mesmos filtros
+    if (options.table_name) {
+      query = query.eq('table_name', options.table_name);
+    }
+
+    if (options.action_type) {
+      query = query.eq('action_type', options.action_type);
+    }
+
+    if (options.user_id) {
+      query = query.eq('user_id', options.user_id);
+    }
+
+    if (options.record_id) {
+      query = query.eq('record_id', options.record_id);
+    }
+
+    if (options.start_date) {
+      query = query.gte('created_at', options.start_date);
+    }
+
+    if (options.end_date) {
+      query = query.lte('created_at', options.end_date);
+    }
+
+    const { count, error } = await query;
+
+    if (error) {
+      console.error('Erro ao contar logs de auditoria:', error);
+      throw error;
+    }
+
+    return count || 0;
+  } catch (error) {
+    console.error('Erro ao contar logs de auditoria:', error);
+    throw error;
+  }
+}
+

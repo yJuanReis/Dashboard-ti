@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient';
 import { getIcon } from './iconMap';
 import type { LucideIcon } from 'lucide-react';
 import { PASSWORDS_CONFIG, mapTableData } from './passwordsConfig';
+import { logCreate, logUpdate, logDelete } from './auditService';
 // import { logger } from './logsService'; // EM DESENVOLVIMENTO - Logs desabilitados temporariamente
 
 // Interface para os dados que vêm do Supabase (sem o componente icon)
@@ -152,6 +153,13 @@ export async function updatePassword(
   updates: Partial<Omit<PasswordEntryDB, 'id' | 'created_at' | 'updated_at'>>
 ): Promise<PasswordEntry> {
   try {
+    // Busca os dados antigos antes de atualizar (para o log de auditoria)
+    const { data: oldData } = await supabase
+      .from(PASSWORDS_CONFIG.tableName)
+      .select('*')
+      .eq(PASSWORDS_CONFIG.fieldMapping.id, id)
+      .single();
+
     // Mapeia os campos de atualização para os nomes da tabela
     const mapping = PASSWORDS_CONFIG.fieldMapping;
     const mappedUpdates: Record<string, any> = {};
@@ -187,6 +195,21 @@ export async function updatePassword(
 
     if (!data) {
       throw new Error('Nenhum dado retornado ao atualizar senha');
+    }
+
+    // Registra log de auditoria
+    if (oldData) {
+      const mappedOldData = mapTableData(oldData);
+      const mappedNewData = mapTableData(data);
+      const serviceName = mappedNewData.service || mappedOldData.service || 'Desconhecido';
+      
+      logUpdate(
+        PASSWORDS_CONFIG.tableName,
+        id,
+        mappedOldData as Record<string, any>,
+        mappedNewData as Record<string, any>,
+        `Atualizou senha do serviço "${serviceName}"`
+      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
     }
 
     const mapped = mapTableData(data);
@@ -262,6 +285,17 @@ export async function createPassword(
     // }); // EM DESENVOLVIMENTO
 
     const mapped = mapTableData(data);
+    const recordId = data.id || data[PASSWORDS_CONFIG.fieldMapping.id];
+    const serviceName = mapped.service || 'Desconhecido';
+    
+    // Registra log de auditoria
+    logCreate(
+      PASSWORDS_CONFIG.tableName,
+      recordId,
+      mapped as Record<string, any>,
+      `Criou senha do serviço "${serviceName}"`
+    ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+
     return dbToComponent(mapped as PasswordEntryDB);
   } catch (error) {
     console.error('Erro ao criar senha:', error);
@@ -272,6 +306,13 @@ export async function createPassword(
 // Deletar uma senha
 export async function deletePassword(id: string): Promise<void> {
   try {
+    // Busca os dados antes de deletar (para o log de auditoria)
+    const { data: oldData } = await supabase
+      .from(PASSWORDS_CONFIG.tableName)
+      .select('*')
+      .eq(PASSWORDS_CONFIG.fieldMapping.id, id)
+      .single();
+
     const { error } = await supabase
       .from(PASSWORDS_CONFIG.tableName)
       .delete()
@@ -280,6 +321,19 @@ export async function deletePassword(id: string): Promise<void> {
     if (error) {
       handleSupabaseError(error, 'deletar senha');
       throw error;
+    }
+
+    // Registra log de auditoria
+    if (oldData) {
+      const mappedOldData = mapTableData(oldData);
+      const serviceName = mappedOldData.service || 'Desconhecido';
+      
+      logDelete(
+        PASSWORDS_CONFIG.tableName,
+        id,
+        mappedOldData as Record<string, any>,
+        `Excluiu senha do serviço "${serviceName}"`
+      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
     }
   } catch (error) {
     console.error('Erro ao deletar senha:', error);

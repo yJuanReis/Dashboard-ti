@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Settings, User, Moon, Sun, Bell, UserPlus, Trash2, Lock, Mail, Eye, EyeOff, RefreshCw, LogOut, X, ShieldAlert, ShieldCheck, AlertCircle, Edit, Check, XCircle, Shield } from "lucide-react";
-// import { FileText, Search, Filter, ChevronDown, ChevronUp, Copy, Check } from "lucide-react"; // EM DESENVOLVIMENTO
+import { ArrowLeft, Settings, User, Moon, Sun, Bell, UserPlus, Trash2, Lock, Mail, Eye, EyeOff, RefreshCw, LogOut, X, ShieldAlert, ShieldCheck, AlertCircle, Edit, Check, XCircle, Shield, Database } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
@@ -24,6 +23,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService";
+import { logUpdate } from "@/lib/auditService";
 import zxcvbn from "zxcvbn";
 
 // Tipo para usuário
@@ -195,6 +195,7 @@ export default function Configuracoes() {
   // Estados para prevenção de brute force
   const [tentativasErradas, setTentativasErradas] = useState(0);
   const [bloqueadoAté, setBloqueadoAté] = useState<Date | null>(null);
+
 
   // Verifica a role REAL do usuário no banco de dados
   useEffect(() => {
@@ -902,7 +903,12 @@ export default function Configuracoes() {
     setLoading(true);
     try {
       // Usa o serviço admin que valida permissões e altera a senha
-      await updateUserPasswordByAdmin(usuarioParaEditar.user_id, novaSenhaAdmin);
+      await updateUserPasswordByAdmin(
+        usuarioParaEditar.user_id, 
+        novaSenhaAdmin,
+        usuarioParaEditar.email,
+        usuarioParaEditar.nome
+      );
 
       toast.success(`Senha de ${usuarioParaEditar.nome || usuarioParaEditar.email} alterada com sucesso.`);
       setModalSenhaOpen(false);
@@ -933,7 +939,11 @@ export default function Configuracoes() {
     setLoading(true);
     try {
       // Usa o serviço admin que valida permissões e remove o usuário
-      await deleteUserByAdmin(usuario.user_id);
+      await deleteUserByAdmin(
+        usuario.user_id,
+        usuario.email,
+        usuario.nome
+      );
 
       toast.success("Utilizador removido do sistema.");
       
@@ -998,6 +1008,13 @@ export default function Configuracoes() {
         permissoesFinais = permissoesPaginas;
       }
       
+      // Busca dados antigos antes de atualizar (para o log de auditoria)
+      const { data: oldUserData } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", usuarioEditando.user_id)
+        .single();
+
       // Log para debug
       console.log("Salvando permissões:", {
         usuario: usuarioEditando.email,
@@ -1094,6 +1111,24 @@ export default function Configuracoes() {
         // Para implementar: criar uma função RPC segura no backend para atualizar email
       }
 
+      // Busca dados atualizados para o log
+      const { data: newUserData } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", usuarioEditando.user_id)
+        .single();
+
+      // Registra log de auditoria
+      if (oldUserData && newUserData) {
+        logUpdate(
+          'user_profiles',
+          usuarioEditando.user_id,
+          oldUserData as Record<string, any>,
+          newUserData as Record<string, any>,
+          `Atualizou dados do usuário "${editarEmail}"`
+        ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+      }
+
       toast.success("Utilizador atualizado com sucesso!");
       
       // Log
@@ -1129,6 +1164,7 @@ export default function Configuracoes() {
     }
   }, [editarRole, permissoesPaginas.length]);
 
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
@@ -1140,8 +1176,8 @@ export default function Configuracoes() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Configurações</h1>
-            <p className="text-slate-600">Gerencie preferências e configurações do sistema</p>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Configurações</h1>
+            <p className="text-slate-600 dark:text-slate-400">Gerencie preferências e configurações do sistema</p>
           </div>
         </div>
 
@@ -1558,46 +1594,31 @@ export default function Configuracoes() {
               </Card>
             )}
 
-            {/* Password Card */}
-
-
-            {/* Logs Viewer Card - EM DESENVOLVIMENTO */}
-            {/* <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
+            {/* Audit Logs Card */}
+            {realRole === 'admin' && (
+              <Card className="hover:shadow-md transition-shadow duration-200">
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Visualizador de Logs
-                    <Badge variant="outline" className="ml-2 text-xs">Em Desenvolvimento</Badge>
+                    <Database className="w-5 h-5 text-muted-foreground" />
+                    Logs de Auditoria
                   </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMostrarLogs(!mostrarLogs)}
-                  >
-                    {mostrarLogs ? (
-                      <>
-                        <ChevronUp className="w-4 h-4 mr-2" />
-                        Ocultar
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-4 h-4 mr-2" />
-                        Mostrar
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              {mostrarLogs && (
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Funcionalidade em desenvolvimento. Em breve estará disponível.
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Visualize todas as mudanças feitas no sistema - quem fez, quando e o que mudou.
                   </p>
+                  <Button
+                    onClick={() => navigate('/audit-logs')}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  >
+                    <Database className="w-4 h-4 mr-2" />
+                    Ver Logs de Auditoria
+                  </Button>
                 </CardContent>
-              )}
-            </Card>
-            */}
+              </Card>
+            )}
+
+            {/* Password Card */}
           </div>
 
           {/* Sidebar */}
