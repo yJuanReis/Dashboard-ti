@@ -10,117 +10,117 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Paleta Oceânica Leve - Modo Claro */
-    --background: 195 30% 98%; /* Azul muito claro - fundo principal */
-    --foreground: 200 25% 15%; /* Azul escuro suave - texto principal */
+    /* Paleta Profissional Moderna - Modo Claro */
+    --background: 0 0% 98%; /* Cinza muito claro quase branco - fundo suave */
+    --foreground: 222 47% 11%; /* Azul-escuro profundo - texto com alto contraste */
 
     --card: 0 0% 100%; /* Branco puro para cards */
-    --card-foreground: 200 25% 15%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 25% 15%;
+    --popover-foreground: 222 47% 11%;
 
-    /* Azul oceano - cor primária */
-    --primary: 195 70% 55%; /* Azul turquesa oceânico */
-    --primary-dark: 195 70% 48%; /* Versão mais escura para hover */
+    /* Azul profissional - cor primária */
+    --primary: 217 91% 60%; /* Azul vibrante profissional */
+    --primary-dark: 217 91% 52%; /* Azul mais escuro para hover */
     --primary-foreground: 0 0% 100%;
 
-    /* Azul claro - secundário */
-    --secondary: 195 40% 95%; /* Azul muito claro */
-    --secondary-foreground: 200 30% 20%;
+    /* Cinza suave - secundário */
+    --secondary: 214 32% 91%; /* Cinza-azulado muito claro */
+    --secondary-foreground: 222 47% 11%;
 
-    /* Verde-água - sucesso */
-    --success: 165 60% 45%; /* Verde-água oceânico */
+    /* Verde profissional - sucesso */
+    --success: 142 76% 36%; /* Verde médio profissional */
     --success-foreground: 0 0% 100%;
 
-    /* Âmbar suave - aviso */
-    --warning: 45 85% 55%; /* Amarelo dourado suave */
-    --warning-foreground: 200 25% 15%;
+    /* Âmbar profissional - aviso */
+    --warning: 38 92% 50%; /* Âmbar/laranja vibrante */
+    --warning-foreground: 0 0% 100%;
 
-    /* Azul acinzentado claro - muted */
-    --muted: 195 25% 96%; /* Azul muito claro e suave */
-    --muted-foreground: 200 20% 45%;
+    /* Cinza claro - muted */
+    --muted: 210 40% 96%; /* Cinza azulado muito claro */
+    --muted-foreground: 215 16% 47%;
 
-    /* Turquesa - accent */
-    --accent: 185 65% 50%; /* Turquesa oceânico */
-    --accent-foreground: 0 0% 100%;
+    /* Azul claro - accent */
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
 
-    /* Coral suave - destrutivo (não muito agressivo) */
-    --destructive: 5 75% 60%; /* Coral suave */
+    /* Vermelho profissional - destrutivo */
+    --destructive: 0 84% 60%; /* Vermelho médio vibrante */
     --destructive-foreground: 0 0% 100%;
 
-    /* Bordas em azul claro */
-    --border: 195 30% 88%; /* Azul claro para bordas */
-    --input: 195 30% 92%; /* Azul muito claro para inputs */
-    --ring: 195 70% 55%; /* Anel de foco em azul oceano */
+    /* Bordas sutis */
+    --border: 214 32% 91%; /* Cinza claro para bordas */
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
 
     --radius: 0.5rem;
 
-    /* Sidebar em tons oceânicos claros */
-    --sidebar-background: 195 35% 97%; /* Azul muito claro */
-    --sidebar-foreground: 200 25% 25%;
-    --sidebar-primary: 195 70% 55%; /* Azul oceano */
+    /* Sidebar limpa */
+    --sidebar-background: 0 0% 100%; /* Branco puro */
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 195 40% 94%; /* Azul claro para hover */
-    --sidebar-accent-foreground: 200 30% 20%;
-    --sidebar-border: 195 30% 88%;
-    --sidebar-ring: 185 65% 50%; /* Turquesa */
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
   }
 
   .dark {
-    /* Paleta Oceânica Leve - Modo Escuro */
-    --background: 200 25% 12%; /* Azul escuro profundo - fundo principal */
-    --foreground: 195 20% 95%; /* Azul muito claro - texto principal */
+    /* Paleta Profissional Escura - Modo Escuro com Alto Contraste */
+    --background: 217 33% 8%; /* Cinza-azulado muito escuro (similar ao slate-900) */
+    --foreground: 210 40% 98%; /* Branco quase puro - texto com contraste máximo */
 
-    --card: 200 25% 15%; /* Azul escuro para cards */
-    --card-foreground: 195 20% 95%;
+    --card: 217 33% 10%; /* Cinza-azulado muito escuro para cards */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 200 25% 15%;
-    --popover-foreground: 195 20% 95%;
+    --popover: 217 33% 10%;
+    --popover-foreground: 210 40% 98%;
 
-    /* Azul oceano brilhante - cor primária */
-    --primary: 195 75% 60%; /* Azul turquesa mais claro no dark */
-    --primary-dark: 195 75% 52%;
-    --primary-foreground: 200 25% 12%;
+    /* Azul brilhante - cor primária */
+    --primary: 217 91% 65%; /* Azul vibrante e claro */
+    --primary-dark: 217 91% 55%;
+    --primary-foreground: 222 47% 4%;
 
-    /* Azul médio - secundário */
-    --secondary: 200 30% 20%; /* Azul escuro médio */
-    --secondary-foreground: 195 20% 90%;
+    /* Cinza-azulado médio - secundário */
+    --secondary: 217 33% 17%; /* Cinza-azulado médio escuro */
+    --secondary-foreground: 210 40% 98%;
 
-    /* Verde-água - sucesso */
-    --success: 165 65% 50%; /* Verde-água mais claro */
-    --success-foreground: 200 25% 12%;
+    /* Verde brilhante - sucesso */
+    --success: 142 76% 45%; /* Verde médio brilhante */
+    --success-foreground: 222 47% 4%;
 
-    /* Âmbar suave - aviso */
-    --warning: 45 80% 60%; /* Amarelo dourado */
-    --warning-foreground: 200 25% 12%;
+    /* Âmbar brilhante - aviso */
+    --warning: 38 92% 60%; /* Âmbar vibrante e claro */
+    --warning-foreground: 222 47% 4%;
 
-    /* Azul acinzentado - muted */
-    --muted: 200 25% 18%; /* Azul escuro suave */
-    --muted-foreground: 195 15% 65%;
+    /* Cinza médio escuro - muted */
+    --muted: 217 33% 17%; /* Cinza-azulado médio */
+    --muted-foreground: 215 20% 65%; /* Texto cinza claro */
 
-    /* Turquesa - accent */
-    --accent: 185 70% 55%; /* Turquesa brilhante */
-    --accent-foreground: 200 25% 12%;
+    /* Azul claro - accent */
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
 
-    /* Coral suave - destrutivo */
-    --destructive: 5 70% 55%; /* Coral mais claro */
-    --destructive-foreground: 195 20% 95%;
+    /* Vermelho brilhante - destrutivo */
+    --destructive: 0 84% 65%; /* Vermelho vibrante e claro */
+    --destructive-foreground: 210 40% 98%;
 
-    /* Bordas em azul escuro */
-    --border: 200 25% 22%; /* Azul escuro para bordas */
-    --input: 200 25% 18%; /* Azul escuro para inputs */
-    --ring: 195 75% 60%; /* Anel de foco em azul oceano */
+    /* Bordas visíveis */
+    --border: 217 33% 20%; /* Cinza-azulado com contraste */
+    --input: 217 33% 17%;
+    --ring: 217 91% 65%;
 
-    /* Sidebar em tons oceânicos escuros */
-    --sidebar-background: 200 25% 14%; /* Azul escuro */
-    --sidebar-foreground: 195 20% 90%;
-    --sidebar-primary: 195 75% 60%; /* Azul oceano */
-    --sidebar-primary-foreground: 200 25% 12%;
-    --sidebar-accent: 200 30% 20%; /* Azul médio para hover */
-    --sidebar-accent-foreground: 195 20% 90%;
-    --sidebar-border: 200 25% 22%;
-    --sidebar-ring: 185 70% 55%; /* Turquesa */
+    /* Sidebar escura profissional */
+    --sidebar-background: 217 33% 8%; /* Quase preto azulado */
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 65%;
+    --sidebar-primary-foreground: 222 47% 4%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 217 91% 65%;
   }
 }
 
@@ -179,7 +179,7 @@ All colors MUST be HSL.
   display: flex;
   position: relative;
   background-color: #fff;
-  box-shadow: 0 0 1px 0 rgba(24, 94, 224, 0.15), 0 6px 12px 0 rgba(24, 94, 224, 0.15);
+  box-shadow: 0 0 1px 0 rgba(70, 114, 231, 0.15), 0 6px 12px 0 rgba(70, 114, 231, 0.15);
   padding: 0.75rem;
   border-radius: 99px;
   gap: 0.25rem;
@@ -227,11 +227,11 @@ All colors MUST be HSL.
 }
 
 .tabs-container input[type="radio"]:checked + label {
-  color: #185ee0;
+  color: hsl(217 91% 60%); /* Azul primário */
 }
 
 .tabs-container input[type="radio"]:checked + label > .notification {
-  background-color: #185ee0;
+  background-color: hsl(217 91% 60%);
   color: #fff;
   margin: 0px;
 }
@@ -270,20 +270,29 @@ All colors MUST be HSL.
   }
 }
 
-/* Suporte para modo escuro */
+/* Suporte para modo escuro com alto contraste */
 .dark .tabs {
   background-color: hsl(var(--card));
-  box-shadow: 0 0 1px 0 rgba(24, 94, 224, 0.3), 0 6px 12px 0 rgba(24, 94, 224, 0.2);
+  box-shadow: 0 0 1px 0 rgba(96, 165, 250, 0.3), 0 6px 12px 0 rgba(96, 165, 250, 0.2);
 }
 
 .dark .tab {
-  color: hsl(var(--foreground));
+  color: hsl(var(--foreground)); /* Texto muito claro para alto contraste */
 }
 
 .dark .tabs-container input[type="radio"]:checked + label {
-  color: #185ee0;
+  color: hsl(217 91% 70%); /* Azul primário mais claro */
 }
 
 .dark .glider {
   background-color: hsl(var(--muted));
+}
+
+.dark .notification {
+  background-color: hsl(var(--muted));
+}
+
+.dark .tabs-container input[type="radio"]:checked + label > .notification {
+  background-color: hsl(217 91% 70%);
+  color: hsl(var(--background));
 }

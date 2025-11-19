@@ -24,8 +24,8 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </header>
 
-          {/* Main content - Sem overflow, cada página gerencia seu próprio scroll */}
-          <main className="flex-1 overflow-hidden">
+          {/* Main content - Com scroll quando necessário */}
+          <main className="flex-1 overflow-y-auto">
             {children}
           </main>
         </div>

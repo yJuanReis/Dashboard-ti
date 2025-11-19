@@ -22,7 +22,12 @@
 
   <body>
     <div id="root"></div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- XLSX library from trusted CDN (cdnjs.cloudflare.com) -->
+    <script 
+      src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer">
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

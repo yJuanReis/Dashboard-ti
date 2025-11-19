@@ -349,11 +349,25 @@ export default function TesteTermos() {
         });
       }
 
-      // MÊS - Coordenadas para CELULARES
+// MÊS - Coordenadas para CELULARES
       if (dados.mes || camposNAUsar.mes) {
-        targetPage.drawText(camposNAUsar.mes ? "N/A" : dados.mes, {
-          x: 452,                    // ← AJUSTE X DO MÊS AQUI (esquerda/direita) - CELULARES
-          y: height - 708,           // ← AJUSTE Y DO MÊS AQUI (cima/baixo) - CELULARES
+        let valorMes = dados.mes;
+        
+        // Lógica adicionada: Converte número para nome apenas se não for N/A
+        if (!camposNAUsar.mes && dados.mes) {
+            const mesesExtenso = [
+                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+            ];
+            const mesIndex = parseInt(dados.mes) - 1;
+            if (mesIndex >= 0 && mesIndex < 12) {
+                valorMes = mesesExtenso[mesIndex];
+            }
+        }
+
+        targetPage.drawText(camposNAUsar.mes ? "N/A" : valorMes, {
+          x: 435,
+          y: height - 708,
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -532,7 +546,7 @@ export default function TesteTermos() {
       if (dados.valorAparelho || camposNAUsar.valorAparelho) {
         targetPage.drawText(camposNAUsar.valorAparelho ? "N/A" : dados.valorAparelho, {
           x: 124,                    // ← X INICIAL (I)
-          y: height - 277.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 278.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -544,7 +558,7 @@ export default function TesteTermos() {
       if (dados.valorChip || camposNAUsar.valorChip) {
         targetPage.drawText(camposNAUsar.valorChip ? "N/A" : dados.valorChip, {
           x: 399.5,                    // ← X INICIAL (I)
-          y: height - 277.8,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 278.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),

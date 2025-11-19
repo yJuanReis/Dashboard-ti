@@ -97,7 +97,7 @@ export default function Chamados() {
   const resolvidosCount = mockChamados.filter(c => c.status === "resolvido").length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -109,10 +109,10 @@ export default function Chamados() {
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-3xl font-bold text-slate-900">Sistema de Chamados</h1>
-                <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">Em Avaliação</Badge>
+                <h1 className="text-3xl font-bold text-slate-900">Site em Desenvolvimento</h1>
+                <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">Em Desenvolvimento</Badge>
               </div>
-              <p className="text-slate-600">Gerencie tickets de suporte da equipa de TI</p>
+              <p className="text-slate-600">Desenvolvimento</p>
             </div>
           </div>
           <Button className="gap-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700">

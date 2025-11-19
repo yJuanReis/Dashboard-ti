@@ -59,10 +59,47 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (Backend & Authentication)
+
+## 🔧 Configuração Local
+
+### Variáveis de Ambiente
+
+Crie um arquivo `.env.local` na raiz do projeto:
+
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui
+```
+
+**Onde encontrar:**
+- Supabase Dashboard > Settings > API
+
+### Instalação
+
+```sh
+npm install
+npm run dev
+```
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/3942c7ce-0bfa-41ac-9663-8c2084cd0be9) and click on Share -> Publish.
+### Deploy no Vercel (Recomendado)
+
+Este projeto está configurado para deploy no Vercel. Veja o guia completo em [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md)
+
+**Passos rápidos:**
+1. Conecte seu repositório Git ao Vercel
+2. Configure as variáveis de ambiente:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+3. Faça o deploy!
+
+### Outras opções
+
+- **Lovable**: Abra [Lovable](https://lovable.dev/projects/3942c7ce-0bfa-41ac-9663-8c2084cd0be9) e clique em Share -> Publish
+- **Netlify**: Similar ao Vercel, configure as variáveis de ambiente
+- **Outros**: Qualquer plataforma que suporte projetos Vite/React
 
 ## Can I connect a custom domain to my Lovable project?
 

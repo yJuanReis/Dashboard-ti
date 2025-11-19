@@ -7,10 +7,11 @@ import {
   Settings, 
   HardDrive, 
   Server,
-  Shield,
   Video,
   ArrowRight,
-  Workflow
+  Key,
+  Network,
+  FileText
 } from "lucide-react";
 
 const tools = [
@@ -19,7 +20,7 @@ const tools = [
     description: "Crie assinaturas profissionais personalizadas",
     icon: Mail,
     path: "/assinaturas",
-    gradient: "from-primary to-accent"
+    gradient: "from-blue-500 to-cyan-500"
   },
   {
     title: "Gerador de Crachás",
@@ -43,10 +44,10 @@ const tools = [
     gradient: "from-green-500 to-emerald-500"
   },
   {
-    title: "Evolução de HDs",
+    title: "Controle de HDs",
     description: "Acompanhe a evolução e status dos discos",
     icon: HardDrive,
-    path: "/evolucao-hds",
+    path: "/Controle-hds",
     gradient: "from-teal-500 to-cyan-500"
   },
   {
@@ -57,11 +58,25 @@ const tools = [
     gradient: "from-slate-600 to-slate-800"
   },
   {
-    title: "Fluxo Stepper",
-    description: "Navegue por processos com passos interativos",
-    icon: Workflow,
-    path: "/fluxo-stepper",
-    gradient: "from-pink-500 to-rose-500"
+    title: "Senhas",
+    description: "Gerencie e consulte senhas do sistema",
+    icon: Key,
+    path: "/senhas",
+    gradient: "from-amber-500 to-yellow-500"
+  },
+  {
+    title: "Gestão de Rede",
+    description: "Gerencie configurações e monitoramento de rede",
+    icon: Network,
+    path: "/gestaorede",
+    gradient: "from-indigo-500 to-blue-500"
+  },
+  {
+    title: "Termo de Responsabilidade",
+    description: "Acesse e gerencie termos de responsabilidade",
+    icon: FileText,
+    path: "/termos",
+    gradient: "from-violet-500 to-purple-500"
   },
   {
     title: "Configurações",
@@ -89,34 +104,32 @@ export default function Home() {
         </div>
 
         {/* Tools Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {tools.map((tool) => {
             const Icon = tool.icon;
             return (
-              <Link key={tool.path} to={tool.path}>
-                <Card className="group cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-gray-200 bg-white/80 backdrop-blur-sm h-full">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col h-full">
-                      {/* Icon with gradient background */}
-                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                        <Icon className="w-7 h-7 text-white" />
-                      </div>
+              <Link key={tool.path} to={tool.path} className="block h-full">
+                <Card className="group cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 border-border/50 bg-card/50 backdrop-blur-sm h-full hover:border-primary/50 hover:bg-card">
+                  <CardContent className="p-6 h-full flex flex-col">
+                    {/* Icon with gradient background */}
+                    <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${tool.gradient} flex items-center justify-center mb-5 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300 shadow-md`}>
+                      <Icon className="w-8 h-8 text-white" />
+                    </div>
 
-                      {/* Content */}
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
-                          {tool.title}
-                        </h3>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                          {tool.description}
-                        </p>
-                      </div>
+                    {/* Content */}
+                    <div className="flex-1 mb-4">
+                      <h3 className="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors duration-300">
+                        {tool.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
+                        {tool.description}
+                      </p>
+                    </div>
 
-                      {/* Arrow indicator */}
-                      <div className="flex items-center text-primary mt-4 group-hover:translate-x-2 transition-transform duration-300">
-                        <span className="text-sm font-medium mr-1">Acessar</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </div>
+                    {/* Arrow indicator */}
+                    <div className="flex items-center text-primary mt-auto pt-2 group-hover:translate-x-1 transition-transform duration-300">
+                      <span className="text-sm font-medium mr-2">Acessar</span>
+                      <ArrowRight className="w-4 h-4" />
                     </div>
                   </CardContent>
                 </Card>

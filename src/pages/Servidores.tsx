@@ -74,21 +74,21 @@ const ProgressBar = ({ value, color = "blue" }) => {
 
 export default function Servidores() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon" className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+            <Button variant="outline" size="icon">
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold text-white">Monitorização de Servidores</h1>
-              <Badge className="bg-gray-700 text-gray-200 border-gray-600">Em Desenvolvimento</Badge>
+              <h1 className="text-3xl font-bold text-foreground">Pagina em desenvolvimento</h1>
+              <Badge variant="secondary">Em Desenvolvimento</Badge>
             </div>
-            <p className="text-slate-400">Acompanhe status e performance em tempo real</p>
+            <p className="text-muted-foreground">Em Desenvolvimento</p>
           </div>
         </div>
 
