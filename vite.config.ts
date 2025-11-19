@@ -24,4 +24,19 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // 👇 AQUI ESTÁ A MÁGICA PARA CORRIGIR O BUILD
+  build: {
+    // Aumenta o limite do aviso para 1000kb (opcional, para limpar o log)
+    chunkSizeWarningLimit: 1000, 
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Se o arquivo vier de node_modules, cria um chunk separado
+          if (id.includes('node_modules')) {
+            return id.toString().split('node_modules/')[1].split('/')[0].toString();
+          }
+        },
+      },
+    },
+  },
 }));
