@@ -23,10 +23,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Função para verificar e criar perfil se não existir
   const checkUserExists = useCallback(async (userId: string, userEmail?: string): Promise<boolean> => {
     try {
-      // Primeiro, tentar buscar o perfil
+      // Tentar buscar o perfil usando apenas user_id (coluna que sempre existe)
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("id")
+        .select("user_id, email")
         .eq("user_id", userId)
         .maybeSingle();
 
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Se não encontrou (erro PGRST116 = não encontrado), tentar criar
-      if (error && (error.code === 'PGRST116' || error.code === 'PGRST301')) {
+      if (error && (error.code === 'PGRST116' || error.code === 'PGRST301' || error.code === '42703')) {
         // Usuário não existe na tabela, tentar criar automaticamente
         if (userEmail) {
           try {
@@ -54,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return true;
             } else {
               // Se falhar ao criar (pode ser RLS), retornar true mesmo assim
-              // para não bloquear o login
               console.warn("Não foi possível criar perfil automaticamente:", insertError);
               return true; // Permitir login mesmo sem perfil
             }
@@ -65,15 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Para outros erros (400, RLS, etc), permitir login mesmo assim
-      // para não bloquear usuários legítimos
+      // Para qualquer erro, permitir login (não bloquear usuários legítimos)
       if (error) {
-        console.warn("Erro ao verificar usuário (permitindo login mesmo assim):", error);
+        // Não logar erro 42703 (coluna não existe) - pode ser problema de estrutura da tabela
+        if (error.code !== '42703') {
+          console.warn("Erro ao verificar usuário (permitindo login mesmo assim):", error);
+        }
         return true; // Permitir login mesmo com erro
       }
 
-      // Se não houver dados e não houver erro, usuário não existe
-      // Mas permitir login mesmo assim (pode ser criado depois)
+      // Se não houver dados, usuário não existe, mas permitir login
       return true;
     } catch (err) {
       // Em caso de erro, permitir login para não bloquear usuários legítimos
@@ -109,53 +109,106 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
+    let loadingTimeout: NodeJS.Timeout;
+
+    // Timeout de segurança para garantir que loading seja false
+    loadingTimeout = setTimeout(() => {
+      if (isMounted) {
+        setLoading(false);
+      }
+    }, 5000); // 5 segundos máximo
+
     // Verifica a sessão atual
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setSession(session);
-        setUser(session.user);
-        // Verificar e criar perfil se necessário (não bloquear se falhar)
-        await checkUserExists(session.user.id, session.user.email).catch(() => {
-          // Ignorar erros, não bloquear a sessão
-        });
-        // Atualizar cache do role do admin
-        await updateAdminRoleCache(session.user.id).catch(() => {
-          // Ignorar erros, não bloquear a sessão
-        });
-      } else {
-        setSession(null);
-        setUser(null);
-        // Limpar cache quando não há sessão
-        clearAdminCache();
+      if (!isMounted) return;
+
+      try {
+        if (session?.user) {
+          setSession(session);
+          setUser(session.user);
+          // Verificar e criar perfil se necessário (não bloquear se falhar)
+          // Usar Promise.allSettled para garantir que todas completem
+          await Promise.allSettled([
+            checkUserExists(session.user.id, session.user.email),
+            updateAdminRoleCache(session.user.id)
+          ]);
+        } else {
+          setSession(null);
+          setUser(null);
+          // Limpar cache quando não há sessão
+          clearAdminCache();
+        }
+      } catch (error) {
+        console.error("Erro ao processar sessão:", error);
+      } finally {
+        if (isMounted) {
+          clearTimeout(loadingTimeout);
+          setLoading(false);
+        }
       }
-      setLoading(false);
+    }).catch((error) => {
+      console.error("Erro ao obter sessão:", error);
+      if (isMounted) {
+        clearTimeout(loadingTimeout);
+        setLoading(false);
+      }
     });
 
     // Escuta mudanças na autenticação
+    let isProcessingAuthChange = false;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setSession(session);
-        setUser(session.user);
-        // Verificar e criar perfil se necessário (não bloquear se falhar)
-        await checkUserExists(session.user.id, session.user.email).catch(() => {
-          // Ignorar erros, não bloquear a sessão
-        });
-        // Atualizar cache do role do admin
-        await updateAdminRoleCache(session.user.id).catch(() => {
-          // Ignorar erros, não bloquear a sessão
-        });
-      } else {
-        setSession(null);
-        setUser(null);
-        // Limpar cache quando não há sessão
-        clearAdminCache();
+      if (!isMounted || isProcessingAuthChange) return;
+      
+      isProcessingAuthChange = true;
+
+      try {
+        if (session?.user) {
+          // Só atualizar se realmente mudou
+          setSession(prev => {
+            if (prev?.access_token === session.access_token) {
+              return prev; // Mesma sessão, não atualizar
+            }
+            return session;
+          });
+          setUser(prev => {
+            if (prev?.id === session.user.id) {
+              return prev; // Mesmo usuário, não atualizar
+            }
+            return session.user;
+          });
+          
+          // Verificar e criar perfil se necessário (não bloquear se falhar)
+          // Usar Promise.allSettled em background
+          Promise.allSettled([
+            checkUserExists(session.user.id, session.user.email),
+            updateAdminRoleCache(session.user.id)
+          ]).catch(() => {
+            // Ignorar erros
+          });
+        } else {
+          setSession(null);
+          setUser(null);
+          // Limpar cache quando não há sessão
+          clearAdminCache();
+        }
+      } catch (error) {
+        console.error("Erro ao processar mudança de auth:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          isProcessingAuthChange = false;
+        }
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(loadingTimeout);
+      subscription.unsubscribe();
+    };
   }, [checkUserExists, updateAdminRoleCache]);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -197,23 +250,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Falha ao criar sessão. Tente novamente.");
       }
 
-      // Aguardar um pouco para garantir que a sessão está estabelecida
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Verificar se o usuário existe no banco de dados e criar se necessário
-      // Passar o email para poder criar o perfil automaticamente
-      const exists = await checkUserExists(data.user.id, data.user.email);
-      
-      // Não bloquear login se houver erro - o perfil pode ser criado depois
-      // Apenas logar o aviso
-      if (!exists) {
-        console.warn("Perfil do usuário não encontrado, mas permitindo login");
-      }
-
+      // Definir sessão e usuário imediatamente
       setSession(data.session);
       setUser(data.user);
-      // Atualizar cache do role do admin após login
-      await updateAdminRoleCache(data.user.id);
+
+      // Fazer verificações em background (não bloquear o login)
+      Promise.allSettled([
+        checkUserExists(data.user.id, data.user.email),
+        updateAdminRoleCache(data.user.id)
+      ]).catch(() => {
+        // Ignorar erros, não bloquear o login
+      });
+
       toast.success("Login realizado com sucesso!");
     } catch (error) {
       const authError = error as AuthError | Error;
