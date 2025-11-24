@@ -231,51 +231,51 @@ export default function Crachas() {
   const isBrigadista = layout === "brigadista";
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Gerador de Crachás</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">Gerador de Crachás</h1>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8">
           {/* Form Section */}
-          <div className="space-y-6">
+          <div className="space-y-4 md:space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Configurações do Crachá</CardTitle>
+              <CardHeader className="p-4 md:p-6">
+                <CardTitle className="text-lg md:text-xl">Configurações do Crachá</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6">
                 {/* Layout Selection */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">Escolha o Layout</Label>
+                <div className="space-y-2 md:space-y-3">
+                  <Label className="text-sm md:text-base font-semibold">Escolha o Layout</Label>
                   <RadioGroup value={layout} onValueChange={setLayout}>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
+                    <div className="flex items-center space-x-2 p-2 md:p-3 rounded-lg border border-border hover:bg-accent transition-colors">
                       <RadioGroupItem value="padrao" id="padrao" />
-                      <Label htmlFor="padrao" className="flex-1 cursor-pointer">Padrão</Label>
+                      <Label htmlFor="padrao" className="flex-1 cursor-pointer text-sm md:text-base">Padrão</Label>
                     </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
+                    <div className="flex items-center space-x-2 p-2 md:p-3 rounded-lg border border-border hover:bg-accent transition-colors">
                       <RadioGroupItem value="jl" id="jl" />
-                      <Label htmlFor="jl" className="flex-1 cursor-pointer">JL Bracuhy</Label>
+                      <Label htmlFor="jl" className="flex-1 cursor-pointer text-sm md:text-base">JL Bracuhy</Label>
                     </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
+                    <div className="flex items-center space-x-2 p-2 md:p-3 rounded-lg border border-border hover:bg-accent transition-colors">
                       <RadioGroupItem value="brigadista" id="brigadista" />
-                      <Label htmlFor="brigadista" className="flex-1 cursor-pointer">Brigadista</Label>
+                      <Label htmlFor="brigadista" className="flex-1 cursor-pointer text-sm md:text-base">Brigadista</Label>
                     </div>
                   </RadioGroup>
                 </div>
 
                 {/* Photo Upload */}
-                <div className="space-y-3">
-                  <Label htmlFor="foto" className="text-base font-semibold">Foto do Colaborador</Label>
-                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center transition-all">
+                <div className="space-y-2 md:space-y-3">
+                  <Label htmlFor="foto" className="text-sm md:text-base font-semibold">Foto do Colaborador</Label>
+                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 md:p-8 text-center transition-all">
                     {croppedImage ? (
                       <div className="space-y-3">
                         <img
@@ -286,25 +286,27 @@ export default function Crachas() {
                             isBrigadista && "w-32 h-32 rounded-full"
                           )}
                         />
-                        <div className="flex gap-2 justify-center">
+                        <div className="flex flex-col sm:flex-row gap-2 justify-center">
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             onClick={handleOpenAjustar}
                             disabled={!originalImage}
+                            className="w-full sm:w-auto"
                           >
                             <Edit className="w-3 h-3 mr-2" />
-                            Ajustar Foto
+                            <span className="text-xs md:text-sm">Ajustar Foto</span>
                           </Button>
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             onClick={() => fileInputRef.current?.click()}
+                            className="w-full sm:w-auto"
                           >
                             <Upload className="w-3 h-3 mr-2" />
-                            Trocar Foto
+                            <span className="text-xs md:text-sm">Trocar Foto</span>
                           </Button>
                         </div>
                       </div>
@@ -332,32 +334,33 @@ export default function Crachas() {
                 </div>
 
                 {/* Form Fields */}
-                <div className="space-y-4">
+                <div className="space-y-3 md:space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nome">Nome Completo</Label>
+                    <Label htmlFor="nome" className="text-sm md:text-base">Nome Completo</Label>
                     <Input
                       id="nome"
                       value={nome}
                       onChange={(e) => setNome(e.target.value)}
                       placeholder="Ex: João Silva"
-                      className="text-lg"
+                      className="text-base md:text-lg"
                       autoComplete="off"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="matricula">Matrícula</Label>
+                    <Label htmlFor="matricula" className="text-sm md:text-base">Matrícula</Label>
                     <Input
                       id="matricula"
                       value={matricula}
                       onChange={(e) => setMatricula(e.target.value)}
                       placeholder="Ex: 12345"
                       autoComplete="off"
+                      className="text-base md:text-lg"
                     />
                   </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-3 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3 pt-3 md:pt-4">
                   <Button
                     onClick={handleBaixar}
                     disabled={!nome || !matricula || !croppedImage}
@@ -378,14 +381,14 @@ export default function Crachas() {
           {/* Preview Section */}
           <div>
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 md:p-6">
                 <div className="flex items-center justify-center">
-                <Badge className="bg-[rgb(243_232_255)] text-[rgb(126_34_206)] text-md selection:bg-[rgb(168_85_247)] selection:text-[rgb(255_255_255)]">
+                <Badge className="bg-[rgb(243_232_255)] text-[rgb(126_34_206)] text-sm md:text-md selection:bg-[rgb(168_85_247)] selection:text-[rgb(255_255_255)]">
                   Preview
                 </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="flex items-center justify-center p-8">
+              <CardContent className="flex items-center justify-center p-4 md:p-8">
                 {/* Esta estrutura recria o cracha.html e cracha-generator.css
                   usando Tailwind e classes dinâmicas para o posicionamento.
                 */}
@@ -466,15 +469,15 @@ export default function Crachas() {
 
         {/* Crop Dialog */}
         <Dialog open={showCropDialog} onOpenChange={setShowCropDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md w-[95vw] sm:w-full">
             <DialogHeader>
               <DialogTitle>Ajustar Foto</DialogTitle>
               <DialogDescription>
                 Posicione e ajuste o zoom da foto para o crachá. Use os botões de zoom ou arraste a imagem para posicioná-la.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4">
-              <div className="h-80 w-full bg-muted rounded-md overflow-hidden flex items-center justify-center">
+            <div className="py-2 md:py-4">
+              <div className="h-64 md:h-80 w-full bg-muted rounded-md overflow-hidden flex items-center justify-center">
                 {!imageLoaded && (
                   <div className="absolute z-10 text-sm text-muted-foreground">
                     Carregando imagem...

@@ -117,21 +117,21 @@ export default function AuditLogs() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
           <Link to={createPageUrl("Configuracoes")}>
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
             </Button>
           </Link>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Database className="w-8 h-8 text-primary" />
-              Logs de Auditoria
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Database className="w-5 h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-primary" />
+              <span className="truncate">Logs de Auditoria</span>
             </h1>
-            <p className="text-slate-600 dark:text-slate-400 mt-1">
+            <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mt-1">
               Visualize todas as mudanças feitas no sistema - quem fez, quando e o que mudou
             </p>
           </div>

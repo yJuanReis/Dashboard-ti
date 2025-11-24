@@ -744,6 +744,56 @@ All colors MUST be HSL.
   }
 }
 
+/* Mobile-first utilities */
+@media (max-width: 640px) {
+  /* Ajustes de texto para mobile */
+  .text-responsive {
+    font-size: 0.875rem;
+  }
+  
+  /* Padding reduzido em mobile */
+  .p-responsive {
+    padding: 0.75rem;
+  }
+  
+  /* Espaçamento reduzido */
+  .gap-responsive {
+    gap: 0.5rem;
+  }
+  
+  /* Tabelas responsivas - ocultar em mobile e mostrar cards */
+  .table-responsive {
+    display: none;
+  }
+  
+  .table-mobile {
+    display: block;
+  }
+}
+
+@media (min-width: 641px) {
+  .table-responsive {
+    display: table;
+  }
+  
+  .table-mobile {
+    display: none;
+  }
+}
+
+/* Scroll suave em mobile */
+@media (max-width: 768px) {
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Melhorar toque em mobile */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* Animated Button Effect - BR MARINAS */
 /* From Uiverse.io by satyamchaudharydev - Adapted for BR MARINAS */
 .button-animated {

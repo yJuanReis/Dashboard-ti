@@ -196,7 +196,7 @@ function calcularForcaSenha(senha: string): PasswordStrength {
 }
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, setOpenMobile, isMobile } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -654,6 +654,12 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild className="h-8 text-sm mb-0.5">
                       <NavLink 
                         to={item.url}
+                        onClick={() => {
+                          // Fecha a sidebar no mobile ao clicar em um link
+                          if (isMobile) {
+                            setOpenMobile(false);
+                          }
+                        }}
                         className="transition-all duration-200 hover:bg-sidebar-accent text-sidebar-foreground flex items-center gap-2 px-2 py-1.5 rounded-md group"
                         activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
                       >
@@ -766,7 +772,7 @@ export function AppSidebar() {
 
       {/* Modal de Notificações */}
       <Dialog open={notificationsModalOpen} onOpenChange={setNotificationsModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bell className="w-5 h-5" />
@@ -822,15 +828,15 @@ export function AppSidebar() {
 
       {/* Modal de Configurações */}
       <Dialog open={settingsModalOpen} onOpenChange={setSettingsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Configurações</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 pt-4">
+          <div className="space-y-4 md:space-y-6 pt-4">
             {/* Nome de Exibição */}
             <div>
               <Label htmlFor="displayName" className="text-sm font-medium mb-2">Nome de exibição</Label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   id="displayName"
                   type="text"
@@ -839,10 +845,12 @@ export function AppSidebar() {
                   onChange={(e) => setNomeExibicao(e.target.value)}
                   disabled={loadingNome}
                   autoComplete="off"
+                  className="flex-1"
                 />
                 <Button 
                   onClick={handleSalvarNome}
                   disabled={loadingNome || !nomeExibicao.trim()}
+                  className="w-full sm:w-auto"
                 >
                   {loadingNome ? "A guardar..." : "Guardar"}
                 </Button>

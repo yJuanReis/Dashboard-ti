@@ -439,14 +439,14 @@ export default function ControleNVR() {
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* Header Fixo */}
-      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
-        <div className="flex flex-row justify-between items-center gap-4">
+      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-3 md:px-4 py-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 md:gap-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Video className="w-6 h-6 text-primary" />
+            <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+              <Video className="w-5 h-5 md:w-6 md:h-6 text-primary" />
               Controle de NVR
             </h1>
-            <p className="text-sm text-muted-foreground">Gerencie gravadores de vídeo e status dos HDs</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Gerencie gravadores de vídeo e status dos HDs</p>
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <Link to="/evolucao-hds">
@@ -464,9 +464,9 @@ export default function ControleNVR() {
       </div>
 
       {/* Filtros Fixos - Compactos */}
-      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4 py-2 bg-background/95 backdrop-blur-sm">
+      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-3 md:px-4 py-2 bg-background/95 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+          <div className="relative flex-1 min-w-[150px] sm:min-w-[200px] max-w-[300px]">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="text"
@@ -893,7 +893,7 @@ export default function ControleNVR() {
 
       {/* Dialog de Edição/Criação */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>
               {editingNVR ? "Editar NVR" : "Novo NVR"}

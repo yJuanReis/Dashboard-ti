@@ -4,13 +4,13 @@ import { Network, Activity, AlertCircle } from "lucide-react";
 
 export default function GestaoRede() {
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-4 lg:p-6 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Gestão de Rede</h1>
-        <p className="text-muted-foreground">Monitoramento e controle da infraestrutura de rede</p>
+        <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">Gestão de Rede</h1>
+        <p className="text-xs md:text-sm text-muted-foreground">Monitoramento e controle da infraestrutura de rede</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 lg:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Status da Rede</CardTitle>

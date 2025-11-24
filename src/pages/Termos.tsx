@@ -933,12 +933,12 @@ export default function TesteTermos() {
 
   return (
     <div className="h-[calc(100vh-3.5rem)] overflow-hidden flex items-center justify-center">
-      <div className="p-4 md:p-6 w-full max-w-[95vw] mx-auto h-full flex flex-col">
+      <div className="p-3 md:p-4 lg:p-6 w-full max-w-[95vw] mx-auto h-full flex flex-col">
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0">
         {/* Formulário */}
         <Card className="shadow-lg border-border/50 lg:col-span-3 flex flex-col">
-          <CardContent className="space-y-3 flex-1 overflow-y-auto pt-4 pb-4">
+          <CardContent className="space-y-2 md:space-y-3 flex-1 overflow-y-auto pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4">
             {/* Seletor de Modelo */}
             <div>
               <Label htmlFor="tipoModelo" className="text-sm mb-2 block">Tipo de Termo</Label>
@@ -1089,8 +1089,8 @@ export default function TesteTermos() {
                 ) : (
                   <>
                     {/* Campos específicos para celulares - Grid de 2 colunas */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="col-span-1 sm:col-span-2">
                         <Label htmlFor="aparelho" className="text-sm">Aparelho *</Label>
                         <Input
                           id="aparelho"
@@ -1572,11 +1572,11 @@ export default function TesteTermos() {
                 </div>
               </div>
             ) : previewPdfUrl ? (
-              <div className="border rounded-lg overflow-hidden bg-white flex-1 flex flex-col">
+              <div className="border rounded-lg overflow-hidden bg-white flex-1 flex flex-col min-h-[400px] md:min-h-[600px]">
                 <iframe
                   key={pdfVersion}
                   src={`${previewPdfUrl}#page=2&toolbar=0&t=${pdfVersion}`}
-                  className="w-full flex-1 border-0"
+                  className="w-full flex-1 border-0 min-h-[400px] md:min-h-[600px]"
                   title="Preview do Termo - Página 2"
                 />
               </div>

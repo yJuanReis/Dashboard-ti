@@ -1743,22 +1743,6 @@ export default function Senhas() {
     return serviceCategory === activeTab;
   });
 
-  // Função para obter o tipo representativo de uma aba baseado nos dados reais
-  const getTipoForTab = (tab: string): string => {
-    if (tab === "Todos") return "todos";
-    // Pega o primeiro password da aba e usa o tipo dele
-    const firstPassword = passwords.find(p => {
-      if (tab === "Todos") return true;
-      const serviceCategory = getServiceCategory(p);
-      return serviceCategory === tab;
-    });
-    if (firstPassword?.tipo) {
-      return firstPassword.tipo.toLowerCase();
-    }
-    // Fallback para o mapeamento se não encontrar
-    return tabToTipoMap[tab] || tab.toLowerCase();
-  };
-
   // 2. Usa a lista fixa de tipos
   const subCategories = ["todas", ...allTypes];
   const services = ["todos", ...Array.from(new Set(passwordsInTab.map((p) => p.service)))];
@@ -1766,9 +1750,10 @@ export default function Senhas() {
   // 3. Filtra a lista da aba pelos filtros restantes (busca, subcategoria, serviço)
   let filteredPasswords = passwordsInTab.filter((password) => {
     const matchesSearch =
-      password.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      password.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      password.description.toLowerCase().includes(searchTerm.toLowerCase());
+      !searchTerm ||
+      password.service?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      password.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      password.description?.toLowerCase().includes(searchTerm.toLowerCase());
     
     // O filtro de subcategoria (tipo) só se aplica se houver tipos
     const passwordTipo = password.tipo?.toLowerCase() || '';
@@ -2316,15 +2301,20 @@ export default function Senhas() {
       "flex flex-col h-full",
       viewMode === "table" ? "h-[calc(100vh-3.5rem)] overflow-hidden" : "min-h-[calc(100vh-3.5rem)]"
     )}>
+      {/* Título e Subtítulo no topo */}
+      <div className="flex-shrink-0 px-4 pt-4 pb-2">
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Senhas</h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1">Gestão de senhas e credenciais de acesso</p>
+      </div>
+
       {/* Header Fixo - Compacto no modo planilha */}
       <div className={cn(
         "flex-shrink-0 border-b bg-background/95 backdrop-blur-sm",
         "px-4 py-2"
       )}>
         <div className="flex flex-row justify-between items-center gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Senhas</h1>
-            <p className="text-sm text-muted-foreground">Gestão de senhas e credenciais de acesso</p>
+          <div className="hidden">
+            {/* Espaço reservado para manter layout */}
           </div>
           <div className="flex items-center gap-2 ml-auto">
             {/* Botão para alternar entre Cards e Planilha */}
@@ -2352,7 +2342,7 @@ export default function Senhas() {
                 Cards
               </Button>
             </div>
-            <div className="flex items-center gap-1 border rounded-md p-1 bg-background">
+            <div className="hidden md:flex items-center gap-1 border rounded-md p-1 bg-background">
               <Type className="w-4 h-4 text-muted-foreground mx-1" />
               <Button
                 variant="ghost"
@@ -2412,15 +2402,15 @@ export default function Senhas() {
           viewMode === "table" ? "flex-1 flex flex-col min-h-0 h-full" : "space-y-6"
         )}>
 
-          {/* ++ NOVAS ABAS DE FILTRO ++ - Ocultas no modo planilha */}
+          {/* ++ NOVAS ABAS DE FILTRO ++ - Ocultas no modo planilha e em mobile */}
           {viewMode === "cards" && (
             <div className={cn(
-              "border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 sticky top-0 z-10 bg-background/95 backdrop-blur-sm"
+              "border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 sticky top-0 z-0 md:z-0 bg-background/95 backdrop-blur-sm"
             )}>
               {/* Abas e Filtros */}
               <div className="flex flex-col gap-2 w-full">
-                {/* Nav centralizado com abas, tipos e filtros */}
-                <div className="border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
+                {/* Nav centralizado com abas, tipos e filtros - Oculto em mobile */}
+                <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
                   <div className="flex flex-col items-center gap-3">
                     {/* Nav com abas e tipos */}
                     <nav className="-mb-px flex flex-wrap gap-x-2 gap-y-2 justify-center w-full" aria-label="Tabs">
@@ -2473,75 +2463,75 @@ export default function Senhas() {
                         );
                       })}
                     </nav>
+                  </div>
+                </div>
 
-                    {/* Filtros centralizados */}
-                    <div className="flex flex-wrap items-center gap-3 justify-center pb-2">
-                      {/* Campo de Busca */}
-                      {showSearchField ? (
-                        <div className="relative min-w-[200px] max-w-[300px]">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            type="text"
-                            placeholder="Buscar por serviço, descrição ou utilizador..."
-                            value={searchTerm}
-                            autoComplete="off"
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onBlur={(e) => {
-                              // Mantém o campo aberto se houver texto
-                              const relatedTarget = e.relatedTarget as HTMLElement;
-                              if (!searchTerm && (!relatedTarget || !relatedTarget.closest('button'))) {
-                                setTimeout(() => {
-                                  if (!searchTerm) {
-                                    setShowSearchField(false);
-                                  }
-                                }, 200);
+                {/* Filtros centralizados - Sempre visíveis */}
+                <div className="flex flex-wrap items-center gap-3 justify-center pb-2">
+                  {/* Campo de Busca */}
+                  {showSearchField ? (
+                    <div className="relative min-w-[200px] max-w-[300px] flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar por serviço, descrição ou utilizador..."
+                        value={searchTerm}
+                        autoComplete="off"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onBlur={(e) => {
+                          // Mantém o campo aberto se houver texto
+                          const relatedTarget = e.relatedTarget as HTMLElement;
+                          if (!searchTerm && (!relatedTarget || !relatedTarget.closest('button'))) {
+                            setTimeout(() => {
+                              if (!searchTerm) {
+                                setShowSearchField(false);
                               }
-                            }}
-                            className="pl-10 pr-10"
-                            autoFocus
-                          />
-                          {searchTerm && (
-                            <button
-                              onClick={() => setSearchTerm("")}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowSearchField(true)}
-                          className="gap-2"
+                            }, 200);
+                          }
+                        }}
+                        className="pl-10 pr-10"
+                        autoFocus
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                          <Search className="w-4 h-4" />
-                          Buscar
-                        </Button>
-                      )}
-
-                      {/* ++ Dropdown de Serviço (Atualizado) ++ */}
-                      {services.length > 1 && (
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
-                            Serviço:
-                          </label>
-                          <select
-                            value={serviceFilter}
-                            onChange={(e) => setServiceFilter(e.target.value)}
-                            className="px-3 py-2 bg-background border border-input rounded-md text-sm min-w-[150px]"
-                          >
-                            {services.map((service) => (
-                              <option key={service} value={service}>
-                                {service.charAt(0).toUpperCase() + service.slice(1)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                          <X className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
-                  </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSearchField(true)}
+                      className="gap-2"
+                    >
+                      <Search className="w-4 h-4" />
+                      Buscar
+                    </Button>
+                  )}
+
+                  {/* ++ Dropdown de Serviço (Atualizado) ++ */}
+                  {services.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
+                        Serviço:
+                      </label>
+                      <select
+                        value={serviceFilter}
+                        onChange={(e) => setServiceFilter(e.target.value)}
+                        className="px-3 py-2 bg-background border border-input rounded-md text-sm min-w-[150px]"
+                      >
+                        {services.map((service) => (
+                          <option key={service} value={service}>
+                            {service.charAt(0).toUpperCase() + service.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2636,11 +2626,11 @@ export default function Senhas() {
           // Visualização em Planilha - Ocupa toda a altura disponível
           <div className="flex flex-col flex-1 min-h-0 h-full w-full bg-white dark:bg-slate-900">
             {/* Filtros integrados na planilha */}
-            <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 bg-background/95 backdrop-blur-sm">
+            <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 bg-background/95 backdrop-blur-sm relative z-0 md:z-0">
               {/* Abas e Filtros */}
               <div className="flex flex-col gap-2 w-full">
-                {/* Nav centralizado com abas, tipos e filtros */}
-                <div className="border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
+                {/* Nav centralizado com abas, tipos e filtros - Oculto em mobile */}
+                <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
                   <div className="flex flex-col items-center gap-3">
                     {/* Nav com abas e tipos */}
                     <nav className="-mb-px flex flex-wrap gap-x-2 gap-y-2 justify-center w-full" aria-label="Tabs">
@@ -2692,75 +2682,75 @@ export default function Senhas() {
                         );
                       })}
                     </nav>
+                  </div>
+                </div>
 
-                    {/* Filtros centralizados */}
-                    <div className="flex flex-wrap items-center gap-3 justify-center pb-2">
-                      {/* Campo de Busca */}
-                      {showSearchField ? (
-                        <div className="relative min-w-[200px] max-w-[300px]">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            type="text"
-                            placeholder="Buscar por serviço, descrição ou utilizador..."
-                            value={searchTerm}
-                            autoComplete="off"
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onBlur={(e) => {
-                              // Mantém o campo aberto se houver texto
-                              const relatedTarget = e.relatedTarget as HTMLElement;
-                              if (!searchTerm && (!relatedTarget || !relatedTarget.closest('button'))) {
-                                setTimeout(() => {
-                                  if (!searchTerm) {
-                                    setShowSearchField(false);
-                                  }
-                                }, 200);
+                {/* Filtros centralizados - Sempre visíveis */}
+                <div className="flex flex-wrap items-center gap-3 justify-center pb-2">
+                  {/* Campo de Busca */}
+                  {showSearchField ? (
+                    <div className="relative min-w-[200px] max-w-[300px] flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Buscar por serviço, descrição ou utilizador..."
+                        value={searchTerm}
+                        autoComplete="off"
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onBlur={(e) => {
+                          // Mantém o campo aberto se houver texto
+                          const relatedTarget = e.relatedTarget as HTMLElement;
+                          if (!searchTerm && (!relatedTarget || !relatedTarget.closest('button'))) {
+                            setTimeout(() => {
+                              if (!searchTerm) {
+                                setShowSearchField(false);
                               }
-                            }}
-                            className="pl-10 pr-10"
-                            autoFocus
-                          />
-                          {searchTerm && (
-                            <button
-                              onClick={() => setSearchTerm("")}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowSearchField(true)}
-                          className="gap-2"
+                            }, 200);
+                          }
+                        }}
+                        className="pl-10 pr-10"
+                        autoFocus
+                      />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         >
-                          <Search className="w-4 h-4" />
-                          Buscar
-                        </Button>
-                      )}
-
-                      {/* ++ Dropdown de Serviço (Atualizado) ++ */}
-                      {services.length > 1 && (
-                        <div className="flex items-center gap-2">
-                          <label className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
-                            Serviço:
-                          </label>
-                          <select
-                            value={serviceFilter}
-                            onChange={(e) => setServiceFilter(e.target.value)}
-                            className="px-3 py-2 bg-background border border-input rounded-md text-sm min-w-[150px]"
-                          >
-                            {services.map((service) => (
-                              <option key={service} value={service}>
-                                {service.charAt(0).toUpperCase() + service.slice(1)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                          <X className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
-                  </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSearchField(true)}
+                      className="gap-2"
+                    >
+                      <Search className="w-4 h-4" />
+                      Buscar
+                    </Button>
+                  )}
+
+                  {/* ++ Dropdown de Serviço (Atualizado) ++ */}
+                  {services.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
+                        Serviço:
+                      </label>
+                      <select
+                        value={serviceFilter}
+                        onChange={(e) => setServiceFilter(e.target.value)}
+                        className="px-3 py-2 bg-background border border-input rounded-md text-sm min-w-[150px]"
+                      >
+                        {services.map((service) => (
+                          <option key={service} value={service}>
+                            {service.charAt(0).toUpperCase() + service.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2830,7 +2820,7 @@ export default function Senhas() {
               `}</style>
               <div style={{ width: `${2200 * (fontSize / 14)}px`, minWidth: `${2200 * (fontSize / 14)}px`, display: 'block', flexShrink: 0, position: 'relative' }}>
                 <table className="w-full caption-bottom text-sm" style={{ width: `${2200 * (fontSize / 14)}px`, minWidth: `${2200 * (fontSize / 14)}px`, tableLayout: 'auto' }}>
-                <TableHeader className="sticky top-0 z-[100] bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0, fontSize: `${fontSize}px` }}>
+                <TableHeader className="sticky top-0 z-[1] md:z-[100] bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0, fontSize: `${fontSize}px` }}>
                   <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
                     <TableHead 
                       className="font-semibold whitespace-nowrap min-w-[100px] text-center pl-4 pr-2 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -3321,13 +3311,9 @@ export default function Senhas() {
           "text-center",
           viewMode === "table" ? "py-12 flex items-center justify-center h-full" : "py-12"
         )}>
-          {passwordsInTab.length === 0 && !loading ? (
-             <p className="text-muted-foreground">Nenhuma senha encontrada na categoria "{activeTab}".</p>
-          ) : (
-             <p className="text-muted-foreground">Nenhuma senha corresponde aos filtros aplicados.</p>
-          )}
-          </div>
-          )}
+          <p className="text-muted-foreground">Nenhuma senha corresponde aos filtros aplicados.</p>
+        </div>
+      )}
 
         </div>
       </div>
@@ -3695,7 +3681,7 @@ export default function Senhas() {
           </DialogHeader>
           
           {/* Botões fixos no topo */}
-          <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between gap-4">
+          <div className="sticky top-0 z-0 bg-background border-b px-6 py-4 flex items-center justify-between gap-4">
             <Button
               type="button"
               variant="outline"

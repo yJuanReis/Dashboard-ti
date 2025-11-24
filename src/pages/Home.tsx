@@ -6,9 +6,9 @@ export default function Home() {
       <div className="aurora-background"></div>
       
       {/* Main Content */}
-      <main className="max-w-10xl mx-auto px-6 py-8 relative z-10">
+      <main className="max-w-10xl mx-auto px-3 md:px-4 lg:px-6 py-4 md:py-6 lg:py-8 relative z-10">
         {/* Welcome Section */}
-        <div className="mb-8 justify-center items-center flex flex-col">
+        <div className="mb-4 md:mb-6 lg:mb-8 justify-center items-center flex flex-col">
 
           <button className="button-animated" data-text="TI BR MARINAS">
             <span className="actual-text">

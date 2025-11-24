@@ -1479,21 +1479,21 @@ export default function Configuracoes() {
 
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">Configurações</h1>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-6">
             {/* Card único com Perfil e Alterar Senha */}
@@ -1530,14 +1530,14 @@ export default function Configuracoes() {
               <CardContent className="space-y-8">
                 {/* Seção Perfil */}
                 <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-background">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white text-lg sm:text-2xl font-bold shadow-lg ring-4 ring-background flex-shrink-0">
                       {currentUser.nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                     </div>
-                    <div className="flex-1 flex items-center gap-3">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-xl text-foreground">{currentUser.nome}</h3>
-                        <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+                    <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-lg sm:text-xl text-foreground truncate">{currentUser.nome}</h3>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{currentUser.email}</p>
                       </div>
                       {!editingNome ? (
                         <div className="flex items-center gap-2">
@@ -1545,13 +1545,15 @@ export default function Configuracoes() {
                             variant="outline"
                             size="sm"
                             onClick={() => setEditingNome(true)}
+                            className="w-full sm:w-auto"
                           >
                             <Edit className="w-4 h-4 mr-2" />
-                            Mudar Nome
+                            <span className="hidden sm:inline">Mudar Nome</span>
+                            <span className="sm:hidden">Editar</span>
                           </Button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                           <Input
                             type="text"
                             placeholder="O seu nome completo"
@@ -1559,28 +1561,31 @@ export default function Configuracoes() {
                             onChange={(e) => setNomeExibicao(e.target.value)}
                             disabled={loadingNome}
                             autoComplete="off"
-                            className="w-48"
+                            className="w-full sm:w-48"
                           />
-                          <Button 
-                            onClick={async () => {
-                              await handleSalvarNome();
-                              setEditingNome(false);
-                            }}
-                            disabled={loadingNome || !nomeExibicao.trim()}
-                            size="sm"
-                          >
-                            {loadingNome ? "A guardar..." : "Guardar"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setEditingNome(false);
-                              setNomeExibicao(currentUser.nome);
-                            }}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button 
+                              onClick={async () => {
+                                await handleSalvarNome();
+                                setEditingNome(false);
+                              }}
+                              disabled={loadingNome || !nomeExibicao.trim()}
+                              size="sm"
+                              className="flex-1 sm:flex-initial"
+                            >
+                              {loadingNome ? "A guardar..." : "Guardar"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditingNome(false);
+                                setNomeExibicao(currentUser.nome);
+                              }}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1782,7 +1787,7 @@ export default function Configuracoes() {
                       Adicione um novo usuário ou atualize a senha temporária de um usuário existente. <br /><br />Uma senha aleatória e segura será gerada automaticamente. <br />O usuário deve fazer login e o modal de troca de senha aparecerá automaticamente na Home.
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
                       <Input
                         type="email"
                         placeholder="E-mail do utilizador"
@@ -1790,6 +1795,7 @@ export default function Configuracoes() {
                         onChange={(e) => setNovoUsuario({...novoUsuario, email: e.target.value})}
                         autoComplete="off"
                         disabled={loadingUsuarios}
+                        className="md:col-span-1"
                       />
                       <Select
                         value={novoUsuario.role}
@@ -1806,18 +1812,20 @@ export default function Configuracoes() {
                       </Select>
                       <Button 
                         onClick={handleEnviarResetPassword}
-                        className=""
+                        className="md:col-span-1"
                         disabled={loadingUsuarios}
                       >
                         {loadingUsuarios ? (
                           <>
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Enviando...
+                            <span className="hidden sm:inline">Enviando...</span>
+                            <span className="sm:hidden">...</span>
                           </>
                         ) : (
                           <>
                             <UserPlus className="w-4 h-4 mr-2" />
-                            {novoUsuario.email ? "Criar/Atualizar Usuário" : "Criar Usuário"}
+                            <span className="hidden sm:inline">{novoUsuario.email ? "Criar/Atualizar Usuário" : "Criar Usuário"}</span>
+                            <span className="sm:hidden">Criar</span>
                           </>
                         )}
                       </Button>
@@ -1853,55 +1861,100 @@ export default function Configuracoes() {
                     ) : (
                       // Modificação solicitada: Substituição do ScrollArea por div nativa e ajuste no header
                       <div className="max-h-[500px] w-full overflow-y-auto border rounded-md">
-                        <Table>
-                          <TableHeader className="sticky top-0 z-10 bg-background">
-                            <TableRow>
-                              <TableHead className="bg-background">Nome</TableHead>
-                              <TableHead className="bg-background">Email</TableHead>
-                              <TableHead className="bg-background">Role</TableHead>
-                              <TableHead className="text-right bg-background">Ações</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {usuarios.map((usuario) => (
-                              <TableRow key={usuario.id}>
-                                <TableCell className="font-medium">
-                                  {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
-                                </TableCell>
-                                <TableCell>{usuario.email}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">
+                        {/* Desktop Table */}
+                        <div className="hidden md:block">
+                          <Table>
+                            <TableHeader className="sticky top-0 z-10 bg-background">
+                              <TableRow>
+                                <TableHead className="bg-background">Nome</TableHead>
+                                <TableHead className="bg-background">Email</TableHead>
+                                <TableHead className="bg-background">Role</TableHead>
+                                <TableHead className="text-right bg-background">Ações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {usuarios.map((usuario) => (
+                                <TableRow key={usuario.id}>
+                                  <TableCell className="font-medium">
+                                    {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
+                                  </TableCell>
+                                  <TableCell>{usuario.email}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline">
+                                      {usuario.role === 'admin' ? 'Admin' : 'User'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {usuario.user_id !== user?.id && (
+                                      <div className="flex justify-end gap-1">
+                                        <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          onClick={() => abrirModalEditarUsuario(usuario)}
+                                          title="Editar Usuário"
+                                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </Button>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          onClick={() => abrirModalSenha(usuario)}
+                                          title="Alterar Senha"
+                                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                        >
+                                          <Lock className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        {/* Mobile Cards */}
+                        <div className="md:hidden space-y-3 p-3">
+                          {usuarios.map((usuario) => (
+                            <Card key={usuario.id} className="p-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">
+                                      {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">{usuario.email}</p>
+                                  </div>
+                                  <Badge variant="outline" className="ml-2 flex-shrink-0">
                                     {usuario.role === 'admin' ? 'Admin' : 'User'}
                                   </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {usuario.user_id !== user?.id && (
-                                    <div className="flex justify-end gap-1">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => abrirModalEditarUsuario(usuario)}
-                                        title="Editar Usuário"
-                                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => abrirModalSenha(usuario)}
-                                        title="Alterar Senha"
-                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                      >
-                                        <Lock className="w-4 h-4" />
-                                      </Button>
-                                    </div>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                                </div>
+                                {usuario.user_id !== user?.id && (
+                                  <div className="flex gap-2 pt-2 border-t">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => abrirModalEditarUsuario(usuario)}
+                                      className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" />
+                                      Editar
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => abrirModalSenha(usuario)}
+                                      className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                    >
+                                      <Lock className="w-4 h-4 mr-2" />
+                                      Senha
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1951,7 +2004,7 @@ export default function Configuracoes() {
                       <p className="text-sm">Carregando páginas...</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {PAGINAS_DISPONIVEIS.map((pagina) => {
                         // Normalizar paths para comparação (case-insensitive)
                         const normalizedPaginaPath = pagina.path.toLowerCase().trim();

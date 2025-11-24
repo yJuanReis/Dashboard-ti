@@ -74,26 +74,26 @@ const ProgressBar = ({ value, color = "blue" }) => {
 
 export default function Servidores() {
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold text-foreground">Pagina em desenvolvimento</h1>
-              <Badge variant="secondary">Em Desenvolvimento</Badge>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">Pagina em desenvolvimento</h1>
+              <Badge variant="secondary" className="text-xs">Em Desenvolvimento</Badge>
             </div>
-            <p className="text-muted-foreground">Em Desenvolvimento</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Em Desenvolvimento</p>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
           <Card className="bg-slate-800 border-slate-700">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">

@@ -431,16 +431,16 @@ export default function EvolucaoHDs() {
 
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden p-3 md:p-4 lg:p-6">
       {/* Header Fixo */}
-      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-4 py-2">
+      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-3 md:px-4 py-2">
         <div className="flex flex-row justify-between items-center gap-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <HardDrive className="w-6 h-6 text-primary" />
+            <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+              <HardDrive className="w-5 h-5 md:w-6 md:h-6 text-primary" />
               Evolução de HDs
             </h1>
-            <p className="text-sm text-muted-foreground">Acompanhe e planeje substituições de discos</p>
+            <p className="text-xs md:text-sm text-muted-foreground">Acompanhe e planeje substituições de discos</p>
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <Button 
@@ -463,20 +463,20 @@ export default function EvolucaoHDs() {
       </div>
 
       {/* Cabeçalho Unificado com KPIs e Controles - Fixo */}
-      <div className="flex-shrink-0 border-b bg-background px-4 py-2">
+      <div className="flex-shrink-0 border-b bg-background px-3 md:px-4 py-2">
         <Card>
-          <CardContent className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <CardContent className="p-2 md:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 md:gap-4">
             {/* KPIs em Sub-Cards */}
             <div className="flex flex-wrap items-stretch gap-2 flex-1">
               {/* Progresso Geral */}
-              <Card className="flex-1 min-w-[120px]">
-                <CardContent className="p-3">
-                  <div className="flex flex-col gap-2 h-full items-center justify-center">
-                    <div className="text-xl font-semibold text-muted-foreground text-center">
+              <Card className="flex-1 min-w-[100px] sm:min-w-[120px]">
+                <CardContent className="p-2 md:p-3">
+                  <div className="flex flex-col gap-1 md:gap-2 h-full items-center justify-center">
+                    <div className="text-xs md:text-sm lg:text-xl font-semibold text-muted-foreground text-center">
                       Progresso Geral {/* (Titulo do card) */}
                     </div>
-                    <div className="text-3xl font-bold text-center">{kpis.progress}% {/* (conteudo do card 1) */}</div>
+                    <div className="text-xl md:text-2xl lg:text-3xl font-bold text-center">{kpis.progress}% {/* (conteudo do card 1) */}</div>
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-500"
@@ -488,28 +488,28 @@ export default function EvolucaoHDs() {
               </Card>
 
               {/* Informações de Slots */}
-              <Card className="flex-1 min-w-[120px]">
-                <CardContent className="px-2 py-3">
-                  <div className="flex flex-col gap-1.5 h-full items-center justify-center">
-                    <div className="text-xl font-semibold text-muted-foreground text-center">
+              <Card className="flex-1 min-w-[100px] sm:min-w-[120px]">
+                <CardContent className="px-2 py-2 md:py-3">
+                  <div className="flex flex-col gap-1 md:gap-1.5 h-full items-center justify-center">
+                    <div className="text-xs md:text-sm lg:text-xl font-semibold text-muted-foreground text-center">
                       Informações de Slots {/* (Titulo do card) */}
                     </div>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-1.5">
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg text-muted-foreground">Vazios:</span>
-                        <span className="text-2xl font-bold">{kpis.emptySlotsCount}</span>
+                    <div className="grid grid-cols-2 gap-x-2 md:gap-x-4 lg:gap-x-8 gap-y-1 md:gap-y-1.5">
+                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
+                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Vazios:</span>
+                        <span className="text-lg md:text-xl lg:text-2xl font-bold">{kpis.emptySlotsCount}</span>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg text-muted-foreground">Maior que 12TB:</span>
-                        <span className="text-2xl font-bold text-green-600 dark:text-green-400">{kpis.slotsWithHD12Plus}</span>
+                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
+                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Maior que 12TB:</span>
+                        <span className="text-lg md:text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400">{kpis.slotsWithHD12Plus}</span>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg text-muted-foreground">Total a comprar:</span>
-                        <span className="text-2xl font-bold">{kpis.totalSlots} {/* (conteudo do card 2) */}</span>
+                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
+                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Total a comprar:</span>
+                        <span className="text-lg md:text-xl lg:text-2xl font-bold">{kpis.totalSlots} {/* (conteudo do card 2) */}</span>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg text-muted-foreground">Menor que 12TB:</span>
-                        <span className="text-2xl font-bold text-red-600 dark:text-red-400">{kpis.slotsWithHDLessThan12}</span>
+                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
+                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Menor que 12TB:</span>
+                        <span className="text-lg md:text-xl lg:text-2xl font-bold text-red-600 dark:text-red-400">{kpis.slotsWithHDLessThan12}</span>
                       </div>
                     </div>
                   </div>
@@ -517,13 +517,13 @@ export default function EvolucaoHDs() {
               </Card>
 
               {/* Custo Estimado */}
-              <Card className="flex-1 min-w-[120px]">
-                <CardContent className="p-3">
-                  <div className="flex flex-col gap-2 h-full items-center justify-center">
-                    <div className="text-xl font-semibold text-muted-foreground text-center">
+              <Card className="flex-1 min-w-[100px] sm:min-w-[120px]">
+                <CardContent className="p-2 md:p-3">
+                  <div className="flex flex-col gap-1 md:gap-2 h-full items-center justify-center">
+                    <div className="text-xs md:text-sm lg:text-xl font-semibold text-muted-foreground text-center">
                       Custo Estimado {/* (Titulo do card) */}
                     </div>
-                    <div className="text-3xl font-bold text-success text-center">
+                    <div className="text-xl md:text-2xl lg:text-3xl font-bold text-success text-center">
                       {new Intl.NumberFormat("pt-BR", {
                         style: "currency",
                         currency: "BRL",
@@ -571,7 +571,7 @@ export default function EvolucaoHDs() {
       </div>
 
       {/* Filtros Fixos - Compactos */}
-      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4 py-2 bg-background/95 backdrop-blur-sm">
+      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-3 md:px-4 py-2 bg-background/95 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-2 justify-between">
           <nav className="flex flex-wrap gap-x-2 gap-y-2 items-center" aria-label="Marinas">
             <button

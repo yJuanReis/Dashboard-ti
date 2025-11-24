@@ -219,34 +219,34 @@ export default function Assinaturas() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
           <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon">
-              <ArrowLeft className="w-4 h-4" />
+            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
+              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Gerador de Assinaturas</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100">Gerador de Assinaturas</h1>
           </div>
         </div>
 
         {/* Alert sobre Copiar/Colar removido */}
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8">
           {/* Form Section */}
           <div>
-            <Card className="w-[600px] mx-auto">
-              <CardHeader>
-                <CardTitle>Informações da Assinatura</CardTitle>
+            <Card className="w-full max-w-[600px] mx-auto">
+              <CardHeader className="p-4 md:p-6">
+                <CardTitle className="text-lg md:text-xl">Informações da Assinatura</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6">
                 {/* Layout Selection */}
-                <div className="space-y-3">
-                  <Label className="text-base font-semibold">Layout</Label>
-                  <RadioGroup value={layout} onValueChange={setLayout} className="grid grid-cols-2 gap-3">
+                <div className="space-y-2 md:space-y-3">
+                  <Label className="text-sm md:text-base font-semibold">Layout</Label>
+                  <RadioGroup value={layout} onValueChange={setLayout} className="grid grid-cols-2 gap-2 md:gap-3">
                     <div className="flex items-center space-x-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
                       <RadioGroupItem value="default" id="default" />
                       <Label htmlFor="default" className="flex-1 cursor-pointer">BR Marinas</Label>
@@ -259,7 +259,7 @@ export default function Assinaturas() {
                 </div>
 
                 {/* Form Fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="nome">Nome Completo *</Label>
                     <Input
@@ -368,8 +368,8 @@ export default function Assinaturas() {
 
 
               </CardHeader>
-              <CardContent className="bg-white p-8 rounded-lg">
-                <div ref={previewRef} style={{ width: '330px', height: '120px', display: 'inline-block' }}>
+              <CardContent className="bg-white p-4 md:p-6 lg:p-8 rounded-lg overflow-x-auto">
+                <div ref={previewRef} style={{ width: '330px', height: '120px', display: 'inline-block', minWidth: '330px' }}>
                   <AssinaturaPreview
                     // 'ref' removido
                     layout={layout}
