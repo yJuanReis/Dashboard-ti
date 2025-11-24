@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { PasswordChangeModal } from "@/components/PasswordChangeModal";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -25,7 +26,8 @@ export default function ResetPassword() {
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signIn, signOut } = useAuth();
+  const { user, signIn, signOut, passwordTemporary, checkPasswordTemporary, loading: authLoading } = useAuth();
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const checkUserExists = async () => {
     if (!user?.id) return;
@@ -74,6 +76,23 @@ export default function ResetPassword() {
     }
   }, [user, navigate, signOut]);
 
+  // Verificar senha temporária quando o usuário estiver logado
+  useEffect(() => {
+    if (user && !authLoading) {
+      checkPasswordTemporary();
+    }
+  }, [user, authLoading, checkPasswordTemporary]);
+
+  // Mostrar modal se senha for temporária
+  useEffect(() => {
+    if (passwordTemporary === true && user && !authLoading && !needsLogin) {
+      console.log("ResetPassword: Mostrando modal de senha temporária");
+      setShowPasswordModal(true);
+    } else {
+      setShowPasswordModal(false);
+    }
+  }, [passwordTemporary, user, authLoading, needsLogin]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -113,6 +132,8 @@ export default function ResetPassword() {
 
         // Login bem-sucedido, continuar com reset de senha
         setNeedsLogin(false);
+        // Verificar senha temporária após login
+        await checkPasswordTemporary();
       }
     } catch (error: any) {
       setError(error.message || "Erro ao fazer login. Tente novamente.");
@@ -155,29 +176,42 @@ export default function ResetPassword() {
         return;
       }
 
-      const { data: userProfile, error: profileError } = await supabase
+      // Verificar se o perfil existe (não precisa validar nome, pois será preenchido agora)
+      const { data: userProfile, error: checkProfileError } = await supabase
         .from("user_profiles")
-        .select("nome")
+        .select("id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !userProfile) {
-        await signOut();
-        toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
-        navigate("/login");
-        return;
+      if (checkProfileError && checkProfileError.code !== 'PGRST116') {
+        // Erro diferente de "não encontrado"
+        console.warn("Erro ao verificar perfil:", checkProfileError);
       }
 
-      // Verificar se o nome corresponde
-      if (userProfile.nome && nome.trim().toLowerCase() !== userProfile.nome.toLowerCase()) {
-        setError("Nome incorreto. Por favor, verifique seu nome.");
-        setIsLoading(false);
-        return;
+      // Se o perfil não existir, criar (não deve acontecer, mas por segurança)
+      if (!userProfile) {
+        const { error: createError } = await supabase
+          .from("user_profiles")
+          .insert({
+            user_id: user.id,
+            email: user.email || "",
+            nome: null,
+            role: "user",
+            password_temporary: true,
+          });
+        
+        if (createError) {
+          console.warn("Erro ao criar perfil:", createError);
+        }
       }
 
-      // Atualizar senha
+      // Atualizar senha e nome nos metadados do Supabase Auth
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
+        data: {
+          nome: nome.trim(),
+          name: nome.trim(), // Também salvar como 'name' para compatibilidade
+        },
       });
 
       if (updateError) {
@@ -186,8 +220,32 @@ export default function ResetPassword() {
         return;
       }
 
-      toast.success("Senha redefinida com sucesso!");
-      navigate("/home");
+      // A página ResetPassword é usada apenas para recuperação de senha
+      // Sempre marcar password_temporary como true para que o modal apareça no próximo login
+      // Isso garante que o usuário altere a senha novamente após recuperá-la
+      const { error: updateProfileError } = await supabase
+        .from("user_profiles")
+        .update({
+          nome: nome.trim(),
+          password_temporary: true, // Sempre marcar como temporária após recuperação
+        })
+        .eq("user_id", user.id);
+
+      if (updateProfileError) {
+        console.warn("Erro ao atualizar perfil (não crítico):", updateProfileError);
+        // Não bloquear se falhar, pois a senha já foi atualizada
+      }
+
+      // Recarregar a sessão para atualizar os metadados do usuário no AuthContext
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // Forçar atualização da sessão para que o AuthContext pegue o novo nome
+        await supabase.auth.refreshSession();
+      }
+
+      toast.success("Senha redefinida e nome atualizado com sucesso!");
+      // Recarregar para atualizar o estado de password_temporary
+      window.location.href = "/home";
     } catch (error: any) {
       console.error("Erro ao redefinir senha:", error);
       setError(error.message || "Erro ao redefinir senha. Tente novamente.");
@@ -379,6 +437,17 @@ export default function ResetPassword() {
           </form>
         </CardContent>
       </Card>
+      {user && (
+        <PasswordChangeModal
+          open={showPasswordModal}
+          userEmail={user.email || ""}
+          userId={user.id}
+          onSuccess={() => {
+            setShowPasswordModal(false);
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

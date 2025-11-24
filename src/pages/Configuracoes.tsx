@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 // import { useEffect } from "react"; // EM DESENVOLVIMENTO (para logs)
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Settings, User, Moon, Sun, Bell, UserPlus, Trash2, Lock, Mail, Eye, EyeOff, RefreshCw, LogOut, X, ShieldAlert, ShieldCheck, AlertCircle, Edit, Check, XCircle, Shield, Database } from "lucide-react";
+import { ArrowLeft, Settings, User, Moon, Sun, Bell, UserPlus, Trash2, Lock, Mail, Eye, EyeOff, RefreshCw, LogOut, X, ShieldAlert, ShieldCheck, AlertCircle, Edit, Check, XCircle, Shield, Database, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 // ScrollArea removido conforme solicitado
 // import { fetchLogs, type LogEntry } from "@/lib/logsService"; // EM DESENVOLVIMENTO
 import { cn } from "@/lib/utils";
@@ -31,9 +38,17 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService";
+import { generateRandomPassword } from "@/lib/passwordGenerator";
 import { logUpdate } from "@/lib/auditService";
 import { logger } from "@/lib/logger";
 import zxcvbn from "zxcvbn";
+import { 
+  getAllPagesMaintenance, 
+  updatePageMaintenance,
+  getPagesHiddenByDefault as getPagesHiddenByDefaultService,
+  type PageMaintenanceConfig as PageMaintenanceConfigService 
+} from "@/lib/pagesMaintenanceService";
+import { getVersionString, getVersionInfo } from "@/lib/version";
 
 // Tipo para usuário
 type Usuario = {
@@ -61,6 +76,9 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/security-test', nome: 'Security Test', icon: '🔒' },
   // Nota: /configuracoes não está aqui pois só admins podem acessar
 ];
+
+// Páginas que devem estar ocultas por padrão são gerenciadas em src/config/pagesMaintenance.ts
+// Use getPagesHiddenByDefault() para obter a lista atualizada automaticamente
 
 // Tipos para força da senha
 type PasswordStrength = {
@@ -152,12 +170,113 @@ function calcularForcaSenha(senha: string): PasswordStrength {
   return strengths[score];
 }
 
+// Componente Glider para tabs de role
+function RoleTabs({
+  role,
+  onRoleChange,
+  roleTabRefs,
+}: {
+  role: "admin" | "user";
+  onRoleChange: (role: "admin" | "user") => void;
+  roleTabRefs: React.MutableRefObject<Map<string, HTMLLabelElement>>;
+}) {
+  const [gliderStyle, setGliderStyle] = useState({ width: 0, transform: "translateX(0)" });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeKey = role;
+      const activeLabel = roleTabRefs.current.get(activeKey);
+
+      if (activeLabel) {
+        const container = activeLabel.parentElement;
+        if (container) {
+          let translateX = 0;
+
+          // Ordem: user primeiro, depois admin
+          const order = ["user", "admin"];
+          
+          // Calcula a posição X somando as larguras de todos os elementos anteriores
+          for (const key of order) {
+            if (key === activeKey) break;
+            const label = roleTabRefs.current.get(key);
+            if (label) {
+              translateX += label.offsetWidth;
+            }
+          }
+
+          const width = activeLabel.offsetWidth;
+          setGliderStyle({
+            width: width,
+            transform: `translateX(${translateX}px)`,
+          });
+        }
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [role, roleTabRefs]);
+
+  return (
+    <div className="relative inline-flex items-center bg-card shadow-sm rounded-full p-1.5 border border-border">
+      <input
+        type="radio"
+        id="role-user"
+        name="role-tabs"
+        className="hidden"
+        checked={role === "user"}
+        onChange={() => onRoleChange("user")}
+      />
+      <label
+        ref={(el) => {
+          if (el) roleTabRefs.current.set("user", el);
+        }}
+        htmlFor="role-user"
+        className={`relative z-10 flex items-center justify-center h-7 px-4 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+          role === "user"
+            ? "text-primary"
+            : "text-muted-foreground"
+        }`}
+      >
+        Usuário
+      </label>
+      <input
+        type="radio"
+        id="role-admin"
+        name="role-tabs"
+        className="hidden"
+        checked={role === "admin"}
+        onChange={() => onRoleChange("admin")}
+      />
+      <label
+        ref={(el) => {
+          if (el) roleTabRefs.current.set("admin", el);
+        }}
+        htmlFor="role-admin"
+        className={`relative z-10 flex items-center justify-center h-7 px-4 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+          role === "admin"
+            ? "text-primary"
+            : "text-muted-foreground"
+        }`}
+      >
+        Administrador
+      </label>
+      <span
+        className="absolute left-1.5 top-1.5 h-7 bg-primary/20 rounded-full transition-all duration-250 ease-out z-0"
+        style={{
+          width: `${gliderStyle.width}px`,
+          transform: gliderStyle.transform,
+        }}
+      />
+    </div>
+  );
+}
+
 export default function Configuracoes() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(false);
-  const [novoUsuario, setNovoUsuario] = useState({ email: "", nome: "", senha: "" });
+  const [novoUsuario, setNovoUsuario] = useState({ email: "", role: "user" as "admin" | "user" });
   const [statusMessage, setStatusMessage] = useState("");
   const [nomeExibicao, setNomeExibicao] = useState(user?.user_metadata?.nome || user?.user_metadata?.name || "");
   const [loadingNome, setLoadingNome] = useState(false);
@@ -178,6 +297,8 @@ export default function Configuracoes() {
   const [editarEmail, setEditarEmail] = useState("");
   const [editarRole, setEditarRole] = useState<"admin" | "user">("user");
   const [permissoesPaginas, setPermissoesPaginas] = useState<string[]>([]);
+  const roleTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
+  
   
   // currentUser atualizado dinamicamente com base no user, nomeExibicao e realRole
   const currentUser = useMemo(() => ({
@@ -210,6 +331,17 @@ export default function Configuracoes() {
   // Estados para prevenção de brute force
   const [tentativasErradas, setTentativasErradas] = useState(0);
   const [bloqueadoAté, setBloqueadoAté] = useState<Date | null>(null);
+  
+  // Estados para gerenciamento de páginas em manutenção
+  const [pagesMaintenance, setPagesMaintenance] = useState<PageMaintenanceConfigService[]>([]);
+  const [loadingPagesMaintenance, setLoadingPagesMaintenance] = useState(false);
+  const [pagesMaintenanceExpanded, setPagesMaintenanceExpanded] = useState(false);
+  
+  // Estado para controlar expansão do card de perfil
+  const [perfilExpanded, setPerfilExpanded] = useState(false);
+  
+  // Estado para controlar se o modal de editar nome está aberto
+  const [editingNome, setEditingNome] = useState(false);
 
 
   // Verifica a role REAL do usuário no banco de dados
@@ -685,6 +817,72 @@ export default function Configuracoes() {
     }
   }, []);
 
+  // Função para carregar páginas em manutenção
+  const carregarPagesMaintenance = useCallback(async () => {
+    if (realRole !== 'admin') return;
+    
+    setLoadingPagesMaintenance(true);
+    try {
+      const pages = await getAllPagesMaintenance();
+      console.log('[Configuracoes] Páginas carregadas do banco:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
+      setPagesMaintenance(pages);
+      
+      // Verificar se há páginas no banco que não estão em PAGINAS_DISPONIVEIS
+      const pathsNoBanco = pages.map(p => p.page_path);
+      const pathsDisponiveis = PAGINAS_DISPONIVEIS.map(p => p.path);
+      const pathsNaoEncontrados = pathsNoBanco.filter(path => !pathsDisponiveis.includes(path));
+      if (pathsNaoEncontrados.length > 0) {
+        console.warn('[Configuracoes] Páginas no banco que não estão em PAGINAS_DISPONIVEIS:', pathsNaoEncontrados);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar páginas em manutenção:", error);
+      toast.error("Erro ao carregar páginas em manutenção");
+    } finally {
+      setLoadingPagesMaintenance(false);
+    }
+  }, [realRole]);
+
+  // Carregar páginas ao montar (apenas para admin)
+  useEffect(() => {
+    if (realRole === 'admin') {
+      carregarPagesMaintenance();
+    }
+  }, [realRole, carregarPagesMaintenance]);
+
+  // Função para alternar status de uma página
+  const handleTogglePageMaintenance = useCallback(async (pagePath: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    
+    setLoadingPagesMaintenance(true);
+    try {
+      const result = await updatePageMaintenance(pagePath, newStatus);
+      
+      if (result.success) {
+        toast.success(
+          newStatus 
+            ? "Página marcada como 'em avaliação'. Badge aparecerá na sidebar e página ficará oculta por padrão."
+            : "Página removida de 'em avaliação'. Badge será removido da sidebar."
+        );
+        // Recarregar lista
+        await carregarPagesMaintenance();
+        // Pequeno delay para garantir que o banco foi atualizado
+        await new Promise(resolve => setTimeout(resolve, 100));
+        // Notificar outros componentes sobre a mudança
+        console.log('[Configuracoes] Disparando evento pagesMaintenanceChanged para página:', pagePath, 'status:', newStatus);
+        window.dispatchEvent(new CustomEvent('pagesMaintenanceChanged', { 
+          detail: { pagePath, isActive: newStatus } 
+        }));
+      } else {
+        toast.error(result.error || "Erro ao atualizar página");
+      }
+    } catch (error: any) {
+      console.error("Erro ao atualizar página:", error);
+      toast.error("Erro ao atualizar página: " + (error.message || "Erro desconhecido"));
+    } finally {
+      setLoadingPagesMaintenance(false);
+    }
+  }, [carregarPagesMaintenance]);
+
   // Função para terminar sessão
   const handleTerminarSessao = useCallback(async () => {
     try {
@@ -811,7 +1009,7 @@ export default function Configuracoes() {
   // Garantir que os campos de novo usuário estejam sempre vazios ao montar
   useEffect(() => {
     // Resetar campos de novo usuário quando o componente montar
-    setNovoUsuario({ email: "", nome: "", senha: "" });
+    setNovoUsuario({ email: "", role: "user" });
   }, []);
 
   // Estados para o visualizador de logs - EM DESENVOLVIMENTO
@@ -823,120 +1021,146 @@ export default function Configuracoes() {
   // const [mostrarLogs, setMostrarLogs] = useState(false);
   // const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
 
-  const handleAddUser = useCallback(async () => {
-    if (!novoUsuario.email || !novoUsuario.nome || !novoUsuario.senha) {
-      setStatusMessage("Preencha todos os campos");
-      toast.error("Preencha todos os campos");
+  // Função para criar usuário e enviar email de reset password
+  const handleEnviarResetPassword = useCallback(async () => {
+    if (!novoUsuario.email) {
+      setStatusMessage("Preencha o email");
+      toast.error("Preencha o email");
       return;
     }
 
-    if (novoUsuario.senha.length < 6) {
-      setStatusMessage("A senha deve ter pelo menos 6 caracteres");
-      toast.error("A senha deve ter pelo menos 6 caracteres");
-      return;
-    }
+    // Adicionar estado de loading
+    setLoadingUsuarios(true);
+    setStatusMessage("Processando...");
 
     try {
-      // Criar usuário no Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: novoUsuario.email,
-        password: novoUsuario.senha,
-        options: {
-          data: {
-            nome: novoUsuario.nome,
-            role: "user",
-          },
-        },
-      });
+      const emailLower = novoUsuario.email.toLowerCase().trim();
+      
+      // 1. Verificar se o usuário já existe
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("user_id, email, role")
+        .eq("email", emailLower)
+        .maybeSingle();
 
-      if (authError) {
-        setStatusMessage("Erro ao criar usuário: " + authError.message);
-        toast.error("Erro ao criar usuário: " + authError.message);
-        return;
+      let userId: string;
+      let isNewUser = false;
+
+      if (existingProfile) {
+        // Usuário já existe, usar o ID existente
+        userId = existingProfile.user_id;
+        console.log("Usuário existente encontrado:", userId);
+      } else {
+        // Usuário não existe, criar novo diretamente no banco
+        isNewUser = true;
+        console.log("Criando novo usuário...");
+        
+        // 2. Gerar senha aleatória forte
+        const novaSenha = generateRandomPassword(20);
+        console.log("Senha gerada para novo usuário (não será exibida novamente)");
+
+        // 3. Criar usuário diretamente no banco usando função RPC
+        const { data: createResult, error: createError } = await supabase.rpc(
+          'create_user_direct',
+          {
+            user_email: emailLower,
+            user_password: novaSenha,
+            user_role: novoUsuario.role || 'user',
+            is_temporary: true
+          }
+        );
+
+        if (createError) {
+          setStatusMessage("Erro ao criar usuário: " + createError.message);
+          toast.error("Erro ao criar usuário: " + createError.message);
+          setLoadingUsuarios(false);
+          return;
+        }
+
+        if (!createResult || !createResult.success) {
+          const errorMsg = createResult?.message || "Erro desconhecido ao criar usuário";
+          setStatusMessage("Erro ao criar usuário: " + errorMsg);
+          toast.error("Erro ao criar usuário: " + errorMsg);
+          setLoadingUsuarios(false);
+          return;
+        }
+
+        userId = createResult.user_id;
+        console.log("Usuário criado com sucesso:", userId);
       }
 
-      if (!authData.user) {
-        setStatusMessage("Erro ao criar usuário");
-        toast.error("Erro ao criar usuário");
-        return;
-      }
+      // 5. Se usuário já existia, atualizar senha e perfil
+      if (!isNewUser) {
+        // Gerar nova senha aleatória
+        const novaSenha = generateRandomPassword(20);
+        console.log("Senha gerada para usuário existente (não será exibida novamente)");
 
-      // Tentar criar perfil na tabela user_profiles (se existir)
-      if (tabelaProfilesExiste !== false) {
+        // Atualizar senha do usuário usando função admin
         try {
-          const { error: profileError } = await supabase
-            .from("user_profiles")
-            .insert({
-              user_id: authData.user.id,
-              email: novoUsuario.email,
-              nome: novoUsuario.nome,
-              role: "user",
-              // Não definir page_permissions (NULL) = acesso total por padrão
-              // page_permissions: null (não definir = NULL no banco)
-            });
+          await updateUserPasswordByAdmin(
+            userId,
+            novaSenha,
+            emailLower,
+            emailLower
+          );
+        } catch (passwordError: any) {
+          setStatusMessage("Erro ao atualizar senha: " + passwordError.message);
+          toast.error("Erro ao atualizar senha: " + passwordError.message);
+          setLoadingUsuarios(false);
+          return;
+        }
 
-          if (profileError) {
-            const errorDetails = profileError as any;
-            const isTableNotFound = 
-              profileError.code === '42P01' ||
-              profileError.code === 'PGRST116' ||
-              profileError.code === 'PGRST205' ||
-              profileError.code === '42704' ||
-              errorDetails?.status === 404 ||
-              errorDetails?.statusCode === 404 ||
-              profileError.message?.toLowerCase().includes('does not exist') ||
-              profileError.message?.toLowerCase().includes('could not find the table') ||
-              profileError.message?.toLowerCase().includes('relation') ||
-              profileError.message?.toLowerCase().includes('not found') ||
-              profileError.message?.toLowerCase().includes('doesn\'t exist') ||
-              profileError.message?.toLowerCase().includes('schema cache');
-            
-            if (isTableNotFound) {
-              setTabelaProfilesExiste(false);
-              // Não mostrar erro, apenas marcar que a tabela não existe
-            } else {
-              console.warn("Erro ao criar perfil:", profileError);
-            }
-          } else {
-            setTabelaProfilesExiste(true);
-          }
-        } catch (profileErr) {
-          // Silenciar erro se a tabela não existir
-          const errorObj = profileErr as any;
-          const isTableNotFound = errorObj?.code === '42P01' || 
-                                  errorObj?.code === 'PGRST116' ||
-                                  errorObj?.message?.includes('does not exist') ||
-                                  errorObj?.status === 404;
-          
-          if (isTableNotFound) {
-            setTabelaProfilesExiste(false);
-          }
+        // Atualizar perfil: role e password_temporary
+        const { error: updateProfileError } = await supabase
+          .from("user_profiles")
+          .update({
+            role: novoUsuario.role,
+            password_temporary: true, // Marcar como senha temporária
+          })
+          .eq("user_id", userId);
+
+        if (updateProfileError) {
+          console.warn("Erro ao atualizar perfil:", updateProfileError);
+          // Não bloquear se falhar, pois a senha já foi atualizada
         }
       }
 
-      // Adicionar à lista local
-      const newUser: Usuario = {
-        id: authData.user.id,
-        user_id: authData.user.id,
-        email: novoUsuario.email,
-        nome: novoUsuario.nome,
-        role: "user",
-        created_at: authData.user.created_at,
-        page_permissions: [], // Acesso total por padrão
-      };
+      // 6. Não enviar email de reset - o usuário fará login e o modal aparecerá automaticamente
+      // O usuário receberá instruções para fazer login e o modal de troca de senha aparecerá na Home
 
-      setUsuarios([...usuarios, newUser]);
+      // Sucesso!
+      setStatusMessage(
+        isNewUser
+          ? `Usuário criado com sucesso! O usuário ${emailLower} pode fazer login agora. Uma senha temporária foi gerada e o modal de troca de senha aparecerá automaticamente após o login.`
+          : `Senha temporária atualizada para ${emailLower}. O usuário pode fazer login e o modal de troca de senha aparecerá automaticamente.`
+      );
+      toast.success(
+        isNewUser
+          ? `Usuário criado! O usuário pode fazer login e será solicitado a trocar a senha.`
+          : `Senha temporária atualizada! O usuário pode fazer login e será solicitado a trocar a senha.`
+      );
+      
       // Limpar campos após sucesso
-      setNovoUsuario({ email: "", nome: "", senha: "" });
-      setStatusMessage("Utilizador adicionado com sucesso!");
-      toast.success("Utilizador adicionado com sucesso!");
-      setTimeout(() => setStatusMessage(""), 3000);
+      setNovoUsuario({ email: "", role: "user" });
+      setTimeout(() => setStatusMessage(""), 5000);
+      setLoadingUsuarios(false);
+
+      // Recarregar lista de usuários
+      carregarUsuarios();
     } catch (error: any) {
-      console.error("Erro ao adicionar usuário:", error);
-      setStatusMessage("Erro ao adicionar usuário: " + (error.message || "Erro desconhecido"));
-      toast.error("Erro ao adicionar usuário: " + (error.message || "Erro desconhecido"));
+      console.error("Erro ao processar usuário:", error);
+      
+      // Tratamento específico para timeout
+      if (error.message && (error.message.includes("Timeout") || error.message.includes("504"))) {
+        setStatusMessage("O servidor demorou muito para responder. Tente novamente em alguns instantes.");
+        toast.error("Timeout: O servidor demorou muito para responder. Tente novamente.");
+      } else {
+        setStatusMessage("Erro: " + (error.message || "Erro desconhecido"));
+        toast.error("Erro ao processar usuário: " + (error.message || "Erro desconhecido"));
+      }
+      setLoadingUsuarios(false);
     }
-  }, [novoUsuario, usuarios, tabelaProfilesExiste]);
+  }, [novoUsuario, carregarUsuarios]);
 
   // Função para abrir modal de alteração de senha (Admin)
   const abrirModalSenha = (usuario: Usuario) => {
@@ -1012,7 +1236,7 @@ export default function Configuracoes() {
   }, [usuarios, user, carregarUsuarios]);
 
   // Função para abrir modal de edição de usuário (Admin)
-  const abrirModalEditarUsuario = (usuario: Usuario) => {
+  const abrirModalEditarUsuario = async (usuario: Usuario) => {
     logger.log("Abrindo modal de edição:", {
       email: usuario.email,
       page_permissions: usuario.page_permissions,
@@ -1025,11 +1249,26 @@ export default function Configuracoes() {
     setEditarNome(usuario.nome || "");
     setEditarEmail(usuario.email || "");
     setEditarRole((usuario.role as "admin" | "user") || "user");
-    // Se page_permissions for null/undefined, significa que nunca foi definido = array vazio no modal
-    // Se tiver valores, usar esses valores
-    const permissoesIniciais = usuario.page_permissions ?? [];
-    logger.log("Permissões iniciais no modal:", permissoesIniciais);
-    setPermissoesPaginas(permissoesIniciais);
+    // Lógica invertida: no modal, armazenamos as páginas OCULTAS (marcadas)
+    // Por padrão, apenas páginas em desenvolvimento/avaliação ficam ocultas
+    // Se page_permissions for null/undefined, usar páginas ocultas por padrão
+    // Se tiver valores (páginas visíveis), calcular quais estão ocultas (todas menos as visíveis)
+    let paginasOcultas: string[] = [];
+    if (usuario.page_permissions && Array.isArray(usuario.page_permissions)) {
+      // Páginas ocultas = todas as páginas menos as que estão em page_permissions (visíveis)
+      paginasOcultas = PAGINAS_DISPONIVEIS
+        .map(p => p.path)
+        .filter(path => !usuario.page_permissions!.includes(path));
+    } else {
+      // Se page_permissions é null, usar apenas as páginas ocultas por padrão (em desenvolvimento/avaliação)
+      // A lista é gerenciada automaticamente no banco de dados
+      const hiddenPages = await getPagesHiddenByDefaultService();
+      paginasOcultas = hiddenPages.filter(path => 
+        PAGINAS_DISPONIVEIS.some(p => p.path === path)
+      );
+    }
+    logger.log("Permissões iniciais no modal (páginas ocultas):", paginasOcultas);
+    setPermissoesPaginas(paginasOcultas);
     setModalEditarUsuarioOpen(true);
   };
 
@@ -1043,19 +1282,24 @@ export default function Configuracoes() {
 
     setLoading(true);
     try {
-      // Lógica de permissões:
+      // Lógica de permissões (INVERTIDA):
+      // No modal, permissoesPaginas armazena as páginas OCULTAS (marcadas)
+      // No banco, page_permissions armazena as páginas VISÍVEIS
       // - Admin: não precisa de permissões (salvar null)
-      // - User sem permissões selecionadas: salvar null (acesso total - comportamento padrão)
-      // - User com permissões selecionadas: salvar array com os paths (só essas páginas)
+      // - User com nenhuma página marcada (oculta): salvar null (todas visíveis - acesso total)
+      // - User com algumas páginas marcadas (ocultas): salvar array com as páginas VISÍVEIS (todas menos as ocultas)
       let permissoesFinais: string[] | null = null;
       if (editarRole === "admin") {
         permissoesFinais = null; // Admin não precisa de permissões
       } else if (permissoesPaginas.length === 0) {
-        // Se não selecionou nenhuma página, salvar null = acesso total (comportamento padrão)
+        // Se nenhuma página está marcada (oculta), todas são visíveis = salvar null (acesso total)
         permissoesFinais = null;
       } else {
-        // Se selecionou páginas, salvar o array (só essas páginas serão permitidas)
-        permissoesFinais = permissoesPaginas;
+        // Se algumas páginas estão marcadas (ocultas), calcular as visíveis (todas menos as ocultas)
+        const paginasVisiveis = PAGINAS_DISPONIVEIS
+          .map(p => p.path)
+          .filter(path => !permissoesPaginas.includes(path));
+        permissoesFinais = paginasVisiveis;
       }
       
       // Busca dados antigos antes de atualizar (para o log de auditoria)
@@ -1245,8 +1489,7 @@ export default function Configuracoes() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Configurações</h1>
-            <p className="text-slate-600 dark:text-slate-400">Gerencie preferências e configurações do sistema</p>
+            <h1 className="text-3xl font-bold text-foreground">Configurações</h1>
           </div>
         </div>
 
@@ -1255,17 +1498,35 @@ export default function Configuracoes() {
           <div className="lg:col-span-2 space-y-6">
             {/* Card único com Perfil e Alterar Senha */}
             <Card className="hover:shadow-md transition-shadow duration-200">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
+              <CardHeader className="border-b">
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => setPerfilExpanded(!perfilExpanded)}
+                >
+                  <div className="flex items-center gap-2">
                     <User className="w-5 h-5 text-muted-foreground" />
-                    Perfil e Configurações
-                  </CardTitle>
-                  <Badge className={realRole === 'admin' ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-success/10 text-success border-success/30"}>
-                    {realRole === 'admin' ? 'Administrador' : 'Ativo'}
-                  </Badge>
+                    <CardTitle>Perfil</CardTitle>
+                    <Badge className={realRole === 'admin' ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-success/10 text-success border-success/30"}>
+                      {realRole === 'admin' ? 'Administrador' : 'Ativo'}
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPerfilExpanded(!perfilExpanded);
+                    }}
+                  >
+                    {perfilExpanded ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5" />
+                    )}
+                  </Button>
                 </div>
               </CardHeader>
+              {perfilExpanded && (
               <CardContent className="space-y-8">
                 {/* Seção Perfil */}
                 <div className="space-y-6">
@@ -1273,39 +1534,55 @@ export default function Configuracoes() {
                     <div className="w-20 h-20 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-background">
                       {currentUser.nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                     </div>
-                    <div>
-                      <h3 className="font-bold text-xl text-foreground">{currentUser.nome}</h3>
-                      <p className="text-sm text-muted-foreground">{currentUser.email}</p>
-                      <Badge variant="outline" className="mt-2">
-                        {currentUser.role === 'admin' ? 'Administrador' : 'Utilizador'}
-                      </Badge>
-                    </div>
-                  </div>
-                  
-                  {/* Nome de Exibição */}
-                  <div className="pt-4 border-t">
-                    <div>
-                      <Label htmlFor="displayName" className="text-sm font-medium mb-2">Nome de exibição</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="displayName"
-                          type="text"
-                          placeholder="O seu nome completo"
-                          value={nomeExibicao}
-                          onChange={(e) => setNomeExibicao(e.target.value)}
-                          disabled={loadingNome}
-                          autoComplete="off"
-                        />
-                        <Button 
-                          onClick={handleSalvarNome}
-                          disabled={loadingNome || !nomeExibicao.trim()}
-                        >
-                          {loadingNome ? "A guardar..." : "Guardar"}
-                        </Button>
+                    <div className="flex-1 flex items-center gap-3">
+                      <div className="flex-1">
+                        <h3 className="font-bold text-xl text-foreground">{currentUser.nome}</h3>
+                        <p className="text-sm text-muted-foreground">{currentUser.email}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Este nome será utilizado em todo o sistema
-                      </p>
+                      {!editingNome ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingNome(true)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Mudar Nome
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="text"
+                            placeholder="O seu nome completo"
+                            value={nomeExibicao}
+                            onChange={(e) => setNomeExibicao(e.target.value)}
+                            disabled={loadingNome}
+                            autoComplete="off"
+                            className="w-48"
+                          />
+                          <Button 
+                            onClick={async () => {
+                              await handleSalvarNome();
+                              setEditingNome(false);
+                            }}
+                            disabled={loadingNome || !nomeExibicao.trim()}
+                            size="sm"
+                          >
+                            {loadingNome ? "A guardar..." : "Guardar"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditingNome(false);
+                              setNomeExibicao(currentUser.nome);
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1485,19 +1762,8 @@ export default function Configuracoes() {
                     </div>
                   </div>
                 </div>
-
-                {/* Terminar Sessão no final do card */}
-                <div className="pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
-                    onClick={handleTerminarSessao}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Terminar Sessão
-                  </Button>
-                </div>
               </CardContent>
+              )}
             </Card>
 
             {/* User Management Card (Only for Admin) */}
@@ -1506,50 +1772,66 @@ export default function Configuracoes() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ShieldAlert className="w-5 h-5" />
-                    Painel Administrativo
+                    Controle de Usuários
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6 pt-6">
                   <div>
-                    <h4 className="font-semibold text-slate-900 mb-4">Adicionar Novo Utilizador</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <h4 className="font-semibold text-foreground mb-4">Criar ou Atualizar Usuário</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Adicione um novo usuário ou atualize a senha temporária de um usuário existente. <br /><br />Uma senha aleatória e segura será gerada automaticamente. <br />O usuário deve fazer login e o modal de troca de senha aparecerá automaticamente na Home.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Input
                         type="email"
-                        placeholder="E-mail do novo utilizador"
+                        placeholder="E-mail do utilizador"
                         value={novoUsuario.email}
                         onChange={(e) => setNovoUsuario({...novoUsuario, email: e.target.value})}
                         autoComplete="off"
+                        disabled={loadingUsuarios}
                       />
-                      <Input
-                        type="text"
-                        placeholder="Nome completo"
-                        value={novoUsuario.nome}
-                        onChange={(e) => setNovoUsuario({...novoUsuario, nome: e.target.value})}
-                        autoComplete="off"
-                      />
-                      <Input
-                        type="password"
-                        placeholder="Senha temporária"
-                        value={novoUsuario.senha}
-                        onChange={(e) => setNovoUsuario({...novoUsuario, senha: e.target.value})}
-                        autoComplete="new-password"
-                      />
-                      <Button 
-                        onClick={handleAddUser}
-                        className=""
+                      <Select
+                        value={novoUsuario.role}
+                        onValueChange={(value: "admin" | "user") => setNovoUsuario({...novoUsuario, role: value})}
+                        disabled={loadingUsuarios}
                       >
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Adicionar
+                        <SelectTrigger>
+                          <SelectValue placeholder="Tipo de utilizador" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">Usuário</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        onClick={handleEnviarResetPassword}
+                        className=""
+                        disabled={loadingUsuarios}
+                      >
+                        {loadingUsuarios ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            {novoUsuario.email ? "Criar/Atualizar Usuário" : "Criar Usuário"}
+                          </>
+                        )}
                       </Button>
                     </div>
                     {statusMessage && (
-                      <p className="text-sm text-green-600 mt-2">{statusMessage}</p>
+                      <p className={`text-sm mt-2 ${statusMessage.includes("Erro") || statusMessage.includes("não encontrado") ? "text-red-600" : "text-green-600"}`}>
+                        {statusMessage}
+                      </p>
                     )}
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-slate-900">Utilizadores Registados</h4>
+                      <h4 className="font-semibold text-foreground">Utilizadores Registados</h4>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1561,11 +1843,11 @@ export default function Configuracoes() {
                       </Button>
                     </div>
                     {loadingUsuarios ? (
-                      <div className="text-center py-8 text-slate-600">
+                      <div className="text-center py-8 text-muted-foreground">
                         Carregando usuários...
                       </div>
                     ) : usuarios.length === 0 ? (
-                      <div className="text-center py-8 text-slate-600">
+                      <div className="text-center py-8 text-muted-foreground">
                         Nenhum usuário encontrado.
                       </div>
                     ) : (
@@ -1613,15 +1895,6 @@ export default function Configuracoes() {
                                       >
                                         <Lock className="w-4 h-4" />
                                       </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm"
-                                        onClick={() => handleDeleteUser(usuario)}
-                                        title="Excluir Usuário"
-                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </Button>
                                     </div>
                                   )}
                                 </TableCell>
@@ -1636,54 +1909,139 @@ export default function Configuracoes() {
               </Card>
             )}
 
-            {/* Security Test Card */}
+            {/* Pages Maintenance Card */}
             {realRole === 'admin' && (
               <Card className="hover:shadow-md transition-shadow duration-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-muted-foreground" />
-                    Testes de Segurança
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Execute testes automatizados de penetração para verificar vulnerabilidades de segurança do sistema.
-                  </p>
-                  <Button
-                    onClick={() => {
-                      sessionStorage.setItem('securityTestFromConfig', 'true');
-                      navigate('/security-test');
-                    }}
-                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
+                <CardHeader className="border-b">
+                  <div 
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => setPagesMaintenanceExpanded(!pagesMaintenanceExpanded)}
                   >
-                    <Shield className="w-4 h-4 mr-2" />
-                    Executar Testes de Segurança
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Audit Logs Card */}
-            {realRole === 'admin' && (
-              <Card className="hover:shadow-md transition-shadow duration-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Database className="w-5 h-5 text-muted-foreground" />
-                    Logs de Auditoria
-                  </CardTitle>
+                    <div className="flex-1">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Settings className="w-5 h-5 text-muted-foreground" />
+                        Gerenciar Páginas em Manutenção
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Controle quais páginas aparecem com badge "Avaliar" na sidebar.
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-4"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPagesMaintenanceExpanded(!pagesMaintenanceExpanded);
+                      }}
+                    >
+                      {pagesMaintenanceExpanded ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
+                    </Button>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Visualize todas as mudanças feitas no sistema - quem fez, quando e o que mudou.
-                  </p>
-                  <Button
-                    onClick={() => navigate('/audit-logs')}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                  >
-                    <Database className="w-4 h-4 mr-2" />
-                    Ver Logs de Auditoria
-                  </Button>
+                {pagesMaintenanceExpanded && (
+                <CardContent className="space-y-4 pt-6">
+                  {loadingPagesMaintenance ? (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                      <p className="text-sm">Carregando páginas...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {PAGINAS_DISPONIVEIS.map((pagina) => {
+                        // Normalizar paths para comparação (case-insensitive)
+                        const normalizedPaginaPath = pagina.path.toLowerCase().trim();
+                        const maintenanceConfig = pagesMaintenance.find(p => {
+                          const normalizedDbPath = p.page_path.toLowerCase().trim();
+                          return normalizedDbPath === normalizedPaginaPath;
+                        });
+                        const isInMaintenance = maintenanceConfig?.is_active ?? false;
+                        
+                        // Log para debug
+                        if (maintenanceConfig) {
+                          console.log(`[Configuracoes] Página ${pagina.path} encontrada no banco:`, {
+                            path: maintenanceConfig.page_path,
+                            is_active: maintenanceConfig.is_active,
+                            badge_text: maintenanceConfig.badge_text
+                          });
+                        }
+                        
+                        return (
+                          <div
+                            key={pagina.path}
+                            className={`group flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
+                              isInMaintenance
+                                ? "bg-yellow-50/50 border-yellow-200 hover:border-yellow-300 hover:bg-yellow-50"
+                                : "bg-muted border-border hover:border-primary/30 hover:bg-accent"
+                            }`}
+                          >
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-2xl transition-all ${
+                                isInMaintenance
+                                  ? "bg-warning/20"
+                                  : "bg-muted"
+                              }`}>
+                                {pagina.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className={`font-semibold text-sm ${
+                                    isInMaintenance ? "text-warning-foreground" : "text-foreground"
+                                  }`}>
+                                    {pagina.nome}
+                                  </h4>
+                                  {isInMaintenance && (
+                                    <Badge 
+                                      variant="outline" 
+                                      className="text-[10px] px-2 py-0.5 h-5 bg-yellow-100 text-yellow-700 border-yellow-300 font-medium"
+                                    >
+                                      {maintenanceConfig?.badge_text || "Avaliar"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground font-mono">{pagina.path}</p>
+                              </div>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+                              <input 
+                                type="checkbox" 
+                                className="sr-only peer" 
+                                checked={isInMaintenance}
+                                onChange={() => handleTogglePageMaintenance(pagina.path, isInMaintenance)}
+                                disabled={loadingPagesMaintenance}
+                              />
+                              <div className={`w-12 h-6 rounded-full peer transition-all duration-300 ${
+                                isInMaintenance 
+                                  ? "bg-warning shadow-md shadow-warning/30" 
+                                  : "bg-muted border border-border"
+                              } peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-warning peer-checked:after:translate-x-full peer-checked:after:border-warning-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-warning-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm`}></div>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  <div className="pt-4 mt-6 border-t space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0"></div>
+                      <p className="text-xs text-muted-foreground">
+                        <strong className="text-foreground">OFF:</strong> Badge "Avaliar" aparece na sidebar para admins.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground mt-1.5 flex-shrink-0"></div>
+                      <p className="text-xs text-muted-foreground">
+                        <strong className="text-foreground">ON:</strong> Badge é removido da sidebar.
+                      </p>
+                    </div>
+                  </div>
                 </CardContent>
+                )}
               </Card>
             )}
 
@@ -1699,16 +2057,18 @@ export default function Configuracoes() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-600">Versão:</span>
-                  <span className="font-semibold">1.1.0 (Admin)</span>
+                  <span className="text-muted-foreground">Versão:</span>
+                  <span className="font-semibold text-foreground font-mono text-xs">{getVersionString()}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Último acesso:</span>
-                  <span className="font-semibold">Hoje</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Ambiente:</span>
-                  <Badge className="bg-orange-200 text-black-700 text-xs">Produção</Badge>
+                <div className="pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                    onClick={handleTerminarSessao}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Terminar Sessão
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -1722,25 +2082,25 @@ export default function Configuracoes() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-slate-900 text-sm">Notificações por E-mail</h4>
-                    <p className="text-xs text-slate-600">Receba atualizações importantes por e-mail</p>
+                    <h4 className="font-semibold text-foreground text-sm">Notificações por E-mail</h4>
+                    <p className="text-xs text-muted-foreground">Receba atualizações importantes por e-mail</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer ml-2">
                     <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-slate-900 text-sm">Alertas do Sistema</h4>
-                    <p className="text-xs text-slate-600">Notificações sobre atualizações e manutenções</p>
+                    <h4 className="font-semibold text-foreground text-sm">Alertas do Sistema</h4>
+                    <p className="text-xs text-muted-foreground">Notificações sobre atualizações e manutenções</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer ml-2">
                     <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                   </label>
                 </div>
 
@@ -1756,6 +2116,47 @@ export default function Configuracoes() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Security Test & Logs Card */}
+            {realRole === 'admin' && (
+              <Card className="hover:shadow-md transition-shadow duration-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-muted-foreground" />
+                    Testes de Segurança
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Button
+                      onClick={() => {
+                        sessionStorage.setItem('securityTestFromConfig', 'true');
+                        navigate('/security-test');
+                      }}
+                      className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
+                    >
+                      <Shield className="w-4 h-4 mr-2" />
+                      Ir para Testes de Segurança
+                    </Button>
+                  </div>
+                  <div className="pt-4 border-t">
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="w-5 h-5 text-muted-foreground" />
+                      Logs do Sistema
+                    </CardTitle>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <Button
+                      onClick={() => navigate('/audit-logs')}
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    >
+                      <Database className="w-4 h-4 mr-2" />
+                      Ver Logs do Sistema
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Help Card */}
             <Card className="border-primary/30 bg-primary/5">
@@ -1776,22 +2177,28 @@ export default function Configuracoes() {
       {/* MODAL DE EDIÇÃO DE USUÁRIO (ADMIN) */}
       {modalEditarUsuarioOpen && usuarioEditando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
-            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-background z-10 border-b">
-              <CardTitle className="text-lg">Editar Utilizador</CardTitle>
+          <Card className="w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <CardHeader className="flex flex-row items-center justify-between border-b">
+              <CardTitle className="text-lg">Editar <strong>{usuarioEditando.nome || usuarioEditando.email}</strong></CardTitle>
+              <div className="flex justify-center">
+                  <RoleTabs 
+                    role={editarRole} 
+                    onRoleChange={setEditarRole}
+                    roleTabRefs={roleTabRefs}
+                  />
+                </div>
+
               <Button variant="ghost" size="icon" onClick={() => setModalEditarUsuarioOpen(false)}>
                 <X className="w-4 h-4" />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-6 pt-6">
-              <div className="p-3 bg-blue-50 text-blue-700 rounded-md text-sm">
-                Editando: <strong>{usuarioEditando.nome || usuarioEditando.email}</strong>
-              </div>
+            <CardContent className="space-y-6 pt-6 overflow-y-auto flex-1">
+
 
               {/* Informações Básicas */}
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="editarNome">Nome Completo</Label>
+                  <Label htmlFor="editarNome">Nome de Exibição</Label>
                   <Input
                     id="editarNome"
                     value={editarNome}
@@ -1811,36 +2218,6 @@ export default function Configuracoes() {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="editarRole">Tipo de Utilizador</Label>
-                  <div className="flex gap-4 mt-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="role"
-                        value="user"
-                        checked={editarRole === "user"}
-                        onChange={() => setEditarRole("user")}
-                        className="w-4 h-4"
-                      />
-                      <span>Utilizador</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="role"
-                        value="admin"
-                        checked={editarRole === "admin"}
-                        onChange={() => setEditarRole("admin")}
-                        className="w-4 h-4"
-                      />
-                      <span>Administrador</span>
-                    </label>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Administradores têm acesso total ao sistema
-                  </p>
-                </div>
               </div>
 
               {/* Permissões de Páginas */}
@@ -1849,7 +2226,7 @@ export default function Configuracoes() {
                   Permissões de Acesso às Páginas
                 </Label>
                 <p className="text-xs text-muted-foreground mb-4">
-                  Selecione quais páginas este usuário pode acessar. Administradores têm acesso a todas as páginas automaticamente.
+                  Por padrão, apenas páginas em desenvolvimento ou avaliação ficam <strong>ocultas</strong>. Clique nas páginas para alternar entre visível e oculto.
                 </p>
                 
                 {editarRole === "admin" ? (
@@ -1857,32 +2234,39 @@ export default function Configuracoes() {
                     ⚠️ Administradores têm acesso a todas as páginas automaticamente.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
                     {PAGINAS_DISPONIVEIS.map((pagina) => {
-                      const temPermissao = permissoesPaginas.includes(pagina.path);
+                      const estaOculta = permissoesPaginas.includes(pagina.path);
+                      
                       return (
                         <div
                           key={pagina.path}
                           className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                            temPermissao
-                              ? "border-green-500 bg-green-50"
-                              : "border-gray-200 hover:border-gray-300"
+                            estaOculta
+                              ? "border-red-500 bg-red-50 hover:border-red-600 hover:bg-red-100"
+                              : "border-green-500 bg-green-50 hover:border-green-600 hover:bg-green-100"
                           }`}
                           onClick={() => togglePermissaoPagina(pagina.path)}
+                          title={estaOculta ? "Clique para tornar esta página visível" : "Clique para ocultar esta página"}
                         >
-                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                            temPermissao ? "border-green-500 bg-green-500" : "border-gray-300"
-                          }`}>
-                            {temPermissao && <Check className="w-3 h-3 text-white" />}
+                          <div className="flex items-center gap-2 flex-1">
+                            <span className="text-lg">{pagina.icon}</span>
+                            <span className={`font-medium ${
+                              estaOculta ? "text-red-700" : "text-green-700"
+                            }`}>
+                              {pagina.nome}
+                            </span>
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">{pagina.icon}</span>
-                              <span className={`font-medium ${temPermissao ? "text-green-700" : "text-gray-700"}`}>
-                                {pagina.nome}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">{pagina.path}</p>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                            estaOculta
+                              ? "border-red-500 bg-red-500"
+                              : "border-green-500 bg-green-500"
+                          }`}>
+                            {estaOculta ? (
+                              <X className="w-3 h-3 text-white" />
+                            ) : (
+                              <Check className="w-3 h-3 text-white" />
+                            )}
                           </div>
                         </div>
                       );
@@ -1892,34 +2276,52 @@ export default function Configuracoes() {
 
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <span>
-                    {permissoesPaginas.length} de {PAGINAS_DISPONIVEIS.length} páginas selecionadas
+                    {permissoesPaginas.length} página{permissoesPaginas.length !== 1 ? 's' : ''} oculta{permissoesPaginas.length !== 1 ? 's' : ''} • {PAGINAS_DISPONIVEIS.length - permissoesPaginas.length} visível{PAGINAS_DISPONIVEIS.length - permissoesPaginas.length !== 1 ? 's' : ''}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => {
                       if (permissoesPaginas.length === PAGINAS_DISPONIVEIS.length) {
+                        // Todas estão ocultas, tornar todas visíveis
                         setPermissoesPaginas([]);
                       } else {
+                        // Algumas ou nenhuma está oculta, ocultar todas
                         setPermissoesPaginas(PAGINAS_DISPONIVEIS.map(p => p.path));
                       }
                     }}
                     disabled={editarRole === "admin"}
                   >
-                    {permissoesPaginas.length === PAGINAS_DISPONIVEIS.length ? "Desmarcar Todas" : "Marcar Todas"}
+                    {permissoesPaginas.length === PAGINAS_DISPONIVEIS.length ? "Tornar Todas Visíveis" : "Ocultar Todas"}
                   </Button>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => setModalEditarUsuarioOpen(false)}>
+            </CardContent>
+            <div className="sticky bottom-0 bg-background border-t p-4 flex justify-between items-center gap-2">
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  if (window.confirm("Tem certeza que deseja remover este utilizador? Esta ação não pode ser desfeita.")) {
+                    handleDeleteUser(usuarioEditando);
+                    setModalEditarUsuarioOpen(false);
+                  }
+                }}
+                disabled={loading || usuarioEditando.user_id === user?.id}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Excluir Usuário
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setModalEditarUsuarioOpen(false)} disabled={loading}>
                   Cancelar
                 </Button>
                 <Button onClick={handleSalvarEdicaoUsuario} disabled={loading}>
                   {loading ? "Salvando..." : "Salvar Alterações"}
                 </Button>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
       )}
@@ -1927,17 +2329,16 @@ export default function Configuracoes() {
       {/* MODAL DE ALTERAÇÃO DE SENHA (ADMIN) */}
       {modalSenhaOpen && usuarioParaEditar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-md animate-in fade-in zoom-in duration-200">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Alterar Senha de Utilizador</CardTitle>
+          <Card className="w-full max-w-md flex flex-col animate-in fade-in zoom-in duration-200">
+            <CardHeader className="flex flex-row items-center justify-between border-b">
+              <CardTitle className="text-lg">Alterar Senha de <strong>{usuarioParaEditar.nome || usuarioParaEditar.email}</strong></CardTitle>
+
               <Button variant="ghost" size="icon" onClick={() => setModalSenhaOpen(false)}>
                 <X className="w-4 h-4" />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-3 bg-blue-50 text-blue-700 rounded-md text-sm">
-                Alterando senha para: <strong>{usuarioParaEditar.nome || usuarioParaEditar.email}</strong>
-              </div>
+            <CardContent className="space-y-4 overflow-y-auto flex-1">
+
               <div className="space-y-2">
                 <Label>Nova Senha</Label>
                 <Input 
@@ -1950,13 +2351,13 @@ export default function Configuracoes() {
                   Digite uma senha segura. O usuário poderá alterá-la depois.
                 </p>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setModalSenhaOpen(false)}>Cancelar</Button>
-                <Button onClick={handleAdminChangePassword} disabled={loading}>
-                  {loading ? "Salvando..." : "Confirmar Alteração"}
-                </Button>
-              </div>
             </CardContent>
+            <div className="sticky bottom-0 bg-background border-t p-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setModalSenhaOpen(false)} disabled={loading}>Cancelar</Button>
+              <Button onClick={handleAdminChangePassword} disabled={loading}>
+                {loading ? "Salvando..." : "Confirmar Alteração"}
+              </Button>
+            </div>
           </Card>
         </div>
       )}
@@ -2031,6 +2432,7 @@ export default function Configuracoes() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

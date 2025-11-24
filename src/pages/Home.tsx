@@ -1,5 +1,5 @@
-
 export default function Home() {
+
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Animated Background Container */}
@@ -8,10 +8,24 @@ export default function Home() {
       {/* Main Content */}
       <main className="max-w-10xl mx-auto px-6 py-8 relative z-10">
         {/* Welcome Section */}
-        <div className="mb-8 justify-center items-center">
-          <h2 className="text-3xl font-bold text-foreground mb-2 justify-center text-center">
-            <span className="text-primary">DASHBOARD TI | BR MARINAS</span>
-          </h2>
+        <div className="mb-8 justify-center items-center flex flex-col">
+
+          <button className="button-animated" data-text="TI BR MARINAS">
+            <span className="actual-text">
+              &nbsp;
+              <span style={{ fontWeight: 800, letterSpacing: '0.5px', fontSize: '1em', color: 'hsl(var(--primary))', textShadow: '0 2px 8px hsla(var(--primary),0.35)' }}>
+                TI
+              </span>
+              &nbsp;BR MARINAS&nbsp;
+            </span>
+            <span aria-hidden="true" className="hover-text">
+              &nbsp;
+              <span style={{ fontWeight: 800, letterSpacing: '0.5px', fontSize: '1em', color: 'hsl(var(--primary))', textShadow: '0 2px 8px hsla(var(--primary),0.35)' }}>
+                TI
+              </span>
+              &nbsp;BR MARINAS&nbsp;
+            </span>
+          </button>
         </div>
 
         {/* Content Areas */}

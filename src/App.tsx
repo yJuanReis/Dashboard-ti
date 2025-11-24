@@ -7,6 +7,7 @@ import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { PagePermissionGuard } from "@/components/PagePermissionGuard";
 import { AdminOnlyRoute } from "@/components/AdminOnlyRoute";
+import { PasswordTemporaryGuard } from "@/components/PasswordTemporaryGuard";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NVRProvider } from "@/contexts/NVRContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -49,9 +50,10 @@ const App = () => (
                 path="/*"
                 element={
                   <ProtectedRoute>
-                    <NVRProvider>
-                      <Layout>
-                        <Routes>
+                    <PasswordTemporaryGuard>
+                      <NVRProvider>
+                        <Layout>
+                          <Routes>
                           <Route path="/" element={<Navigate to="/home" replace />} />
                           <Route path="/home" element={<PagePermissionGuard><Home /></PagePermissionGuard>} />
                           <Route path="/assinaturas" element={<PagePermissionGuard><Assinaturas /></PagePermissionGuard>} />
@@ -67,9 +69,10 @@ const App = () => (
                           <Route path="/security-test" element={<PagePermissionGuard><SecurityTest /></PagePermissionGuard>} />
                           <Route path="/audit-logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />
                           <Route path="*" element={<NotFound />} />
-                        </Routes>
-                      </Layout>
-                    </NVRProvider>
+                          </Routes>
+                        </Layout>
+                      </NVRProvider>
+                    </PasswordTemporaryGuard>
                   </ProtectedRoute>
                 }
               />

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, useCallback } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -15,75 +15,67 @@ export function PagePermissionGuard({ children }: PagePermissionGuardProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const checkPermission = async () => {
-      if (!user) {
-        setHasPermission(false);
+  const checkPermission = useCallback(async () => {
+    if (!user) {
+      setHasPermission(false);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const currentPath = location.pathname;
+      
+      // Verificar role e permissões do usuário
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("role, page_permissions")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error) {
+        console.error("Erro ao verificar permissões:", error);
+        // Se não encontrar perfil, permitir acesso (fail-open para não bloquear usuários legítimos)
+        setHasPermission(true);
         setLoading(false);
         return;
       }
 
-      try {
-        // Verificar role e permissões do usuário
-        const { data, error } = await supabase
-          .from("user_profiles")
-          .select("role, page_permissions")
-          .eq("user_id", user.id)
-          .single();
-
-        if (error) {
-          console.error("Erro ao verificar permissões:", error);
-          // Se não encontrar perfil, permitir acesso (fail-open para não bloquear usuários legítimos)
-          // O usuário pode não ter perfil ainda, mas isso não deve bloquear o acesso
-          setHasPermission(true);
-          setLoading(false);
-          return;
-        }
-
-        // Administradores têm acesso a todas as páginas
-        if (data?.role === "admin") {
-          setHasPermission(true);
-          setLoading(false);
-          return;
-        }
-
-        // Obter permissões
-        // Lógica simplificada:
-        // - NULL/undefined/array vazio = acesso total (comportamento padrão)
-        // - Array com valores = só essas páginas são permitidas
-        const permissions = data?.page_permissions;
-        
-        // Se nunca foi definido (null/undefined) OU array vazio, permitir acesso total
-        if (permissions === null || permissions === undefined || (Array.isArray(permissions) && permissions.length === 0)) {
-          setHasPermission(true);
-          setLoading(false);
-          return;
-        }
-        
-        // Se há valores no array, verificar se a rota atual está nas permissões
-        const currentPath = location.pathname;
-        const hasAccess = permissions.includes(currentPath);
-        
-        // Log para debug
-        console.log("Verificando permissão:", {
-          currentPath,
-          permissions,
-          hasAccess,
-          role: data?.role
-        });
-        
-        setHasPermission(hasAccess);
-      } catch (error) {
-        console.error("Erro ao verificar permissões:", error);
-        // Em caso de erro, permitir acesso (fail-open para não bloquear usuários legítimos)
+      // Administradores têm acesso a todas as páginas
+      if (data?.role === "admin") {
         setHasPermission(true);
-      } finally {
         setLoading(false);
+        return;
       }
-    };
 
-    checkPermission();
+      // Obter permissões
+      // Lógica simplificada:
+      // - NULL/undefined/array vazio = acesso total (comportamento padrão)
+      // - Array com valores = só essas páginas são permitidas
+      const permissions = data?.page_permissions;
+      
+      // Se nunca foi definido (null/undefined) OU array vazio, permitir acesso total
+      if (permissions === null || permissions === undefined || (Array.isArray(permissions) && permissions.length === 0)) {
+        setHasPermission(true);
+        setLoading(false);
+        return;
+      }
+      
+      // Se há valores no array, verificar se a rota atual está nas permissões
+      const hasAccess = permissions.includes(currentPath);
+      
+      setHasPermission(hasAccess);
+    } catch (error) {
+      console.error("Erro ao verificar permissões:", error);
+      // Em caso de erro, permitir acesso (fail-open para não bloquear usuários legítimos)
+      setHasPermission(true);
+    } finally {
+      setLoading(false);
+    }
   }, [user, location.pathname]);
+
+  useEffect(() => {
+    checkPermission();
+  }, [checkPermission]);
 
   if (loading) {
     return (

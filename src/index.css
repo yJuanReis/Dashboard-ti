@@ -39,7 +39,7 @@ All colors MUST be HSL.
 
     /* Cinza claro - muted */
     --muted: 210 40% 96%; /* Cinza azulado muito claro */
-    --muted-foreground: 215 16% 47%;
+    --muted-foreground: 215 16% 40%; /* Texto cinza mais escuro para melhor contraste */
 
     /* Azul claro - accent */
     --accent: 210 40% 96%;
@@ -97,7 +97,7 @@ All colors MUST be HSL.
 
     /* Cinza médio escuro - muted */
     --muted: 217 33% 17%; /* Cinza-azulado médio */
-    --muted-foreground: 215 20% 65%; /* Texto cinza claro */
+    --muted-foreground: 215 20% 70%; /* Texto cinza claro com melhor contraste */
 
     /* Azul claro - accent */
     --accent: 217 33% 17%;
@@ -178,7 +178,7 @@ All colors MUST be HSL.
 .tabs {
   display: flex;
   position: relative;
-  background-color: #fff;
+  background-color: hsl(var(--card));
   box-shadow: 0 0 1px 0 rgba(70, 114, 231, 0.15), 0 6px 12px 0 rgba(70, 114, 231, 0.15);
   padding: 0.75rem;
   border-radius: 99px;
@@ -199,7 +199,7 @@ All colors MUST be HSL.
   justify-content: center;
   height: 30px;
   font-size: .8rem;
-  color: black;
+  color: hsl(var(--foreground));
   font-weight: 500;
   border-radius: 99px;
   cursor: pointer;
@@ -222,7 +222,7 @@ All colors MUST be HSL.
   margin-left: 0.75rem;
   border-radius: 50%;
   margin: 0px;
-  background-color: #e6eef9;
+  background-color: hsl(var(--muted));
   transition: 0.15s ease-in;
 }
 
@@ -231,8 +231,8 @@ All colors MUST be HSL.
 }
 
 .tabs-container input[type="radio"]:checked + label > .notification {
-  background-color: hsl(217 91% 60%);
-  color: #fff;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   margin: 0px;
 }
 
@@ -252,7 +252,7 @@ All colors MUST be HSL.
   position: absolute;
   display: flex;
   height: 30px;
-  background-color: #e6eef9;
+  background-color: hsl(var(--muted));
   z-index: 1;
   border-radius: 99px;
   transition: width 0.25s ease-out, transform 0.25s ease-out, background-color 0.2s ease-out;
@@ -261,7 +261,7 @@ All colors MUST be HSL.
 }
 
 .tabs-container:hover .glider {
-  background-color: #d0dff0;
+  background-color: hsl(var(--accent));
 }
 
 @media (max-width: 700px) {
@@ -742,4 +742,62 @@ All colors MUST be HSL.
   .home-section-content-full {
     min-height: 200px;
   }
+}
+
+/* Animated Button Effect - BR MARINAS */
+/* From Uiverse.io by satyamchaudharydev - Adapted for BR MARINAS */
+.button-animated {
+  margin: 0;
+  height: auto;
+  background: transparent;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  --border-right: 6px;
+  --text-stroke-color: rgba(255, 255, 255, 0.6);
+  --animation-color: hsl(217 91% 65%); /* Usando a cor primária do tema */
+  --fs-size: 2em;
+  letter-spacing: 3px;
+  text-decoration: none;
+  font-size: var(--fs-size);
+  font-family: "Arial", sans-serif;
+  position: relative;
+  text-transform: uppercase;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--text-stroke-color);
+  display: inline-block;
+}
+
+.button-animated .actual-text {
+  display: inline-block;
+}
+
+.button-animated .hover-text {
+  position: absolute;
+  box-sizing: border-box;
+  color: var(--animation-color);
+  width: 0%;
+  inset: 0;
+  border-right: var(--border-right) solid var(--animation-color);
+  overflow: hidden;
+  transition: 0.5s;
+  -webkit-text-stroke: 1px var(--animation-color);
+  white-space: nowrap;
+}
+
+.button-animated:hover .hover-text {
+  width: 100%;
+  filter: drop-shadow(0 0 23px var(--animation-color));
+}
+
+/* Ajustes para modo claro */
+:root .button-animated {
+  --text-stroke-color: rgba(34, 47, 11, 0.6); /* Cor do foreground com opacidade */
+  --animation-color: hsl(217 91% 60%); /* Azul primário do tema claro */
+}
+
+/* Ajustes para modo escuro */
+.dark .button-animated {
+  --text-stroke-color: rgba(255, 255, 255, 0.6);
+  --animation-color: hsl(217 91% 65%); /* Azul primário do tema escuro */
 }

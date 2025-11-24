@@ -740,7 +740,40 @@ export function generateSecurityReport(results: SecurityTestResult[]): string {
   const passed = results.filter(r => r.status === 'pass').length;
   const failed = results.filter(r => r.status === 'fail').length;
   const warnings = results.filter(r => r.status === 'warning').length;
+  const critical = results.filter(r => r.severity === 'critical').length;
   const total = results.length;
+
+  // Mapeamento de categorias
+  const categoryMap: { [key: string]: { name: string; tests: string[] } } = {
+    auth: {
+      name: 'Autenticação e Autorização',
+      tests: ['Autenticação', 'Força da Autenticação', 'Autorização', 'Session Management', 'Segurança de Tokens', 'Políticas de Senha', 'Password Strength', 'Controle de Acesso (RBAC)']
+    },
+    data: {
+      name: 'Proteção de Dados',
+      tests: ['Exposição de Secrets', 'LocalStorage Security', 'SessionStorage Security', 'Sensitive Data Exposure', 'Dados Sensíveis no DOM', 'Segurança do Banco de Dados', 'Vazamentos no Console']
+    },
+    injection: {
+      name: 'Injeção e XSS',
+      tests: ['Proteção XSS', 'Vulnerabilidades XSS Avançadas', 'SQL Injection', 'Validação de Inputs', 'Sanitização de HTML', 'XSS Baseado em DOM']
+    },
+    network: {
+      name: 'Configuração de Rede',
+      tests: ['HTTPS/SSL', 'Security Headers', 'CORS Configuration', 'Cookie Security', 'CSRF Protection', 'Clickjacking Protection', 'Subresource Integrity (SRI)']
+    },
+    access: {
+      name: 'Controle de Acesso',
+      tests: ['Rate Limiting', 'Segurança de Endpoints API', 'Proteção de Rotas', 'Acesso Não Autorizado']
+    },
+    code: {
+      name: 'Vulnerabilidades de Código',
+      tests: ['Dependency Vulnerabilities', 'Error Handling', 'File Upload Security', 'Prototype Pollution', 'Open Redirects']
+    },
+    env: {
+      name: 'Configuração do Ambiente',
+      tests: ['Configuração do Ambiente', 'Modo Debug', 'Source Maps', 'Arquivos de Backup']
+    }
+  };
 
   let report = `═══════════════════════════════════════════════════════════════
   RELATÓRIO DE TESTES DE SEGURANÇA (PENTEST)
@@ -751,6 +784,7 @@ Total de Testes: ${total}
 ✅ Passou: ${passed} (${Math.round((passed / total) * 100)}%)
 ⚠️  Avisos: ${warnings} (${Math.round((warnings / total) * 100)}%)
 ❌ Falhou: ${failed} (${Math.round((failed / total) * 100)}%)
+🔴 Críticos: ${critical}
 
 ═══════════════════════════════════════════════════════════════
 RESUMO EXECUTIVO
@@ -758,89 +792,183 @@ RESUMO EXECUTIVO
 
 `;
 
+  if (critical > 0) {
+    report += `🚨 URGENTE: ${critical} vulnerabilidade(s) CRÍTICA(S) detectada(s)!\n`;
+    report += `   Ação imediata é necessária para proteger o sistema.\n\n`;
+  }
+
   if (failed > 0) {
-    report += `⚠️ ATENÇÃO: ${failed} teste(s) FALHARAM. Ação imediata necessária!\n\n`;
+    report += `⚠️ ATENÇÃO: ${failed} teste(s) FALHARAM. Correção necessária!\n\n`;
   }
 
   if (warnings > 0) {
     report += `⚠️ ATENÇÃO: ${warnings} aviso(s) encontrado(s). Recomenda-se revisão.\n\n`;
   }
 
-  if (failed === 0 && warnings === 0) {
+  if (failed === 0 && warnings === 0 && critical === 0) {
     report += `✅ Todos os testes passaram! Sistema está seguro.\n\n`;
   }
 
   report += `═══════════════════════════════════════════════════════════════
-DETALHES DOS TESTES
+RESULTADOS POR CATEGORIA
 ═══════════════════════════════════════════════════════════════
 
 `;
 
-  // Agrupar por status
-  const failedTests = results.filter(r => r.status === 'fail');
+  // Agrupar por categoria
+  Object.keys(categoryMap).forEach(categoryKey => {
+    const category = categoryMap[categoryKey];
+    const categoryTests = results.filter(r => category.tests.includes(r.name));
+    const categoryFailed = categoryTests.filter(t => t.status === 'fail');
+    const categoryWarnings = categoryTests.filter(t => t.status === 'warning');
+    const categoryCritical = categoryTests.filter(t => t.severity === 'critical');
+    const categoryPassed = categoryTests.filter(t => t.status === 'pass');
+
+    if (categoryTests.length > 0) {
+      report += `\n${category.name}\n`;
+      report += `${'─'.repeat(60)}\n`;
+      report += `Total: ${categoryTests.length} | ✅ ${categoryPassed.length} | ⚠️ ${categoryWarnings.length} | ❌ ${categoryFailed.length} | 🔴 ${categoryCritical.length}\n\n`;
+
+      // Críticos primeiro
+      if (categoryCritical.length > 0) {
+        report += `  🔴 VULNERABILIDADES CRÍTICAS:\n`;
+        categoryCritical.forEach((result, idx) => {
+          report += `\n  ${idx + 1}. ${result.name}\n`;
+          report += `     Severidade: CRÍTICA\n`;
+          report += `     Problema: ${result.message}\n`;
+          if (result.details) {
+            report += `     Detalhes: ${JSON.stringify(result.details, null, 6).replace(/\n/g, '\n     ')}\n`;
+          }
+          if (result.recommendations && result.recommendations.length > 0) {
+            report += `     \n     🔧 AÇÕES PARA CORRIGIR:\n`;
+            result.recommendations.forEach((rec, i) => {
+              report += `        ${i + 1}. ${rec}\n`;
+            });
+          }
+        });
+      }
+
+      // Falhas
+      if (categoryFailed.length > 0) {
+        report += `\n  ❌ TESTES QUE FALHARAM:\n`;
+        categoryFailed.filter(t => t.severity !== 'critical').forEach((result, idx) => {
+          report += `\n  ${idx + 1}. ${result.name}\n`;
+          report += `     Severidade: ${result.severity?.toUpperCase() || 'ALTA'}\n`;
+          report += `     Problema: ${result.message}\n`;
+          if (result.details) {
+            report += `     Detalhes: ${JSON.stringify(result.details, null, 6).replace(/\n/g, '\n     ')}\n`;
+          }
+          if (result.recommendations && result.recommendations.length > 0) {
+            report += `     \n     🔧 AÇÕES PARA CORRIGIR:\n`;
+            result.recommendations.forEach((rec, i) => {
+              report += `        ${i + 1}. ${rec}\n`;
+            });
+          }
+        });
+      }
+
+      // Avisos
+      if (categoryWarnings.length > 0) {
+        report += `\n  ⚠️  AVISOS:\n`;
+        categoryWarnings.forEach((result, idx) => {
+          report += `\n  ${idx + 1}. ${result.name}\n`;
+          report += `     Severidade: ${result.severity?.toUpperCase() || 'MÉDIA'}\n`;
+          report += `     Problema: ${result.message}\n`;
+          if (result.details) {
+            report += `     Detalhes: ${JSON.stringify(result.details, null, 6).replace(/\n/g, '\n     ')}\n`;
+          }
+          if (result.recommendations && result.recommendations.length > 0) {
+            report += `     \n     🔧 MELHORIAS RECOMENDADAS:\n`;
+            result.recommendations.forEach((rec, i) => {
+              report += `        ${i + 1}. ${rec}\n`;
+            });
+          }
+        });
+      }
+
+      // Passados (resumido)
+      if (categoryPassed.length > 0) {
+        report += `\n  ✅ Testes que passaram (${categoryPassed.length}): `;
+        report += categoryPassed.map(t => t.name).join(', ');
+        report += `\n`;
+      }
+
+      report += `\n`;
+    }
+  });
+
+  report += `═══════════════════════════════════════════════════════════════
+PLANO DE AÇÃO PRIORITÁRIO
+═══════════════════════════════════════════════════════════════
+
+`;
+
+  const criticalTests = results.filter(r => r.severity === 'critical');
+  const failedTests = results.filter(r => r.status === 'fail' && r.severity !== 'critical');
   const warningTests = results.filter(r => r.status === 'warning');
-  const passedTests = results.filter(r => r.status === 'pass');
+
+  if (criticalTests.length > 0) {
+    report += `\n🔴 PRIORIDADE MÁXIMA - CORRIGIR IMEDIATAMENTE:\n`;
+    report += `${'─'.repeat(60)}\n`;
+    criticalTests.forEach((result, idx) => {
+      report += `\n${idx + 1}. ${result.name}\n`;
+      report += `   ${result.message}\n`;
+      if (result.recommendations && result.recommendations.length > 0) {
+        report += `   Passos para correção:\n`;
+        result.recommendations.forEach((rec, i) => {
+          report += `   ${i + 1}. ${rec}\n`;
+        });
+      }
+    });
+    report += `\n`;
+  }
 
   if (failedTests.length > 0) {
-    report += `\n❌ TESTES QUE FALHARAM (${failedTests.length}):\n`;
-    report += `─────────────────────────────────────────────────────────────\n\n`;
-    failedTests.forEach((result, index) => {
-      report += `${index + 1}. ${result.name}\n`;
-      report += `   Status: FALHOU\n`;
-      report += `   Mensagem: ${result.message}\n`;
-      if (result.details) {
-        report += `   Detalhes: ${JSON.stringify(result.details, null, 2)}\n`;
+    report += `\n❌ PRIORIDADE ALTA - CORRIGIR O QUANTO ANTES:\n`;
+    report += `${'─'.repeat(60)}\n`;
+    failedTests.forEach((result, idx) => {
+      report += `\n${idx + 1}. ${result.name}\n`;
+      report += `   ${result.message}\n`;
+      if (result.recommendations && result.recommendations.length > 0) {
+        report += `   Passos para correção:\n`;
+        result.recommendations.forEach((rec, i) => {
+          report += `   ${i + 1}. ${rec}\n`;
+        });
       }
-      report += `\n`;
     });
+    report += `\n`;
   }
 
   if (warningTests.length > 0) {
-    report += `\n⚠️  AVISOS (${warningTests.length}):\n`;
-    report += `─────────────────────────────────────────────────────────────\n\n`;
-    warningTests.forEach((result, index) => {
-      report += `${index + 1}. ${result.name}\n`;
-      report += `   Status: AVISO\n`;
-      report += `   Mensagem: ${result.message}\n`;
-      if (result.details) {
-        report += `   Detalhes: ${JSON.stringify(result.details, null, 2)}\n`;
+    report += `\n⚠️  PRIORIDADE MÉDIA - REVISAR E MELHORAR:\n`;
+    report += `${'─'.repeat(60)}\n`;
+    warningTests.forEach((result, idx) => {
+      report += `\n${idx + 1}. ${result.name}\n`;
+      report += `   ${result.message}\n`;
+      if (result.recommendations && result.recommendations.length > 0) {
+        report += `   Melhorias sugeridas:\n`;
+        result.recommendations.forEach((rec, i) => {
+          report += `   ${i + 1}. ${rec}\n`;
+        });
       }
-      report += `\n`;
     });
-  }
-
-  if (passedTests.length > 0) {
-    report += `\n✅ TESTES QUE PASSARAM (${passedTests.length}):\n`;
-    report += `─────────────────────────────────────────────────────────────\n\n`;
-    passedTests.forEach((result, index) => {
-      report += `${index + 1}. ${result.name}\n`;
-      report += `   Status: PASSOU\n`;
-      report += `   Mensagem: ${result.message}\n`;
-      report += `\n`;
-    });
+    report += `\n`;
   }
 
   report += `═══════════════════════════════════════════════════════════════
-RECOMENDAÇÕES
+RECOMENDAÇÕES GERAIS
 ═══════════════════════════════════════════════════════════════
 
-`;
+1. Execute este relatório regularmente (semanalmente ou após mudanças)
+2. Mantenha todas as dependências atualizadas
+3. Configure headers de segurança no servidor (CSP, X-Frame-Options, etc.)
+4. Implemente monitoramento contínuo de segurança
+5. Revise e atualize políticas de segurança periodicamente
+6. Mantenha logs de auditoria para rastrear acessos
+7. Realize testes de penetração periódicos
+8. Eduque a equipe sobre práticas de segurança
 
-  if (failedTests.length > 0) {
-    report += `1. CORRIJA IMEDIATAMENTE os testes que falharam.\n`;
-    report += `   Estes representam vulnerabilidades críticas de segurança.\n\n`;
-  }
-
-  if (warningTests.length > 0) {
-    report += `2. REVISE os avisos e implemente melhorias quando possível.\n\n`;
-  }
-
-  report += `3. Execute este relatório regularmente para manter a segurança.\n`;
-  report += `4. Mantenha todas as dependências atualizadas.\n`;
-  report += `5. Configure headers de segurança no servidor.\n`;
-  report += `6. Implemente monitoramento contínuo de segurança.\n`;
-
-  report += `\n═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
 FIM DO RELATÓRIO
 ═══════════════════════════════════════════════════════════════\n`;
 

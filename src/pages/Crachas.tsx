@@ -241,7 +241,7 @@ export default function Crachas() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Gerador de Crachás</h1>
+            <h1 className="text-3xl font-bold text-foreground">Gerador de Crachás</h1>
           </div>
         </div>
 
@@ -257,15 +257,15 @@ export default function Crachas() {
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Escolha o Layout</Label>
                   <RadioGroup value={layout} onValueChange={setLayout}>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
                       <RadioGroupItem value="padrao" id="padrao" />
                       <Label htmlFor="padrao" className="flex-1 cursor-pointer">Padrão</Label>
                     </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
                       <RadioGroupItem value="jl" id="jl" />
                       <Label htmlFor="jl" className="flex-1 cursor-pointer">JL Bracuhy</Label>
                     </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center space-x-2 p-3 rounded-lg border border-border hover:bg-accent transition-colors">
                       <RadioGroupItem value="brigadista" id="brigadista" />
                       <Label htmlFor="brigadista" className="flex-1 cursor-pointer">Brigadista</Label>
                     </div>
@@ -282,7 +282,7 @@ export default function Crachas() {
                           src={croppedImage}
                           alt="Preview"
                           className={cn(
-                            "w-32 h-40 mx-auto object-cover bg-slate-200",
+                            "w-32 h-40 mx-auto object-cover bg-muted",
                             isBrigadista && "w-32 h-32 rounded-full"
                           )}
                         />
@@ -313,10 +313,10 @@ export default function Crachas() {
                         onClick={() => fileInputRef.current?.click()}
                         className="space-y-3 cursor-pointer hover:opacity-70 transition-opacity"
                       >
-                        <Upload className="w-12 h-12 mx-auto text-slate-400" />
+                        <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
                         <div>
-                          <p className="text-sm font-medium text-slate-700">Clique para carregar foto</p>
-                          <p className="text-xs text-slate-500">PNG, JPG até 5MB</p>
+                          <p className="text-sm font-medium text-foreground">Clique para carregar foto</p>
+                          <p className="text-xs text-muted-foreground">PNG, JPG até 5MB</p>
                         </div>
                       </div>
                     )}
@@ -474,9 +474,9 @@ export default function Crachas() {
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <div className="h-80 w-full bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden flex items-center justify-center">
+              <div className="h-80 w-full bg-muted rounded-md overflow-hidden flex items-center justify-center">
                 {!imageLoaded && (
-                  <div className="absolute z-10 text-sm text-gray-500">
+                  <div className="absolute z-10 text-sm text-muted-foreground">
                     Carregando imagem...
                   </div>
                 )}

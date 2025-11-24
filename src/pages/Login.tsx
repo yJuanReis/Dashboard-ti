@@ -13,8 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Server, Loader2, AlertCircle, UserPlus, CheckCircle2 } from "lucide-react";
+import { Server, Loader2, AlertCircle, CheckCircle2, Key } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
@@ -24,13 +23,9 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean | null>(null);
-  const [showSolicitarAcesso, setShowSolicitarAcesso] = useState(false);
-  const [solicitacaoData, setSolicitacaoData] = useState({
-    nome: "",
-    email: "",
-    motivo: "",
-  });
-  const [isSendingSolicitacao, setIsSendingSolicitacao] = useState(false);
+  const [showRecuperarSenha, setShowRecuperarSenha] = useState(false);
+  const [emailRecuperacao, setEmailRecuperacao] = useState("");
+  const [isSendingRecuperacao, setIsSendingRecuperacao] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
@@ -84,52 +79,44 @@ export default function Login() {
     }
   };
 
-  const handleSolicitarAcesso = async (e: React.FormEvent) => {
+  const handleRecuperarSenha = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!solicitacaoData.nome.trim()) {
-      toast.error("Por favor, preencha seu nome");
-      return;
-    }
-
-    if (!solicitacaoData.email.trim() || !solicitacaoData.email.includes("@")) {
+    if (!emailRecuperacao.trim() || !emailRecuperacao.includes("@")) {
       toast.error("Por favor, insira um email válido");
       return;
     }
 
-    setIsSendingSolicitacao(true);
+    setIsSendingRecuperacao(true);
 
     try {
-      // Tentar salvar a solicitação em uma tabela (se existir)
-      // Se a tabela não existir, apenas mostra mensagem de sucesso
-      const { error: insertError } = await supabase
-        .from("access_requests")
-        .insert({
-          nome: solicitacaoData.nome.trim(),
-          email: solicitacaoData.email.trim().toLowerCase(),
-          motivo: solicitacaoData.motivo.trim() || null,
-          status: "pending",
-          created_at: new Date().toISOString(),
-        });
+      // Enviar email de recuperação de senha
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        emailRecuperacao.trim().toLowerCase(),
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+        }
+      );
 
-      if (insertError) {
-        // Se a tabela não existir, apenas mostra mensagem
-        // (não é um erro crítico)
-        console.log("Tabela access_requests não encontrada, apenas mostrando mensagem");
+      if (resetError) {
+        // Não mostrar erro específico por segurança (não revelar se o email existe ou não)
+        console.error("Erro ao enviar email de recuperação:", resetError);
+        toast.error("Erro ao enviar email de recuperação. Verifique se o email está correto e tente novamente.");
+        setIsSendingRecuperacao(false);
+        return;
       }
 
-      toast.success("Solicitação de acesso enviada com sucesso! Um administrador entrará em contato em breve.");
-      setShowSolicitarAcesso(false);
-      setSolicitacaoData({ nome: "", email: "", motivo: "" });
+      // Nota: password_temporary será marcado como true na página ResetPassword
+      // quando o usuário redefinir a senha através do link de recuperação
+
+      toast.success("Email de recuperação enviado! Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.");
+      setShowRecuperarSenha(false);
+      setEmailRecuperacao("");
     } catch (error) {
-      // Mesmo se houver erro, mostra mensagem de sucesso
-      // (a solicitação pode ser processada manualmente)
-      console.error("Erro ao salvar solicitação:", error);
-      toast.success("Solicitação de acesso registrada! Um administrador entrará em contato em breve.");
-      setShowSolicitarAcesso(false);
-      setSolicitacaoData({ nome: "", email: "", motivo: "" });
+      console.error("Erro ao processar recuperação de senha:", error);
+      toast.error("Erro ao processar solicitação. Tente novamente.");
     } finally {
-      setIsSendingSolicitacao(false);
+      setIsSendingRecuperacao(false);
     }
   };
 
@@ -145,21 +132,21 @@ export default function Login() {
               <Server className="w-8 h-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-slate-900">
+          <CardTitle className="text-2xl font-bold text-foreground">
             BR Marinas
           </CardTitle>
-          <CardDescription className="text-slate-600">
+          <CardDescription className="text-muted-foreground">
             Painel de TI - Faça login para continuar
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Alerta de conexão com Supabase */}
           {isSupabaseConnected === false && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
               <div className="flex-1">
-                <p className="text-sm text-red-800 font-medium">Erro de conexão</p>
-                <p className="text-xs text-red-600 mt-1">
+                <p className="text-sm text-destructive font-medium">Erro de conexão</p>
+                <p className="text-xs text-destructive/90 mt-1">
                   Não foi possível conectar ao Supabase. Verifique suas variáveis de ambiente.
                 </p>
               </div>
@@ -204,9 +191,9 @@ export default function Login() {
 
             {/* Mensagem de erro */}
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-800">{error}</p>
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-destructive">{error}</p>
               </div>
             )}
 
@@ -231,68 +218,40 @@ export default function Login() {
               type="button"
               variant="ghost"
               className="w-full text-sm text-muted-foreground hover:text-foreground"
-              onClick={() => setShowSolicitarAcesso(true)}
+              onClick={() => setShowRecuperarSenha(true)}
             >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Solicitar Acesso
+              <Key className="w-4 h-4 mr-2" />
+              Recuperar Senha
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Modal de Solicitar Acesso */}
-      <Dialog open={showSolicitarAcesso} onOpenChange={setShowSolicitarAcesso}>
+      {/* Modal de Recuperar Senha */}
+      <Dialog open={showRecuperarSenha} onOpenChange={setShowRecuperarSenha}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5" />
-              Solicitar Acesso ao Sistema
+              <Key className="w-5 h-5" />
+              Recuperar Senha
             </DialogTitle>
             <DialogDescription>
-              Preencha os dados abaixo para solicitar acesso ao Dashboard TI - BR Marinas.
-              Um administrador entrará em contato em breve.
+              Digite seu email para receber um link de recuperação de senha.
+              Após redefinir sua senha, você precisará alterá-la novamente ao entrar no sistema.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSolicitarAcesso} className="space-y-4">
+          <form onSubmit={handleRecuperarSenha} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="solicitacao-nome">Nome Completo *</Label>
+              <Label htmlFor="email-recuperacao">Email *</Label>
               <Input
-                id="solicitacao-nome"
-                type="text"
-                placeholder="Seu nome completo"
-                value={solicitacaoData.nome}
-                onChange={(e) =>
-                  setSolicitacaoData({ ...solicitacaoData, nome: e.target.value })
-                }
-                disabled={isSendingSolicitacao}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="solicitacao-email">Email *</Label>
-              <Input
-                id="solicitacao-email"
+                id="email-recuperacao"
                 type="email"
                 placeholder="seu@email.com"
-                value={solicitacaoData.email}
-                onChange={(e) =>
-                  setSolicitacaoData({ ...solicitacaoData, email: e.target.value })
-                }
-                disabled={isSendingSolicitacao}
+                value={emailRecuperacao}
+                onChange={(e) => setEmailRecuperacao(e.target.value)}
+                disabled={isSendingRecuperacao}
                 required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="solicitacao-motivo">Motivo da Solicitação (Opcional)</Label>
-              <Textarea
-                id="solicitacao-motivo"
-                placeholder="Descreva brevemente o motivo da sua solicitação de acesso..."
-                value={solicitacaoData.motivo}
-                onChange={(e) =>
-                  setSolicitacaoData({ ...solicitacaoData, motivo: e.target.value })
-                }
-                disabled={isSendingSolicitacao}
-                rows={3}
+                autoFocus
               />
             </div>
             <DialogFooter>
@@ -300,15 +259,15 @@ export default function Login() {
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setShowSolicitarAcesso(false);
-                  setSolicitacaoData({ nome: "", email: "", motivo: "" });
+                  setShowRecuperarSenha(false);
+                  setEmailRecuperacao("");
                 }}
-                disabled={isSendingSolicitacao}
+                disabled={isSendingRecuperacao}
               >
                 Cancelar
               </Button>
-              <Button type="submit" disabled={isSendingSolicitacao}>
-                {isSendingSolicitacao ? (
+              <Button type="submit" disabled={isSendingRecuperacao}>
+                {isSendingRecuperacao ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Enviando...
@@ -316,7 +275,7 @@ export default function Login() {
                 ) : (
                   <>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Enviar Solicitação
+                    Enviar Email
                   </>
                 )}
               </Button>
@@ -324,6 +283,7 @@ export default function Login() {
           </form>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

@@ -8,9 +8,11 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  passwordTemporary: boolean | null; // null = não verificado ainda, true/false = resultado
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
+  checkPasswordTemporary: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [passwordTemporary, setPasswordTemporary] = useState<boolean | null>(null);
 
   // Função para verificar e criar perfil se não existir
   const checkUserExists = useCallback(async (userId: string, userEmail?: string): Promise<boolean> => {
@@ -108,6 +111,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Função para verificar se a senha é temporária
+  const checkPasswordTemporary = useCallback(async () => {
+    if (!user) {
+      setPasswordTemporary(null);
+      return;
+    }
+
+    try {
+      console.log("checkPasswordTemporary: Verificando para user_id:", user.id);
+      
+      // Tentar até 3 vezes com delay crescente (o perfil pode estar sendo criado)
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        const { data, error } = await supabase
+          .from("user_profiles")
+          .select("password_temporary")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        console.log(`checkPasswordTemporary: Tentativa ${attempts + 1}, dados:`, data, "erro:", error);
+
+        if (!error && data) {
+          const isTemporary = data.password_temporary === true;
+          console.log("checkPasswordTemporary: password_temporary =", isTemporary);
+          setPasswordTemporary(isTemporary);
+          return;
+        }
+
+        // Se não encontrou e ainda há tentativas, aguardar e tentar novamente
+        if (attempts < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempts + 1))); // 1s, 2s, 3s
+        }
+        
+        attempts++;
+      }
+
+      // Se não encontrou após todas as tentativas, verificar user_metadata como fallback
+      console.log("checkPasswordTemporary: Perfil não encontrado após", maxAttempts, "tentativas, usando fallback");
+      const isTemporary = user.user_metadata?.password_temporary === true;
+      console.log("checkPasswordTemporary: Fallback user_metadata, password_temporary =", isTemporary);
+      setPasswordTemporary(isTemporary);
+    } catch (err) {
+      // Em caso de erro, assumir que não é temporária
+      console.warn("Erro ao verificar senha temporária:", err);
+      setPasswordTemporary(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     let isMounted = true;
     let loadingTimeout: NodeJS.Timeout;
@@ -133,9 +186,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             checkUserExists(session.user.id, session.user.email),
             updateAdminRoleCache(session.user.id)
           ]);
+          // Verificar senha temporária - PRIORIZAR banco de dados
+          const { data: profileData, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("password_temporary")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          
+          // Se encontrou no banco, usar valor do banco; senão, usar metadata como fallback
+          if (!profileError && profileData !== null) {
+            setPasswordTemporary(profileData.password_temporary === true);
+          } else {
+            setPasswordTemporary(session.user.user_metadata?.password_temporary === true);
+          }
         } else {
           setSession(null);
           setUser(null);
+          setPasswordTemporary(null);
           // Limpar cache quando não há sessão
           clearAdminCache();
         }
@@ -188,9 +255,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ]).catch(() => {
             // Ignorar erros
           });
+          
+          // Verificar senha temporária quando o usuário faz login
+          // PRIORIZAR o valor do banco de dados sobre user_metadata
+          supabase
+            .from("user_profiles")
+            .select("password_temporary")
+            .eq("user_id", session.user.id)
+            .maybeSingle()
+            .then(({ data: profileData, error: profileError }) => {
+              if (isMounted) {
+                // Se encontrou dados no banco, usar o valor do banco (prioridade máxima)
+                if (!profileError && profileData !== null) {
+                  const isTemporary = profileData.password_temporary === true;
+                  console.log("onAuthStateChange: password_temporary do banco =", isTemporary);
+                  setPasswordTemporary(isTemporary);
+                } else {
+                  // Se não encontrou no banco, usar fallback dos metadados
+                  const isTemporary = session.user.user_metadata?.password_temporary === true;
+                  console.log("onAuthStateChange: password_temporary do metadata (fallback) =", isTemporary);
+                  setPasswordTemporary(isTemporary);
+                }
+              }
+            })
+            .catch((err) => {
+              console.warn("Erro ao verificar password_temporary no onAuthStateChange:", err);
+              // Usar fallback dos metadados apenas em caso de erro
+              if (isMounted) {
+                const isTemporary = session.user.user_metadata?.password_temporary === true;
+                console.log("onAuthStateChange: password_temporary do metadata (erro) =", isTemporary);
+                setPasswordTemporary(isTemporary);
+              }
+            });
         } else {
           setSession(null);
           setUser(null);
+          setPasswordTemporary(null);
           // Limpar cache quando não há sessão
           clearAdminCache();
         }
@@ -262,6 +362,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Ignorar erros, não bloquear o login
       });
 
+      // Verificar se a senha é temporária após login
+      setTimeout(async () => {
+        try {
+          console.log("AuthContext: Verificando password_temporary para usuário:", data.user.id);
+          const { data: profileData, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("password_temporary")
+            .eq("user_id", data.user.id)
+            .maybeSingle();
+
+          console.log("AuthContext: Dados do perfil:", profileData, "Erro:", profileError);
+
+          if (!profileError && profileData) {
+            const isTemporary = profileData.password_temporary === true;
+            console.log("AuthContext: password_temporary =", isTemporary);
+            setPasswordTemporary(isTemporary);
+          } else {
+            // Fallback para user_metadata
+            const isTemporary = data.user.user_metadata?.password_temporary === true;
+            console.log("AuthContext: Usando fallback user_metadata, password_temporary =", isTemporary);
+            setPasswordTemporary(isTemporary);
+          }
+        } catch (err) {
+          console.warn("Erro ao verificar senha temporária:", err);
+          setPasswordTemporary(false);
+        }
+      }, 1000); // Aumentar delay para garantir que o perfil foi criado
+
       toast.success("Login realizado com sucesso!");
     } catch (error) {
       const authError = error as AuthError | Error;
@@ -304,6 +432,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(null);
       setUser(null);
+      setPasswordTemporary(null);
       toast.success("Logout realizado com sucesso!");
     } catch (error) {
       const authError = error as AuthError;
@@ -319,9 +448,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         session,
         loading,
+        passwordTemporary,
         signIn,
         signOut,
         signUp,
+        checkPasswordTemporary,
       }}
     >
       {children}

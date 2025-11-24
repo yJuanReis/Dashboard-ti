@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -60,25 +60,26 @@ export function usePagePermissions() {
     loadPermissions();
   }, [user]);
 
-  const hasPermission = (path: string): boolean => {
+  const hasPermission = useCallback((path: string): boolean => {
+    // Admins têm acesso a todas as páginas
     if (role === "admin") return true;
-    // Se permissions está vazio mas foi carregado do banco, significa que não há permissões
-    // Mas se nunca foi definido (null), deveria ter acesso total
-    // Por enquanto, vamos verificar se está no array
-    // Se o array tem valores, verificar se está incluído
-    // Se o array está vazio, significa que o admin removeu todas = sem acesso
-    // Mas isso é complicado de detectar aqui, então vamos confiar no PagePermissionGuard
-    // Para o sidebar, vamos permitir se estiver no array ou se o array estiver vazio (comportamento padrão)
-    // Na verdade, se o array está vazio aqui, significa que não há restrições OU que todas foram removidas
-    // Vamos usar uma lógica mais simples: se não está no array e o array tem valores, bloquear
+    
+    // Normalizar path para comparação (garantir que começa com /)
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    
+    // Se permissions está vazio, significa acesso total
     if (permissions.length === 0) {
-      // Array vazio pode significar "sem restrições" ou "todas removidas"
-      // Para o sidebar, vamos mostrar todas as páginas se o array estiver vazio
-      // O PagePermissionGuard vai fazer a verificação real
-      return true; // Mostrar no sidebar, mas o PagePermissionGuard vai bloquear se necessário
+      return true;
     }
-    return permissions.includes(path);
-  };
+    
+    // Se há permissões definidas, verificar se está no array
+    const hasAccess = permissions.some(perm => {
+      const normalizedPerm = perm.startsWith('/') ? perm : `/${perm}`;
+      return normalizedPerm === normalizedPath;
+    });
+    
+    return hasAccess;
+  }, [role, permissions]);
 
   return { permissions, role, hasPermission, loading };
 }

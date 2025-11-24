@@ -20,7 +20,8 @@ import {
   EyeOff,
   RefreshCw,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  Waves
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -36,6 +37,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import zxcvbn from "zxcvbn";
+import { getPagesInMaintenance } from "@/lib/pagesMaintenanceService";
 import {
   Dialog,
   DialogContent,
@@ -57,7 +59,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const navigationItems = [
+type NavigationItem = {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: {
+    text: string;
+    variant: "blue" | "gray" | "yellow";
+  };
+};
+
+const baseNavigationItems: Omit<NavigationItem, "badge">[] = [
   { 
     title: "Início", 
     url: "/home", 
@@ -87,7 +99,6 @@ const navigationItems = [
     title: "Controle de HDs", 
     url: "/Controle-hds", 
     icon: HardDrive,
-    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
     title: "Termo de Responsabilidade", 
@@ -98,27 +109,25 @@ const navigationItems = [
     title: "Gestão de Rede", 
     url: "/gestaorede", 
     icon: Network,
-    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
     title: "Servidores", 
     url: "/servidores", 
     icon: Server,
-    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
     title: "Chamados", 
     url: "/chamados", 
     icon: Wrench,
-    badge: { text: "Avaliar", variant: "yellow" as const }
   },
   { 
     title: "Configurações", 
     url: "/configuracoes", 
     icon: Settings,
-    badge: { text: "Dev", variant: "gray" as const }
   },
 ];
+
+// navigationItems será criado dinamicamente dentro do componente
 
 const getBadgeClasses = (variant: "blue" | "gray" | "yellow") => {
   switch (variant) {
@@ -216,6 +225,10 @@ export function AppSidebar() {
   const [tentativasErradas, setTentativasErradas] = useState(0);
   const [bloqueadoAté, setBloqueadoAté] = useState<Date | null>(null);
 
+  // Estados para páginas em manutenção (usando objeto para garantir detecção de mudanças pelo React)
+  const [pagesMaintenance, setPagesMaintenance] = useState<Record<string, { badgeText: string; badgeVariant: "blue" | "gray" | "yellow" }>>({});
+  const [maintenanceUpdateTrigger, setMaintenanceUpdateTrigger] = useState(0);
+
   // Estados para notificações
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [systemAlerts, setSystemAlerts] = useState(true);
@@ -265,24 +278,108 @@ export function AppSidebar() {
     }
   }, [user?.user_metadata?.nome, user?.user_metadata?.name]);
 
+  // Carregar páginas em manutenção e recarregar periodicamente
+  useEffect(() => {
+    const loadPagesMaintenance = async () => {
+      try {
+        const pages = await getPagesInMaintenance();
+        console.log('[AppSidebar] Páginas em manutenção carregadas:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
+        // Criar objeto apenas com páginas ativas
+        const maintenanceObj: Record<string, { badgeText: string; badgeVariant: "blue" | "gray" | "yellow" }> = {};
+        pages.forEach(page => {
+          // Garantir que só adiciona páginas ativas
+          if (page.is_active) {
+            maintenanceObj[page.page_path] = {
+              badgeText: page.badge_text,
+              badgeVariant: page.badge_variant as "blue" | "gray" | "yellow"
+            };
+          }
+        });
+        console.log('[AppSidebar] Objeto atualizado com', Object.keys(maintenanceObj).length, 'páginas:', Object.keys(maintenanceObj));
+        setPagesMaintenance(maintenanceObj);
+      } catch (error) {
+        console.error("Erro ao carregar páginas em manutenção:", error);
+      }
+    };
+    
+    // Carregar imediatamente
+    loadPagesMaintenance();
+    
+    // Listener para mudanças imediatas
+    const handleMaintenanceChange = async (event: any) => {
+      console.log('[AppSidebar] Evento pagesMaintenanceChanged recebido:', event.detail);
+      // Pequeno delay para garantir que o banco foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 200));
+      await loadPagesMaintenance();
+      // Forçar atualização do filteredNavigationItems
+      setMaintenanceUpdateTrigger(prev => prev + 1);
+    };
+    window.addEventListener('pagesMaintenanceChanged', handleMaintenanceChange);
+    
+    // Recarregar a cada 30 segundos para pegar mudanças
+    const interval = setInterval(loadPagesMaintenance, 30000);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('pagesMaintenanceChanged', handleMaintenanceChange);
+    };
+  }, []);
+
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
-  // Filtrar itens de navegação baseado em permissões
-  const filteredNavigationItems = navigationItems.filter((item) => {
-    // Configurações só para admin
-    if (item.url === "/configuracoes") {
-      const isAdmin = role === "admin";
-      // Log para debug
-      if (!isAdmin) {
-        console.log("Configurações oculta: usuário não é admin", { role, userEmail: user?.email });
+  // Adiciona badges dinamicamente baseado na configuração de manutenção do banco
+  const navigationItems: NavigationItem[] = useMemo(() => {
+    const maintenanceKeys = Object.keys(pagesMaintenance);
+    console.log('[AppSidebar] Recalculando navigationItems, páginas em manutenção:', maintenanceKeys);
+    return baseNavigationItems.map(item => {
+      // Normalizar path para comparação
+      const normalizedItemUrl = item.url.toLowerCase().trim();
+      const maintenanceConfig = Object.entries(pagesMaintenance).find(([path]) => {
+        return path.toLowerCase().trim() === normalizedItemUrl;
+      })?.[1];
+      
+      if (maintenanceConfig) {
+        console.log(`[AppSidebar] Adicionando badge para ${item.url}:`, maintenanceConfig);
+        return {
+          ...item,
+          badge: {
+            text: maintenanceConfig.badgeText,
+            variant: maintenanceConfig.badgeVariant
+          }
+        };
       }
-      return isAdmin;
-    }
-    // Outras páginas: verificar permissão
-    return hasPermission(item.url);
-  });
+      // Se não tem maintenanceConfig, retornar sem badge
+      return { ...item };
+    });
+  }, [pagesMaintenance, maintenanceUpdateTrigger]);
+
+  // Filtrar itens de navegação baseado em permissões
+  const filteredNavigationItems: NavigationItem[] = useMemo(() => {
+    console.log('[AppSidebar] Recalculando filteredNavigationItems, trigger:', maintenanceUpdateTrigger);
+    return navigationItems.filter((item) => {
+      // Configurações só para admin
+      if (item.url === "/configuracoes") {
+        const isAdmin = role === "admin";
+        // Log para debug
+        if (!isAdmin) {
+          console.log("Configurações oculta: usuário não é admin", { role, userEmail: user?.email });
+        }
+        return isAdmin;
+      }
+      // Outras páginas: verificar permissão
+      const hasAccess = hasPermission(item.url);
+      if (!hasAccess) {
+        console.log(`[AppSidebar] Página ${item.url} filtrada (sem permissão)`, {
+          hasPermission: hasAccess,
+          role,
+          url: item.url
+        });
+      }
+      return hasAccess;
+    });
+  }, [navigationItems, hasPermission, role, user?.email, maintenanceUpdateTrigger]);
 
   const handleLogout = async () => {
     try {
@@ -522,13 +619,19 @@ export function AppSidebar() {
       {/* Header */}
       <SidebarHeader className="border-b border-sidebar-border p-4">
         {!isCollapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-dark rounded-lg flex items-center justify-center shadow-lg">
-              <Server className="w-4 h-4 text-white" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
+              <Waves className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-sidebar-foreground text-sm">BR Marinas</h2>
-              <p className="text-[10px] text-muted-foreground">Painel de TI</p>
+              <h2 className="font-bold text-sidebar-foreground text-base tracking-tight">BR Marinas</h2>
+            </div>
+          </div>
+        )}
+        {isCollapsed && (
+          <div className="flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
+              <Waves className="w-5 h-5 text-white" />
             </div>
           </div>
         )}
@@ -671,10 +774,10 @@ export function AppSidebar() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
               <div className="flex-1">
-                <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">Notificações por E-mail</h4>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Receba atualizações importantes por e-mail</p>
+                <h4 className="font-semibold text-foreground text-sm">Notificações por E-mail</h4>
+                <p className="text-xs text-muted-foreground">Receba atualizações importantes por e-mail</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer ml-2">
                 <input 
@@ -683,14 +786,14 @@ export function AppSidebar() {
                   checked={emailNotifications}
                   onChange={(e) => setEmailNotifications(e.target.checked)}
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
               <div className="flex-1">
-                <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm">Alertas do Sistema</h4>
-                <p className="text-xs text-slate-600 dark:text-slate-400">Notificações sobre atualizações e manutenções</p>
+                <h4 className="font-semibold text-foreground text-sm">Alertas do Sistema</h4>
+                <p className="text-xs text-muted-foreground">Notificações sobre atualizações e manutenções</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer ml-2">
                 <input 
@@ -699,7 +802,7 @@ export function AppSidebar() {
                   checked={systemAlerts}
                   onChange={(e) => setSystemAlerts(e.target.checked)}
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
 
@@ -905,6 +1008,38 @@ export function AppSidebar() {
                 >
                   {loading ? "A alterar..." : "Alterar Senha"}
                 </Button>
+                
+                {/* Botão de Enviar Reset de Senha */}
+                <div className="pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      if (!user?.email) {
+                        toast.error("Email não encontrado");
+                        return;
+                      }
+                      
+                      try {
+                        const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                          redirectTo: `${window.location.origin}/reset-password`,
+                        });
+                        
+                        if (error) {
+                          toast.error("Erro ao enviar email: " + error.message);
+                          return;
+                        }
+                        
+                        toast.success("Email de redefinição de senha enviado com sucesso!");
+                      } catch (error: any) {
+                        toast.error("Erro ao enviar email: " + error.message);
+                      }
+                    }}
+                    className="w-full"
+                  >
+                    <Mail className="w-4 h-4 mr-2" />
+                    Enviar Email de Reset de Senha
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
