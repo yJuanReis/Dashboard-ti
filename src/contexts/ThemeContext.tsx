@@ -28,14 +28,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       return stored;
     }
     
-    // Verificar preferência do sistema
-    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      root.classList.add("dark");
-      return "dark";
-    }
-    
-    root.classList.remove("dark");
-    return "light";
+    // Tema padrão: dark (escuro)
+    root.classList.add("dark");
+    return "dark";
   });
 
   useEffect(() => {

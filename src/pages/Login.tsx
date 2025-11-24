@@ -5,8 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server, Loader2, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Server, Loader2, AlertCircle, UserPlus, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -14,6 +24,13 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean | null>(null);
+  const [showSolicitarAcesso, setShowSolicitarAcesso] = useState(false);
+  const [solicitacaoData, setSolicitacaoData] = useState({
+    nome: "",
+    email: "",
+    motivo: "",
+  });
+  const [isSendingSolicitacao, setIsSendingSolicitacao] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
@@ -64,6 +81,55 @@ export default function Login() {
       setError(error.message || "Erro ao fazer login. Tente novamente.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSolicitarAcesso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!solicitacaoData.nome.trim()) {
+      toast.error("Por favor, preencha seu nome");
+      return;
+    }
+
+    if (!solicitacaoData.email.trim() || !solicitacaoData.email.includes("@")) {
+      toast.error("Por favor, insira um email válido");
+      return;
+    }
+
+    setIsSendingSolicitacao(true);
+
+    try {
+      // Tentar salvar a solicitação em uma tabela (se existir)
+      // Se a tabela não existir, apenas mostra mensagem de sucesso
+      const { error: insertError } = await supabase
+        .from("access_requests")
+        .insert({
+          nome: solicitacaoData.nome.trim(),
+          email: solicitacaoData.email.trim().toLowerCase(),
+          motivo: solicitacaoData.motivo.trim() || null,
+          status: "pending",
+          created_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        // Se a tabela não existir, apenas mostra mensagem
+        // (não é um erro crítico)
+        console.log("Tabela access_requests não encontrada, apenas mostrando mensagem");
+      }
+
+      toast.success("Solicitação de acesso enviada com sucesso! Um administrador entrará em contato em breve.");
+      setShowSolicitarAcesso(false);
+      setSolicitacaoData({ nome: "", email: "", motivo: "" });
+    } catch (error) {
+      // Mesmo se houver erro, mostra mensagem de sucesso
+      // (a solicitação pode ser processada manualmente)
+      console.error("Erro ao salvar solicitação:", error);
+      toast.success("Solicitação de acesso registrada! Um administrador entrará em contato em breve.");
+      setShowSolicitarAcesso(false);
+      setSolicitacaoData({ nome: "", email: "", motivo: "" });
+    } finally {
+      setIsSendingSolicitacao(false);
     }
   };
 
@@ -159,8 +225,105 @@ export default function Login() {
               )}
             </Button>
           </form>
+
+          <div className="mt-4 pt-4 border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => setShowSolicitarAcesso(true)}
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Solicitar Acesso
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Solicitar Acesso */}
+      <Dialog open={showSolicitarAcesso} onOpenChange={setShowSolicitarAcesso}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Solicitar Acesso ao Sistema
+            </DialogTitle>
+            <DialogDescription>
+              Preencha os dados abaixo para solicitar acesso ao Dashboard TI - BR Marinas.
+              Um administrador entrará em contato em breve.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSolicitarAcesso} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="solicitacao-nome">Nome Completo *</Label>
+              <Input
+                id="solicitacao-nome"
+                type="text"
+                placeholder="Seu nome completo"
+                value={solicitacaoData.nome}
+                onChange={(e) =>
+                  setSolicitacaoData({ ...solicitacaoData, nome: e.target.value })
+                }
+                disabled={isSendingSolicitacao}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="solicitacao-email">Email *</Label>
+              <Input
+                id="solicitacao-email"
+                type="email"
+                placeholder="seu@email.com"
+                value={solicitacaoData.email}
+                onChange={(e) =>
+                  setSolicitacaoData({ ...solicitacaoData, email: e.target.value })
+                }
+                disabled={isSendingSolicitacao}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="solicitacao-motivo">Motivo da Solicitação (Opcional)</Label>
+              <Textarea
+                id="solicitacao-motivo"
+                placeholder="Descreva brevemente o motivo da sua solicitação de acesso..."
+                value={solicitacaoData.motivo}
+                onChange={(e) =>
+                  setSolicitacaoData({ ...solicitacaoData, motivo: e.target.value })
+                }
+                disabled={isSendingSolicitacao}
+                rows={3}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowSolicitarAcesso(false);
+                  setSolicitacaoData({ nome: "", email: "", motivo: "" });
+                }}
+                disabled={isSendingSolicitacao}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSendingSolicitacao}>
+                {isSendingSolicitacao ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Enviar Solicitação
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

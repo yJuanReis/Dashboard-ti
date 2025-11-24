@@ -6,6 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Settings, User, Moon, Sun, Bell, UserPlus, Trash2, Lock, Mail, Eye, EyeOff, RefreshCw, LogOut, X, ShieldAlert, ShieldCheck, AlertCircle, Edit, Check, XCircle, Shield, Database } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
@@ -24,6 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService";
 import { logUpdate } from "@/lib/auditService";
+import { logger } from "@/lib/logger";
 import zxcvbn from "zxcvbn";
 
 // Tipo para usuário
@@ -191,6 +200,12 @@ export default function Configuracoes() {
   const [loading, setLoading] = useState(false);
   const [loadingEmail, setLoadingEmail] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState("");
+  
+  // Estados para modal de confirmação de email
+  const [modalConfirmacaoEmail, setModalConfirmacaoEmail] = useState(false);
+  const [nomeConfirmacao, setNomeConfirmacao] = useState("");
+  const [senhaConfirmacao, setSenhaConfirmacao] = useState("");
+  const [showSenhaConfirmacao, setShowSenhaConfirmacao] = useState(false);
   
   // Estados para prevenção de brute force
   const [tentativasErradas, setTentativasErradas] = useState(0);
@@ -379,16 +394,48 @@ export default function Configuracoes() {
     resetarTentativas,
   ]);
 
-  // Handler para enviar email de redefinição
+  // Handler para validar e enviar email de redefinição
   const handleEnviarEmailRedefinicao = useCallback(async () => {
     if (!user?.email) {
       toast.error("Email não encontrado");
       return;
     }
 
+    // Validar nome
+    if (!nomeConfirmacao.trim()) {
+      toast.error("Por favor, preencha seu nome");
+      return;
+    }
+
+    // Verificar se o nome corresponde ao nome do usuário
+    const nomeUsuario = currentUser?.nome || "";
+    if (nomeConfirmacao.trim().toLowerCase() !== nomeUsuario.toLowerCase()) {
+      toast.error("Nome incorreto. Por favor, verifique seu nome.");
+      return;
+    }
+
+    // Validar senha
+    if (!senhaConfirmacao) {
+      toast.error("Por favor, preencha sua senha");
+      return;
+    }
+
     setLoadingEmail(true);
 
     try {
+      // Verificar se a senha está correta
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: senhaConfirmacao,
+      });
+
+      if (signInError) {
+        toast.error("Senha incorreta. Por favor, verifique sua senha.");
+        setLoadingEmail(false);
+        return;
+      }
+
+      // Se a senha está correta, enviar email de redefinição
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
@@ -400,13 +447,16 @@ export default function Configuracoes() {
       }
 
       toast.success("Email de redefinição de senha enviado com sucesso!");
+      setModalConfirmacaoEmail(false);
+      setNomeConfirmacao("");
+      setSenhaConfirmacao("");
     } catch (error) {
       console.error("Erro ao enviar email:", error);
       toast.error("Erro ao enviar email. Tente novamente.");
     } finally {
       setLoadingEmail(false);
     }
-  }, [user]);
+  }, [user, nomeConfirmacao, senhaConfirmacao, currentUser]);
 
   // Função para carregar usuários do Supabase
   const carregarUsuarios = useCallback(async () => {
@@ -527,8 +577,8 @@ export default function Configuracoes() {
             page_permissions: p.page_permissions === null ? undefined : (Array.isArray(p.page_permissions) ? p.page_permissions : undefined),
           };
           
-          // Log para debug
-          console.log("Usuário carregado do banco:", {
+          // Log para debug (só aparece para admins em produção)
+          logger.log("Usuário carregado do banco:", {
             email: usuario.email,
             page_permissions_bruto: p.page_permissions,
             page_permissions_processado: usuario.page_permissions,
@@ -963,7 +1013,7 @@ export default function Configuracoes() {
 
   // Função para abrir modal de edição de usuário (Admin)
   const abrirModalEditarUsuario = (usuario: Usuario) => {
-    console.log("Abrindo modal de edição:", {
+    logger.log("Abrindo modal de edição:", {
       email: usuario.email,
       page_permissions: usuario.page_permissions,
       tipo: typeof usuario.page_permissions,
@@ -978,7 +1028,7 @@ export default function Configuracoes() {
     // Se page_permissions for null/undefined, significa que nunca foi definido = array vazio no modal
     // Se tiver valores, usar esses valores
     const permissoesIniciais = usuario.page_permissions ?? [];
-    console.log("Permissões iniciais no modal:", permissoesIniciais);
+    logger.log("Permissões iniciais no modal:", permissoesIniciais);
     setPermissoesPaginas(permissoesIniciais);
     setModalEditarUsuarioOpen(true);
   };
@@ -1015,8 +1065,8 @@ export default function Configuracoes() {
         .eq("user_id", usuarioEditando.user_id)
         .single();
 
-      // Log para debug
-      console.log("Salvando permissões:", {
+      // Log para debug (só aparece para admins em produção)
+      logger.log("Salvando permissões:", {
         usuario: usuarioEditando.email,
         role: editarRole,
         permissoesSelecionadas: permissoesPaginas,
@@ -1039,6 +1089,16 @@ export default function Configuracoes() {
 
       if (updateError) {
         console.error("Erro ao atualizar dados básicos:", updateError);
+        
+        // Mensagem específica para erro de updated_at
+        if (updateError.code === '42703' && updateError.message?.includes('updated_at')) {
+          toast.error(
+            "Erro: Campo 'updated_at' não encontrado na tabela. " +
+            "Execute o script SQL 'fix_updated_at_trigger.sql' no Supabase Dashboard."
+          );
+          throw updateError;
+        }
+        
         throw updateError;
       }
       
@@ -1139,7 +1199,16 @@ export default function Configuracoes() {
       carregarUsuarios();
     } catch (error: any) {
       console.error("Erro ao atualizar usuário:", error);
-      toast.error("Erro ao atualizar usuário: " + (error.message || "Erro desconhecido"));
+      
+      // Mensagem específica para erro de updated_at
+      if (error.code === '42703' && error.message?.includes('updated_at')) {
+        toast.error(
+          "Erro: Campo 'updated_at' não encontrado. " +
+          "Execute o script 'fix_updated_at_trigger.sql' no Supabase Dashboard para corrigir."
+        );
+      } else {
+        toast.error("Erro ao atualizar usuário: " + (error.message || "Erro desconhecido"));
+      }
     } finally {
       setLoading(false);
     }
@@ -1405,7 +1474,7 @@ export default function Configuracoes() {
                         </p>
                         <Button
                           variant="outline"
-                          onClick={handleEnviarEmailRedefinicao}
+                          onClick={() => setModalConfirmacaoEmail(true)}
                           disabled={loadingEmail}
                           className="w-full"
                         >
@@ -1891,6 +1960,77 @@ export default function Configuracoes() {
           </Card>
         </div>
       )}
+
+      {/* Modal de Confirmação para Enviar Email */}
+      <Dialog open={modalConfirmacaoEmail} onOpenChange={setModalConfirmacaoEmail}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Identidade</DialogTitle>
+            <DialogDescription>
+              Para enviar o email de redefinição de senha, por favor confirme sua identidade preenchendo seu nome e senha.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome-confirmacao">Nome</Label>
+              <Input
+                id="nome-confirmacao"
+                type="text"
+                placeholder="Digite seu nome"
+                value={nomeConfirmacao}
+                onChange={(e) => setNomeConfirmacao(e.target.value)}
+                disabled={loadingEmail}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="senha-confirmacao">Senha</Label>
+              <div className="relative">
+                <Input
+                  id="senha-confirmacao"
+                  type={showSenhaConfirmacao ? "text" : "password"}
+                  placeholder="Digite sua senha atual"
+                  value={senhaConfirmacao}
+                  onChange={(e) => setSenhaConfirmacao(e.target.value)}
+                  disabled={loadingEmail}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowSenhaConfirmacao(!showSenhaConfirmacao)}
+                  disabled={loadingEmail}
+                >
+                  {showSenhaConfirmacao ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setModalConfirmacaoEmail(false);
+                setNomeConfirmacao("");
+                setSenhaConfirmacao("");
+              }}
+              disabled={loadingEmail}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleEnviarEmailRedefinicao}
+              disabled={loadingEmail || !nomeConfirmacao.trim() || !senhaConfirmacao}
+            >
+              {loadingEmail ? "A enviar..." : "Enviar Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

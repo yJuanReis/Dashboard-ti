@@ -11,6 +11,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { NVRProvider } from "@/contexts/NVRContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 import Assinaturas from "./pages/Assinaturas";
 import Chamados from "./pages/Chamados";
@@ -43,6 +44,7 @@ const App = () => (
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route
                 path="/*"
                 element={

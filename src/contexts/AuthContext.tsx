@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { clearAdminCache, updateAdminCache } from "@/lib/disableConsoleInProduction";
 
 interface AuthContextType {
   user: User | null;
@@ -19,27 +20,110 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Função para verificar se o usuário existe no banco de dados
+  const checkUserExists = useCallback(async (userId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("user_id", userId)
+        .single();
+
+      if (error || !data) {
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Erro ao verificar usuário:", err);
+      return false;
+    }
+  }, []);
+
+  // Função para verificar e atualizar cache do role do admin
+  const updateAdminRoleCache = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
+
+      if (error || !data) {
+        // Se não encontrar, verificar user_metadata como fallback
+        const { data: { user } } = await supabase.auth.getUser();
+        const fallbackRole = user?.user_metadata?.role;
+        const isAdmin = fallbackRole === 'admin';
+        updateAdminCache(userId, isAdmin);
+        return;
+      }
+
+      const isAdmin = data.role === 'admin';
+      updateAdminCache(userId, isAdmin);
+    } catch (err) {
+      // Em caso de erro, assumir que não é admin
+      updateAdminCache(userId, false);
+    }
+  }, []);
+
   useEffect(() => {
     // Verifica a sessão atual
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        // Verificar se o usuário existe no banco
+        const exists = await checkUserExists(session.user.id);
+        if (!exists) {
+          // Usuário não existe, fazer logout
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
+        } else {
+          setSession(session);
+          setUser(session.user);
+          // Atualizar cache do role do admin
+          await updateAdminRoleCache(session.user.id);
+        }
+      } else {
+        setSession(null);
+        setUser(null);
+        // Limpar cache quando não há sessão
+        clearAdminCache();
+      }
       setLoading(false);
     });
 
     // Escuta mudanças na autenticação
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        // Verificar se o usuário existe no banco
+        const exists = await checkUserExists(session.user.id);
+        if (!exists) {
+          // Usuário não existe, fazer logout
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
+        } else {
+          setSession(session);
+          setUser(session.user);
+          // Atualizar cache do role do admin
+          await updateAdminRoleCache(session.user.id);
+        }
+      } else {
+        setSession(null);
+        setUser(null);
+        // Limpar cache quando não há sessão
+        clearAdminCache();
+      }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkUserExists, updateAdminRoleCache]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     try {
       // Validação básica antes de enviar ao Supabase
       if (!email || !email.includes("@")) {
@@ -78,8 +162,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Falha ao criar sessão. Tente novamente.");
       }
 
+      // Verificar se o usuário existe no banco de dados
+      const exists = await checkUserExists(data.user.id);
+      if (!exists) {
+        // Fazer logout se o usuário não existir
+        await supabase.auth.signOut();
+        throw new Error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
+      }
+
       setSession(data.session);
       setUser(data.user);
+      // Atualizar cache do role do admin após login
+      await updateAdminRoleCache(data.user.id);
       toast.success("Login realizado com sucesso!");
     } catch (error) {
       const authError = error as AuthError | Error;
@@ -92,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.error(errorMessage);
       throw error;
     }
-  };
+  }, [checkUserExists, updateAdminRoleCache]);
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -116,6 +210,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+
+      // Limpar cache do admin ao fazer logout
+      clearAdminCache();
 
       setSession(null);
       setUser(null);
