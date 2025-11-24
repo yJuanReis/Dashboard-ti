@@ -27,11 +27,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from("user_profiles")
         .select("id")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle(); // Usar maybeSingle em vez de single para evitar erro 400 quando não encontrar
 
-      if (error || !data) {
+      // Se houver erro específico de RLS ou permissão, tratar diferente
+      if (error) {
+        // Erro 400 pode ser RLS ou query malformada
+        // Erro PGRST116 = não encontrado (não é problema)
+        if (error.code === 'PGRST116' || error.code === '42P01') {
+          // Tabela não existe ou registro não encontrado
+          return false;
+        }
+        
+        // Para outros erros, logar e retornar false
+        console.error("Erro ao verificar usuário:", error);
         return false;
       }
+
+      // Se não houver dados, usuário não existe
+      if (!data) {
+        return false;
+      }
+
       return true;
     } catch (err) {
       console.error("Erro ao verificar usuário:", err);
@@ -162,8 +178,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("Falha ao criar sessão. Tente novamente.");
       }
 
+      // Aguardar um pouco para garantir que a sessão está estabelecida
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // Verificar se o usuário existe no banco de dados
-      const exists = await checkUserExists(data.user.id);
+      // Tentar algumas vezes caso haja problema de timing
+      let exists = false;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (!exists && attempts < maxAttempts) {
+        exists = await checkUserExists(data.user.id);
+        if (!exists && attempts < maxAttempts - 1) {
+          // Aguardar um pouco antes de tentar novamente
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        attempts++;
+      }
+
       if (!exists) {
         // Fazer logout se o usuário não existir
         await supabase.auth.signOut();
