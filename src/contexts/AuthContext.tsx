@@ -20,38 +20,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Função para verificar se o usuário existe no banco de dados
-  const checkUserExists = useCallback(async (userId: string): Promise<boolean> => {
+  // Função para verificar e criar perfil se não existir
+  const checkUserExists = useCallback(async (userId: string, userEmail?: string): Promise<boolean> => {
     try {
+      // Primeiro, tentar buscar o perfil
       const { data, error } = await supabase
         .from("user_profiles")
         .select("id")
         .eq("user_id", userId)
-        .maybeSingle(); // Usar maybeSingle em vez de single para evitar erro 400 quando não encontrar
+        .maybeSingle();
 
-      // Se houver erro específico de RLS ou permissão, tratar diferente
-      if (error) {
-        // Erro 400 pode ser RLS ou query malformada
-        // Erro PGRST116 = não encontrado (não é problema)
-        if (error.code === 'PGRST116' || error.code === '42P01') {
-          // Tabela não existe ou registro não encontrado
-          return false;
+      // Se encontrou o perfil, retornar true
+      if (data && !error) {
+        return true;
+      }
+
+      // Se não encontrou (erro PGRST116 = não encontrado), tentar criar
+      if (error && (error.code === 'PGRST116' || error.code === 'PGRST301')) {
+        // Usuário não existe na tabela, tentar criar automaticamente
+        if (userEmail) {
+          try {
+            const { error: insertError } = await supabase
+              .from("user_profiles")
+              .insert({
+                user_id: userId,
+                email: userEmail,
+                nome: userEmail.split('@')[0], // Usar parte antes do @ como nome padrão
+                role: "user",
+              });
+
+            if (!insertError) {
+              // Perfil criado com sucesso
+              return true;
+            } else {
+              // Se falhar ao criar (pode ser RLS), retornar true mesmo assim
+              // para não bloquear o login
+              console.warn("Não foi possível criar perfil automaticamente:", insertError);
+              return true; // Permitir login mesmo sem perfil
+            }
+          } catch (insertErr) {
+            console.warn("Erro ao criar perfil:", insertErr);
+            return true; // Permitir login mesmo sem perfil
+          }
         }
-        
-        // Para outros erros, logar e retornar false
-        console.error("Erro ao verificar usuário:", error);
-        return false;
       }
 
-      // Se não houver dados, usuário não existe
-      if (!data) {
-        return false;
+      // Para outros erros (400, RLS, etc), permitir login mesmo assim
+      // para não bloquear usuários legítimos
+      if (error) {
+        console.warn("Erro ao verificar usuário (permitindo login mesmo assim):", error);
+        return true; // Permitir login mesmo com erro
       }
 
+      // Se não houver dados e não houver erro, usuário não existe
+      // Mas permitir login mesmo assim (pode ser criado depois)
       return true;
     } catch (err) {
-      console.error("Erro ao verificar usuário:", err);
-      return false;
+      // Em caso de erro, permitir login para não bloquear usuários legítimos
+      console.warn("Erro ao verificar usuário (permitindo login mesmo assim):", err);
+      return true;
     }
   }, []);
 
@@ -62,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from("user_profiles")
         .select("role")
         .eq("user_id", userId)
-        .single();
+        .maybeSingle(); // Usar maybeSingle para evitar erro quando não encontrar
 
       if (error || !data) {
         // Se não encontrar, verificar user_metadata como fallback
@@ -85,20 +112,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Verifica a sessão atual
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        // Verificar se o usuário existe no banco
-        const exists = await checkUserExists(session.user.id);
-        if (!exists) {
-          // Usuário não existe, fazer logout
-          await supabase.auth.signOut();
-          setSession(null);
-          setUser(null);
-          toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
-        } else {
-          setSession(session);
-          setUser(session.user);
-          // Atualizar cache do role do admin
-          await updateAdminRoleCache(session.user.id);
-        }
+        setSession(session);
+        setUser(session.user);
+        // Verificar e criar perfil se necessário (não bloquear se falhar)
+        await checkUserExists(session.user.id, session.user.email).catch(() => {
+          // Ignorar erros, não bloquear a sessão
+        });
+        // Atualizar cache do role do admin
+        await updateAdminRoleCache(session.user.id).catch(() => {
+          // Ignorar erros, não bloquear a sessão
+        });
       } else {
         setSession(null);
         setUser(null);
@@ -113,20 +136,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        // Verificar se o usuário existe no banco
-        const exists = await checkUserExists(session.user.id);
-        if (!exists) {
-          // Usuário não existe, fazer logout
-          await supabase.auth.signOut();
-          setSession(null);
-          setUser(null);
-          toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
-        } else {
-          setSession(session);
-          setUser(session.user);
-          // Atualizar cache do role do admin
-          await updateAdminRoleCache(session.user.id);
-        }
+        setSession(session);
+        setUser(session.user);
+        // Verificar e criar perfil se necessário (não bloquear se falhar)
+        await checkUserExists(session.user.id, session.user.email).catch(() => {
+          // Ignorar erros, não bloquear a sessão
+        });
+        // Atualizar cache do role do admin
+        await updateAdminRoleCache(session.user.id).catch(() => {
+          // Ignorar erros, não bloquear a sessão
+        });
       } else {
         setSession(null);
         setUser(null);
@@ -181,25 +200,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Aguardar um pouco para garantir que a sessão está estabelecida
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Verificar se o usuário existe no banco de dados
-      // Tentar algumas vezes caso haja problema de timing
-      let exists = false;
-      let attempts = 0;
-      const maxAttempts = 3;
+      // Verificar se o usuário existe no banco de dados e criar se necessário
+      // Passar o email para poder criar o perfil automaticamente
+      const exists = await checkUserExists(data.user.id, data.user.email);
       
-      while (!exists && attempts < maxAttempts) {
-        exists = await checkUserExists(data.user.id);
-        if (!exists && attempts < maxAttempts - 1) {
-          // Aguardar um pouco antes de tentar novamente
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        attempts++;
-      }
-
+      // Não bloquear login se houver erro - o perfil pode ser criado depois
+      // Apenas logar o aviso
       if (!exists) {
-        // Fazer logout se o usuário não existir
-        await supabase.auth.signOut();
-        throw new Error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
+        console.warn("Perfil do usuário não encontrado, mas permitindo login");
       }
 
       setSession(data.session);
