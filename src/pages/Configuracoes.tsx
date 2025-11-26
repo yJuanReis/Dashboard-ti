@@ -36,6 +36,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLogout } from "@/hooks/use-logout";
 import { supabase } from "@/lib/supabaseClient";
 import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService";
 import { generateRandomPassword } from "@/lib/passwordGenerator";
@@ -272,8 +273,9 @@ function RoleTabs({
 }
 
 export default function Configuracoes() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
+  const logout = useLogout();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(false);
   const [novoUsuario, setNovoUsuario] = useState({ email: "", role: "user" as "admin" | "user" });
@@ -786,8 +788,8 @@ export default function Configuracoes() {
     }
   }, [realRole]); // Remover carregarUsuarios das dependências para evitar loops
 
-  // Função para limpar cache
-  const handleLimparCache = useCallback(() => {
+  // Função para recarregar página com limpeza de cache
+  const handleRecarregarPagina = useCallback(() => {
     try {
       // Limpar localStorage (exceto autenticação)
       const keysToKeep = ["supabase.auth.token"]; // Manter token de autenticação
@@ -810,10 +812,11 @@ export default function Configuracoes() {
         });
       }
 
-      toast.success("Cache limpo com sucesso!");
+      // Recarregar a página
+      window.location.reload();
     } catch (error) {
-      console.error("Erro ao limpar cache:", error);
-      toast.error("Erro ao limpar cache. Tente novamente.");
+      console.error("Erro ao recarregar página:", error);
+      toast.error("Erro ao recarregar página. Tente novamente.");
     }
   }, []);
 
@@ -885,13 +888,8 @@ export default function Configuracoes() {
 
   // Função para terminar sessão
   const handleTerminarSessao = useCallback(async () => {
-    try {
-      await signOut();
-      navigate("/login");
-    } catch (error) {
-      console.error("Erro ao terminar sessão:", error);
-    }
-  }, [signOut, navigate]);
+    await logout();
+  }, [logout]);
 
   // Função para salvar nome de exibição
   const handleSalvarNome = useCallback(async () => {
@@ -1482,7 +1480,7 @@ export default function Configuracoes() {
     <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
+        <div className="page-header flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
           <Link to={createPageUrl("Home")}>
             <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
               <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
@@ -2161,10 +2159,10 @@ export default function Configuracoes() {
                   <Button 
                     variant="outline" 
                     className="w-full justify-start text-sm"
-                    onClick={handleLimparCache}
+                    onClick={handleRecarregarPagina}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    Limpar Cache
+                    Recarregar página
                   </Button>
                 </div>
               </CardContent>
@@ -2229,8 +2227,8 @@ export default function Configuracoes() {
 
       {/* MODAL DE EDIÇÃO DE USUÁRIO (ADMIN) */}
       {modalEditarUsuarioOpen && usuarioEditando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+          <Card className="w-[95vw] sm:w-full max-w-5xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-200">
             <CardHeader className="flex flex-row items-center justify-between border-b">
               <CardTitle className="text-lg">Editar <strong>{usuarioEditando.nome || usuarioEditando.email}</strong></CardTitle>
               <div className="flex justify-center">
@@ -2381,8 +2379,8 @@ export default function Configuracoes() {
 
       {/* MODAL DE ALTERAÇÃO DE SENHA (ADMIN) */}
       {modalSenhaOpen && usuarioParaEditar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-md flex flex-col animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+          <Card className="w-[95vw] sm:w-full max-w-md flex flex-col animate-in fade-in zoom-in duration-200">
             <CardHeader className="flex flex-row items-center justify-between border-b">
               <CardTitle className="text-lg">Alterar Senha de <strong>{usuarioParaEditar.nome || usuarioParaEditar.email}</strong></CardTitle>
 
@@ -2417,7 +2415,7 @@ export default function Configuracoes() {
 
       {/* Modal de Confirmação para Enviar Email */}
       <Dialog open={modalConfirmacaoEmail} onOpenChange={setModalConfirmacaoEmail}>
-        <DialogContent>
+        <DialogContent className="w-[95vw] sm:w-full max-w-md">
           <DialogHeader>
             <DialogTitle>Confirmar Identidade</DialogTitle>
             <DialogDescription>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLogout } from "@/hooks/use-logout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,8 +27,9 @@ export default function ResetPassword() {
   
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, signIn, signOut, passwordTemporary, checkPasswordTemporary, loading: authLoading } = useAuth();
+  const { user, signIn, passwordTemporary, checkPasswordTemporary, loading: authLoading } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const logout = useLogout();
 
   const checkUserExists = async () => {
     if (!user?.id) return;
@@ -41,9 +43,8 @@ export default function ResetPassword() {
 
       if (error || !data) {
         // Usuário não existe no banco, fazer logout
-        await signOut();
+        await logout();
         toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
-        navigate("/login");
         return;
       }
 
@@ -51,8 +52,7 @@ export default function ResetPassword() {
       setNeedsLogin(false);
     } catch (err) {
       console.error("Erro ao verificar usuário:", err);
-      await signOut();
-      navigate("/login");
+      await logout();
     }
   };
 
@@ -74,7 +74,7 @@ export default function ResetPassword() {
     } else {
       setNeedsLogin(true);
     }
-  }, [user, navigate, signOut]);
+  }, [user, navigate, logout]);
 
   // Verificar senha temporária quando o usuário estiver logado
   useEffect(() => {
@@ -124,9 +124,8 @@ export default function ResetPassword() {
           .single();
 
         if (profileError || !userProfile) {
-          await signOut();
+          await logout();
           toast.error("Sua conta não foi encontrada. Por favor, entre em contato com o administrador.");
-          navigate("/login");
           return;
         }
 
@@ -135,8 +134,8 @@ export default function ResetPassword() {
         // Verificar senha temporária após login
         await checkPasswordTemporary();
       }
-    } catch (error: any) {
-      setError(error.message || "Erro ao fazer login. Tente novamente.");
+    } catch (_error: any) {
+      setError("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
     } finally {
       setIsLoggingIn(false);
     }
@@ -248,7 +247,7 @@ export default function ResetPassword() {
       window.location.href = "/home";
     } catch (error: any) {
       console.error("Erro ao redefinir senha:", error);
-      setError(error.message || "Erro ao redefinir senha. Tente novamente.");
+      setError("Não foi possível redefinir a senha. Tente novamente.");
     } finally {
       setIsLoading(false);
     }

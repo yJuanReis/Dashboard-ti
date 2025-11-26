@@ -71,9 +71,9 @@ export default function Login() {
       // Tenta fazer login - a validação real acontece no Supabase
       await signIn(email, password);
       navigate("/home");
-    } catch (error: any) {
-      // Erro já é mostrado via toast no contexto, mas também mostramos aqui
-      setError(error.message || "Erro ao fazer login. Tente novamente.");
+    } catch (_error: any) {
+      // Erro detalhado já é tratado e logado no AuthContext
+      setError("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
     } finally {
       setIsLoading(false);
     }

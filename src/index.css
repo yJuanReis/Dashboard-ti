@@ -432,8 +432,15 @@ All colors MUST be HSL.
 
 .home-content-top-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .home-content-top-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
 }
 
 .home-content-bottom-row {
@@ -702,11 +709,6 @@ All colors MUST be HSL.
     gap: 2rem;
   }
   
-  .home-content-top-row {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-  
   .home-section-content-large {
     min-height: 250px;
   }
@@ -746,6 +748,11 @@ All colors MUST be HSL.
 
 /* Mobile-first utilities */
 @media (max-width: 640px) {
+  /* Esconder headers de página no mobile */
+  .page-header {
+    display: none;
+  }
+
   /* Ajustes de texto para mobile */
   .text-responsive {
     font-size: 0.875rem;
@@ -791,6 +798,46 @@ All colors MUST be HSL.
   button, a, [role="button"] {
     min-height: 44px;
     min-width: 44px;
+  }
+}
+
+/* Ajustes específicos para landscape em mobile (celular deitado) */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Cabeçalho mais compacto e com tipografia reduzida */
+  .app-header {
+    height: 2.5rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  .app-header h1 {
+    font-size: 0.9rem;
+  }
+
+  /* Conteúdo com menos padding para caber melhor na vertical reduzida */
+  .app-main {
+    padding: 0.5rem !important;
+  }
+
+  /* Tipografia um pouco menor para evitar overflow horizontal */
+  .text-responsive {
+    font-size: 0.8rem;
+  }
+
+  /* Priorizar cards em vez de tabelas no landscape mobile */
+  .table-responsive {
+    display: none !important;
+  }
+
+  .table-mobile {
+    display: block !important;
+  }
+
+  /* Espaçamentos mais compactos em grids de cards */
+  .cards-container,
+  .cards-container-compact,
+  .modern-cards-grid {
+    gap: 0.75rem;
   }
 }
 

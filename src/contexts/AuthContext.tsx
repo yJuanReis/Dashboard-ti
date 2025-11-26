@@ -329,25 +329,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) {
-        // Tratamento específico de erros do Supabase
-        let errorMessage = "Erro ao fazer login. Verifique suas credenciais.";
-        
-        if (error.message.includes("Invalid login credentials")) {
-          errorMessage = "Email ou senha incorretos. Tente novamente.";
-        } else if (error.message.includes("Email not confirmed")) {
-          errorMessage = "Por favor, confirme seu email antes de fazer login.";
-        } else if (error.message.includes("Too many requests")) {
-          errorMessage = "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
-        } else {
-          errorMessage = error.message;
-        }
-        
-        throw new Error(errorMessage);
+        console.error("Erro Supabase ao fazer login:", {
+          message: error.message,
+          status: (error as any)?.status,
+          name: error.name,
+        });
+
+        // Mensagem genérica para o usuário, sem revelar detalhes sensíveis
+        throw new Error("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
       }
 
       // Verifica se a sessão foi criada
       if (!data.session || !data.user) {
-        throw new Error("Falha ao criar sessão. Tente novamente.");
+        throw new Error("Não foi possível finalizar o login. Tente novamente.");
       }
 
       // Definir sessão e usuário imediatamente
@@ -394,12 +388,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       const authError = error as AuthError | Error;
       console.error("Erro ao fazer login:", authError);
-      
-      const errorMessage = authError instanceof Error 
-        ? authError.message 
-        : (authError as AuthError).message || "Erro ao fazer login. Verifique suas credenciais.";
-      
-      toast.error(errorMessage);
+
+      // Sempre exibir mensagem genérica para o usuário
+      toast.error("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
       throw error;
     }
   }, [checkUserExists, updateAdminRoleCache]);

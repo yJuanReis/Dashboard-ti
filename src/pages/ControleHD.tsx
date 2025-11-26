@@ -42,6 +42,7 @@ import {
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { useNVR, NVR_MODELS, MARINA_OPTIONS, OWNER_OPTIONS, type NVR, type Slot } from "@/contexts/NVRContext";
+import { useSidebar } from "@/components/ui/sidebar";
 import { fetchHDPrice, saveHDPrice } from "@/lib/nvrConfigService";
 
 type SortField = "marina" | "name" | "model" | "owner";
@@ -105,6 +106,7 @@ function Glider({
 
 export default function EvolucaoHDs() {
   const { nvrs, updateSlot } = useNVR();
+  const { setOpenMobile, isMobile } = useSidebar();
   const [searchTerm, setSearchTerm] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [marinaFilter, setMarinaFilter] = useState<string>("");
@@ -116,6 +118,34 @@ export default function EvolucaoHDs() {
   const [selectedNVR, setSelectedNVR] = useState<NVR | null>(null);
   const priceSaveTimerRef = useRef<number | null>(null);
   const ownerTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
+
+  // Estado para detectar orientação (mobile retrato)
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [ignoreOrientationWarning, setIgnoreOrientationWarning] = useState(false);
+
+  // Detectar orientação e controlar sidebar (mesma lógica do ControleNVR)
+  useEffect(() => {
+    const checkOrientation = () => {
+      const isMobileDevice = window.innerWidth < 768;
+      const isPortraitMode = window.innerHeight > window.innerWidth;
+      const isLandscape = isMobileDevice && !isPortraitMode;
+
+      setIsPortrait(isMobileDevice && isPortraitMode);
+
+      if (isMobileDevice && isLandscape && isMobile) {
+        setOpenMobile(false);
+      }
+    };
+
+    checkOrientation();
+    window.addEventListener("resize", checkOrientation);
+    window.addEventListener("orientationchange", checkOrientation);
+
+    return () => {
+      window.removeEventListener("resize", checkOrientation);
+      window.removeEventListener("orientationchange", checkOrientation);
+    };
+  }, [isMobile, setOpenMobile]);
 
   // Carrega o preço do HD do Supabase ao montar o componente
   useEffect(() => {
@@ -129,6 +159,20 @@ export default function EvolucaoHDs() {
       }
     };
     loadHDPrice();
+  }, []);
+
+  // Integração com campo de busca no header (mobile)
+  useEffect(() => {
+    const handleSearchFromHeader = (event: Event) => {
+      const custom = event as CustomEvent<string>;
+      const value = typeof custom.detail === "string" ? custom.detail : "";
+      setSearchTerm(value);
+    };
+
+    window.addEventListener("hd:setSearch", handleSearchFromHeader);
+    return () => {
+      window.removeEventListener("hd:setSearch", handleSearchFromHeader);
+    };
   }, []);
 
   // Filtrar NVRs que precisam de ação (slots vazios ou undersized)
@@ -431,41 +475,70 @@ export default function EvolucaoHDs() {
 
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden p-3 md:p-4 lg:p-6">
-      {/* Header Fixo */}
-      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-3 md:px-4 py-2">
-        <div className="flex flex-row justify-between items-center gap-4">
-          <div>
-            <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
-              <HardDrive className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-              Evolução de HDs
-            </h1>
-            <p className="text-xs md:text-sm text-muted-foreground">Acompanhe e planeje substituições de discos</p>
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <Button 
-              onClick={handleExport} 
-              className="gap-2 bg-slate-500 hover:bg-slate-600 text-white border-slate-600" 
-              size="sm"
-              variant="outline"
-            >
-              <Download className="w-4 h-4" />
-              Exportar (XLSX)
-            </Button>
-            <Link to="/controle-nvr">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Video className="w-4 h-4" />
-                NVRs
+    <div className="flex flex-col h-full w-full overflow-hidden relative">
+      {/* Aviso de orientação para mobile em modo retrato */}
+      {isPortrait && !ignoreOrientationWarning && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border-2 border-primary rounded-lg p-6 max-w-md text-center shadow-2xl">
+            <div className="mb-4">
+              <HardDrive className="w-12 h-12 mx-auto text-primary mb-2" />
+              <h2 className="text-xl font-bold text-foreground mb-2">
+                Gire seu dispositivo
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Para visualizar melhor a planilha de HDs, gire seu dispositivo para o modo horizontal (landscape).
+              </p>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-4"
+                onClick={() => setIgnoreOrientationWarning(true)}
+              >
+                Acessar mesmo assim
               </Button>
-            </Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+      {/* Header Fixo - Oculto em mobile */}
+      {!isMobile && (
+        <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-3 md:px-4 py-1 md:py-1.5">
+          <div className="flex flex-row justify-between items-center gap-4">
+            <div>
+              <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+                <HardDrive className="hidden sm:inline-block w-5 h-5 md:w-6 md:h-6 text-primary" />
+                Evolução de HDs
+              </h1>
+              <p className="text-xs md:text-sm text-muted-foreground">Acompanhe e planeje substituições de discos</p>
+            </div>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button 
+                onClick={handleExport} 
+                className="gap-2 bg-slate-500 hover:bg-slate-600 text-white border-slate-600" 
+                size="sm"
+                variant="outline"
+              >
+                <Download className="w-4 h-4" />
+                Exportar (XLSX)
+              </Button>
+              <Link to="/controle-nvr">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Video className="w-4 h-4" />
+                  NVRs
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Cabeçalho Unificado com KPIs e Controles - Fixo */}
-      <div className="flex-shrink-0 border-b bg-background px-3 md:px-4 py-2">
-        <Card>
-          <CardContent className="p-2 md:p-4">
+      {/* Cabeçalho Unificado com KPIs e Controles - Fixo - Oculto em mobile */}
+      {!isMobile && (
+        <div className="flex-shrink-0 border-b bg-background px-3 md:px-4 py-2">
+          <Card>
+            <CardContent className="p-2 md:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 md:gap-4">
             {/* KPIs em Sub-Cards */}
             <div className="flex flex-wrap items-stretch gap-2 flex-1">
@@ -569,9 +642,11 @@ export default function EvolucaoHDs() {
           </CardContent>
         </Card>
       </div>
+      )}
 
-      {/* Filtros Fixos - Compactos */}
-      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-3 md:px-4 py-2 bg-background/95 backdrop-blur-sm">
+      {/* Filtros Fixos - Compactos - Ocultos em mobile */}
+      {!isMobile && (
+        <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-3 md:px-4 py-2 bg-background/95 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-2 justify-between">
           <nav className="flex flex-wrap gap-x-2 gap-y-2 items-center" aria-label="Marinas">
             <button
@@ -720,12 +795,20 @@ export default function EvolucaoHDs() {
           )}
         </div>
       </div>
+      )}
+
+      {/* Filtros Fixos - Apenas uma linha vazia em mobile para colar a tabela */}
+      {isMobile && (
+        <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-0.5 bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-2"></div>
+        </div>
+      )}
 
       {/* Tabela com Scroll */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
-        <table className="w-full caption-bottom text-sm">
-            <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800">
-                <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
+      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full">
+        <table className="w-full caption-bottom text-sm border-collapse">
+            <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
+                <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2 m-0">
                   <TableHead className="text-center bg-slate-100 dark:bg-slate-800">
                     <div className="flex items-center justify-center gap-2">
                       <span>Responsável</span>
@@ -806,12 +889,26 @@ export default function EvolucaoHDs() {
                         {nvr.model}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-2 justify-center horizontal-row-simulation">
-                          {(nvr.slots || []).map((slot, originalIndex) => {
-                            if (slot.status === "inactive") return null;
-                            return createSlotButton(slot, nvr.id, originalIndex);
-                          })}
-                        </div>
+                        {/* Desktop: mantém flex-wrap como antes */}
+                        {!isMobile && (
+                          <div className="flex flex-wrap gap-2 justify-center horizontal-row-simulation">
+                            {(nvr.slots || []).map((slot, originalIndex) => {
+                              if (slot.status === "inactive") return null;
+                              return createSlotButton(slot, nvr.id, originalIndex);
+                            })}
+                          </div>
+                        )}
+                        {/* Mobile: todos os slots em linha única com scroll horizontal */}
+                        {isMobile && (
+                          <div className="w-full overflow-x-auto">
+                            <div className="flex gap-1.5 justify-start items-stretch min-w-max pr-2">
+                              {(nvr.slots || []).map((slot, originalIndex) => {
+                                if (slot.status === "inactive") return null;
+                                return createSlotButton(slot, nvr.id, originalIndex);
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-center">
                         {nvr.notes ? (

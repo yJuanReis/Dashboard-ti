@@ -1,18 +1,7 @@
 import { 
-  LayoutDashboard, 
   Shield, 
-  IdCard, 
-  Mail, 
-  Video, 
-  HardDrive,
-  FileText,
-  Network,
-  Server,
-  Wrench,
   Users,
-  Settings,
   Bell,
-  Key,
   LogOut,
   X,
   Lock,
@@ -21,10 +10,11 @@ import {
   RefreshCw,
   AlertCircle,
   ShieldCheck,
-  Waves
+  Waves,
+  Mail,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,8 +22,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePagePermissions } from "@/hooks/usePagePermissions";
+import { useIsLandscapeMobile } from "@/hooks/use-mobile";
+import {
+  NAVIGATION_ITEMS as NAVIGATION_CONFIG,
+  type NavigationItem as NavigationItemConfig,
+} from "@/config/navigation.config";
+import { useLogout } from "@/hooks/use-logout";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import zxcvbn from "zxcvbn";
@@ -43,6 +40,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 import {
@@ -59,75 +57,16 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-type NavigationItem = {
-  title: string;
-  url: string;
-  icon: React.ComponentType<{ className?: string }>;
+type NavigationItem = NavigationItemConfig & {
   badge?: {
     text: string;
     variant: "blue" | "gray" | "yellow";
   };
 };
 
-const baseNavigationItems: Omit<NavigationItem, "badge">[] = [
-  { 
-    title: "Início", 
-    url: "/home", 
-    icon: LayoutDashboard,
-  },
-  { 
-    title: "Senhas", 
-    url: "/senhas", 
-    icon: Key,
-  },
-  { 
-    title: "Crachás", 
-    url: "/crachas", 
-    icon: IdCard,
-  },
-  { 
-    title: "Assinaturas", 
-    url: "/assinaturas", 
-    icon: Mail,
-  },
-  { 
-    title: "Controle NVR", 
-    url: "/controle-nvr", 
-    icon: Video,
-  },
-  { 
-    title: "Controle de HDs", 
-    url: "/Controle-hds", 
-    icon: HardDrive,
-  },
-  { 
-    title: "Termo de Responsabilidade", 
-    url: "/termos", 
-    icon: FileText,
-  },
-  { 
-    title: "Gestão de Rede", 
-    url: "/gestaorede", 
-    icon: Network,
-  },
-  { 
-    title: "Servidores", 
-    url: "/servidores", 
-    icon: Server,
-  },
-  { 
-    title: "Chamados", 
-    url: "/chamados", 
-    icon: Wrench,
-  },
-  { 
-    title: "Configurações", 
-    url: "/configuracoes", 
-    icon: Settings,
-  },
-];
-
-// navigationItems será criado dinamicamente dentro do componente
+interface AppSidebarProps {
+  sidebarTriggerRef?: React.RefObject<HTMLButtonElement | null>;
+}
 
 const getBadgeClasses = (variant: "blue" | "gray" | "yellow") => {
   switch (variant) {
@@ -195,13 +134,16 @@ function calcularForcaSenha(senha: string): PasswordStrength {
   return strengths[score];
 }
 
-export function AppSidebar() {
-  const { state, setOpenMobile, isMobile } = useSidebar();
+export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
+  const { state, setOpenMobile, isMobile, openMobile } = useSidebar();
   const location = useLocation();
-  const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { hasPermission, role } = usePagePermissions();
-  const isCollapsed = state === "collapsed";
+  const isLandscapeMobile = useIsLandscapeMobile();
+  // No mobile (incluindo landscape), sempre mostra os títulos;
+  // o estado "collapsed" só vale para desktop.
+  const isCollapsed = !isMobile && state === "collapsed";
+  const logout = useLogout();
 
   // Estados para modais
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
@@ -233,6 +175,12 @@ export function AppSidebar() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [systemAlerts, setSystemAlerts] = useState(true);
 
+  // Referência para o primeiro item de navegação (para foco ao abrir no mobile)
+  const firstNavItemRef = useRef<HTMLAnchorElement | null>(null);
+
+  // Guardar valor anterior de openMobile para restaurar foco no trigger ao fechar
+  const previousOpenMobileRef = useRef(openMobile);
+
   // Nome de exibição atualizado
   const displayName = useMemo(() => {
     return nomeExibicao || user?.user_metadata?.nome || user?.user_metadata?.name || "Utilizador";
@@ -253,6 +201,33 @@ export function AppSidebar() {
     const diff = bloqueadoAté.getTime() - new Date().getTime();
     return Math.ceil(diff / 1000);
   }, [bloqueadoAté, estaBloqueado]);
+
+  // Gerir foco ao abrir/fechar a sidebar mobile
+  useEffect(() => {
+    // Quando abrir no mobile, focar o primeiro item de navegação
+    if (isMobile && openMobile && firstNavItemRef.current) {
+      firstNavItemRef.current.focus();
+    }
+
+    // Quando fechar no mobile, restaurar foco no botão de menu (SidebarTrigger)
+    if (
+      isMobile &&
+      previousOpenMobileRef.current &&
+      !openMobile &&
+      sidebarTriggerRef?.current
+    ) {
+      sidebarTriggerRef.current.focus();
+    }
+
+    previousOpenMobileRef.current = openMobile;
+  }, [isMobile, openMobile, sidebarTriggerRef]);
+
+  // Fechar sidebar mobile sempre que a rota mudar
+  useEffect(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [location.pathname, isMobile, setOpenMobile]);
 
   // Atualizar contador de bloqueio
   useEffect(() => {
@@ -280,8 +255,15 @@ export function AppSidebar() {
 
   // Carregar páginas em manutenção e recarregar periodicamente
   useEffect(() => {
+    let interval: number | null = null;
+
     const loadPagesMaintenance = async () => {
       try {
+        // Evitar chamadas desnecessárias quando a aba não está visível
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+          return;
+        }
+
         const pages = await getPagesInMaintenance();
         console.log('[AppSidebar] Páginas em manutenção carregadas:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
         // Criar objeto apenas com páginas ativas
@@ -301,10 +283,23 @@ export function AppSidebar() {
         console.error("Erro ao carregar páginas em manutenção:", error);
       }
     };
-    
-    // Carregar imediatamente
-    loadPagesMaintenance();
-    
+
+    const setupInterval = () => {
+      if (interval !== null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        // Carregar imediatamente quando a aba estiver visível
+        loadPagesMaintenance();
+        // Recarregar a cada 30 segundos para pegar mudanças (apenas quando visível)
+        interval = window.setInterval(loadPagesMaintenance, 30000);
+      }
+    };
+
+    setupInterval();
+
     // Listener para mudanças imediatas
     const handleMaintenanceChange = async (event: any) => {
       console.log('[AppSidebar] Evento pagesMaintenanceChanged recebido:', event.detail);
@@ -315,13 +310,20 @@ export function AppSidebar() {
       setMaintenanceUpdateTrigger(prev => prev + 1);
     };
     window.addEventListener('pagesMaintenanceChanged', handleMaintenanceChange);
-    
-    // Recarregar a cada 30 segundos para pegar mudanças
-    const interval = setInterval(loadPagesMaintenance, 30000);
-    
+
+    const handleVisibilityChange = () => {
+      console.log("[AppSidebar] visibilitychange:", document.visibilityState);
+      setupInterval();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
-      clearInterval(interval);
+      if (interval !== null) {
+        window.clearInterval(interval);
+      }
       window.removeEventListener('pagesMaintenanceChanged', handleMaintenanceChange);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
@@ -333,7 +335,7 @@ export function AppSidebar() {
   const navigationItems: NavigationItem[] = useMemo(() => {
     const maintenanceKeys = Object.keys(pagesMaintenance);
     console.log('[AppSidebar] Recalculando navigationItems, páginas em manutenção:', maintenanceKeys);
-    return baseNavigationItems.map(item => {
+    return NAVIGATION_CONFIG.map(item => {
       // Normalizar path para comparação
       const normalizedItemUrl = item.url.toLowerCase().trim();
       const maintenanceConfig = Object.entries(pagesMaintenance).find(([path]) => {
@@ -359,16 +361,26 @@ export function AppSidebar() {
   const filteredNavigationItems: NavigationItem[] = useMemo(() => {
     console.log('[AppSidebar] Recalculando filteredNavigationItems, trigger:', maintenanceUpdateTrigger);
     return navigationItems.filter((item) => {
-      // Configurações só para admin
-      if (item.url === "/configuracoes") {
-        const isAdmin = role === "admin";
-        // Log para debug
-        if (!isAdmin) {
-          console.log("Configurações oculta: usuário não é admin", { role, userEmail: user?.email });
-        }
-        return isAdmin;
+      // Versão reduzida para mobile: oculta itens marcados como mobileHidden
+      if (isMobile && item.mobileHidden) {
+        return false;
       }
-      // Outras páginas: verificar permissão
+      // Itens mobileOnly não aparecem no desktop
+      if (!isMobile && item.mobileOnly) {
+        return false;
+      }
+
+      // Respeitar roles configuradas (se houver)
+      if (item.roles && item.roles.length > 0 && !item.roles.includes(role as any)) {
+        console.log(`[AppSidebar] Página ${item.url} oculta por role`, {
+          requiredRoles: item.roles,
+          role,
+          userEmail: user?.email,
+        });
+        return false;
+      }
+
+      // Verificar permissão
       const hasAccess = hasPermission(item.url);
       if (!hasAccess) {
         console.log(`[AppSidebar] Página ${item.url} filtrada (sem permissão)`, {
@@ -380,15 +392,6 @@ export function AppSidebar() {
       return hasAccess;
     });
   }, [navigationItems, hasPermission, role, user?.email, maintenanceUpdateTrigger]);
-
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      navigate("/login");
-    } catch (error) {
-      console.error("Erro ao fazer logout:", error);
-    }
-  };
 
   // Função para resetar tentativas (quando acertar)
   const resetarTentativas = useCallback(() => {
@@ -482,7 +485,7 @@ export function AppSidebar() {
       toast.success("Nome atualizado com sucesso!");
     } catch (error: any) {
       console.error("Erro ao salvar nome:", error);
-      toast.error("Erro ao salvar nome. Tente novamente.");
+      toast.error("Não foi possível salvar o nome. Tente novamente.");
     } finally {
       setLoadingNome(false);
     }
@@ -536,7 +539,7 @@ export function AppSidebar() {
 
       if (signInError) {
         incrementarTentativaErrada();
-        toast.error("Senha atual incorreta");
+        toast.error("Não foi possível validar a senha atual. Verifique os dados e tente novamente.");
         setLoading(false);
         return;
       }
@@ -550,7 +553,8 @@ export function AppSidebar() {
       });
 
       if (updateError) {
-        toast.error("Erro ao alterar senha: " + updateError.message);
+        console.error("Erro ao alterar senha:", updateError);
+        toast.error("Não foi possível alterar a senha. Tente novamente.");
         setLoading(false);
         return;
       }
@@ -617,24 +621,46 @@ export function AppSidebar() {
   return (
     <Sidebar className={isCollapsed ? "w-14" : "w-60"} collapsible="icon">
       {/* Header */}
-      <SidebarHeader className="border-b border-sidebar-border p-4">
-        {!isCollapsed && (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
-              <Waves className="w-5 h-5 text-white" />
-            </div>
+      <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
+        {/* Desktop / tablet */}
+        <div className="hidden md:flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
+            <Waves className="w-5 h-5 text-white" />
+          </div>
+          {!isCollapsed && (
             <div>
-              <h2 className="font-bold text-sidebar-foreground text-base tracking-tight">BR Marinas</h2>
+              <h2 className="font-bold text-sidebar-foreground text-base tracking-tight">
+                BR Marinas
+              </h2>
+            </div>
+          )}
+        </div>
+
+        {/* Mini-header apenas no mobile (drawer) */}
+        <div className="flex md:hidden items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
+              <Waves className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                Navegação
+              </span>
+              <span className="text-sm font-semibold text-sidebar-foreground">
+                Menu
+              </span>
             </div>
           </div>
-        )}
-        {isCollapsed && (
-          <div className="flex items-center justify-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
-              <Waves className="w-5 h-5 text-white" />
-            </div>
-          </div>
-        )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full hover:bg-sidebar-accent"
+            onClick={() => setOpenMobile(false)}
+          >
+            <X className="w-4 h-4" />
+            <span className="sr-only">Fechar menu</span>
+          </Button>
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="p-2">
@@ -645,7 +671,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {filteredNavigationItems.map((item) => {
+              {filteredNavigationItems.map((item, index) => {
                 const Icon = item.icon;
                 const active = isActive(item.url);
                 
@@ -654,6 +680,8 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild className="h-8 text-sm mb-0.5">
                       <NavLink 
                         to={item.url}
+                        aria-label={item.title}
+                        ref={index === 0 ? firstNavItemRef : undefined}
                         onClick={() => {
                           // Fecha a sidebar no mobile ao clicar em um link
                           if (isMobile) {
@@ -689,8 +717,9 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* Footer */}
-      <SidebarFooter className="border-t border-sidebar-border p-3">
+      {/* Footer - Oculto em landscape mobile */}
+      {!isLandscapeMobile && (
+        <SidebarFooter className="border-t border-sidebar-border p-3">
         {!isCollapsed ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -723,7 +752,7 @@ export function AppSidebar() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleLogout}
+                onClick={logout}
                 className="flex-1 justify-start text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent min-w-0"
               >
                 <LogOut className="w-3.5 h-3.5 mr-2 flex-shrink-0" />
@@ -757,7 +786,7 @@ export function AppSidebar() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleLogout}
+              onClick={logout}
               className="h-7 w-7"
               title="Sair"
             >
@@ -769,6 +798,7 @@ export function AppSidebar() {
           </div>
         )}
       </SidebarFooter>
+      )}
 
       {/* Modal de Notificações */}
       <Dialog open={notificationsModalOpen} onOpenChange={setNotificationsModalOpen}>
@@ -778,6 +808,9 @@ export function AppSidebar() {
               <Bell className="w-5 h-5" />
               Notificações
             </DialogTitle>
+            <DialogDescription>
+              Ajuste as preferências de notificações por e-mail e alertas do sistema.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
@@ -831,6 +864,9 @@ export function AppSidebar() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
           <DialogHeader>
             <DialogTitle>Configurações</DialogTitle>
+            <DialogDescription>
+              Atualize o seu nome de exibição e gerencie as opções de senha e segurança da conta.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 md:space-y-6 pt-4">
             {/* Nome de Exibição */}
@@ -1033,13 +1069,15 @@ export function AppSidebar() {
                         });
                         
                         if (error) {
-                          toast.error("Erro ao enviar email: " + error.message);
+                          console.error("Erro ao enviar email de reset de senha:", error);
+                          toast.error("Não foi possível enviar o email de redefinição. Tente novamente mais tarde.");
                           return;
                         }
                         
                         toast.success("Email de redefinição de senha enviado com sucesso!");
                       } catch (error: any) {
-                        toast.error("Erro ao enviar email: " + error.message);
+                        console.error("Erro inesperado ao enviar email de reset de senha:", error);
+                        toast.error("Não foi possível enviar o email de redefinição. Tente novamente mais tarde.");
                       }
                     }}
                     className="w-full"

@@ -153,7 +153,7 @@ export default function SecurityTest() {
           </Button>
           <div>
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Shield className="w-5 h-5 md:w-6 md:h-6 lg:w-8 lg:h-8" />
+              <Shield className="hidden sm:inline-block w-5 h-5 md:w-6 md:h-6 lg:w-8 lg:h-8" />
               <span className="hidden sm:inline">Testes de Segurança (Pentest)</span>
               <span className="sm:hidden">Pentest</span>
             </h1>

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useSidebar } from "@/components/ui/sidebar";
 
 // --- Componentes de Card Modulares ---
 
@@ -224,7 +225,7 @@ function DetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
@@ -1227,8 +1228,8 @@ function ModernCard({
           </div>
         </CardHeader>
       <CardContent className="space-y-4">
-        {/* Descrição e Marina lado a lado */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Descrição e Marina - responsivo ao tamanho do card */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Descrição:</p>
             <p className="text-base text-slate-700 dark:text-slate-300">{password.description || 'Sem descrição'}</p>
@@ -1552,7 +1553,11 @@ export default function Senhas() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [showAllOptions, setShowAllOptions] = useState(false);
-  const [viewMode, setViewMode] = useState<"cards" | "table">("table"); // Modo de visualização: cards ou planilha
+  const [viewMode, setViewMode] = useState<"cards" | "table">(() => {
+    if (typeof window === "undefined") return "table";
+    const stored = window.localStorage.getItem("senhas_view_mode");
+    return stored === "cards" || stored === "table" ? stored : "table";
+  }); // Modo de visualização: cards ou planilha, sincronizado com localStorage
   const [sortColumn, setSortColumn] = useState<string | null>(null); // Coluna atual para ordenação
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc"); // Direção da ordenação
   const [fontSize, setFontSize] = useState(14); // Tamanho da fonte em pixels (padrão 14px = text-sm)
@@ -1746,6 +1751,37 @@ export default function Senhas() {
   // 2. Usa a lista fixa de tipos
   const subCategories = ["todas", ...allTypes];
   const services = ["todos", ...Array.from(new Set(passwordsInTab.map((p) => p.service)))];
+
+  // Expõe lista de serviços para o header global (Layout) montar o dropdown
+  useEffect(() => {
+    try {
+      const event = new CustomEvent("senhas:servicesUpdated", { detail: services });
+      window.dispatchEvent(event);
+    } catch {
+      // ignore
+    }
+  }, [services]);
+
+  // Escuta alterações de busca e serviço vindas do header global (Layout)
+  useEffect(() => {
+    const handleSearchChange = (e: Event) => {
+      const custom = e as CustomEvent<string>;
+      setSearchTerm(custom.detail ?? "");
+    };
+
+    const handleServiceChange = (e: Event) => {
+      const custom = e as CustomEvent<string>;
+      setServiceFilter(custom.detail ?? "todos");
+    };
+
+    window.addEventListener("senhas:setSearch", handleSearchChange);
+    window.addEventListener("senhas:setService", handleServiceChange);
+
+    return () => {
+      window.removeEventListener("senhas:setSearch", handleSearchChange);
+      window.removeEventListener("senhas:setService", handleServiceChange);
+    };
+  }, []);
 
   // 3. Filtra a lista da aba pelos filtros restantes (busca, subcategoria, serviço)
   let filteredPasswords = passwordsInTab.filter((password) => {
@@ -2296,52 +2332,122 @@ export default function Senhas() {
     }
   }
 
+  const { setOpenMobile, isMobile } = useSidebar();
+  const [isPortrait, setIsPortrait] = useState(false);
+  // Começa ignorando o aviso para não bloquear o acesso à planilha no modo retrato
+  const [ignoreOrientationWarning, setIgnoreOrientationWarning] = useState(true);
+
+  // Detectar orientação e controlar sidebar (igual ao ControleNVR)
+  // Sincroniza viewMode com localStorage e com o header global (eventos customizados)
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("senhas_view_mode", viewMode);
+    } catch {
+      // ignore
+    }
+
+    // Notifica o header/layout que o modo mudou
+    const event = new CustomEvent("senhas:viewModeChanged", { detail: viewMode });
+    window.dispatchEvent(event);
+  }, [viewMode]);
+
+  useEffect(() => {
+    const handleSetViewMode = (e: Event) => {
+      const custom = e as CustomEvent;
+      const mode = custom.detail;
+      if (mode === "cards" || mode === "table") {
+        setViewMode(mode);
+      }
+    };
+
+    window.addEventListener("senhas:setViewMode", handleSetViewMode);
+    return () => {
+      window.removeEventListener("senhas:setViewMode", handleSetViewMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkOrientation = () => {
+      const isMobileDevice = window.innerWidth < 768;
+      const isPortraitMode = window.innerHeight > window.innerWidth;
+      const isLandscape = isMobileDevice && !isPortraitMode;
+
+      setIsPortrait(isMobileDevice && isPortraitMode);
+
+      if (isMobileDevice && isLandscape && isMobile) {
+        setOpenMobile(false);
+      }
+    };
+
+    checkOrientation();
+    window.addEventListener("resize", checkOrientation);
+    window.addEventListener("orientationchange", checkOrientation);
+
+    return () => {
+      window.removeEventListener("resize", checkOrientation);
+      window.removeEventListener("orientationchange", checkOrientation);
+    };
+  }, [isMobile, setOpenMobile]);
+
   return (
     <div className={cn(
-      "flex flex-col h-full",
+      "flex flex-col h-full relative",
       viewMode === "table" ? "h-[calc(100vh-3.5rem)] overflow-hidden" : "min-h-[calc(100vh-3.5rem)]"
     )}>
-      {/* Título e Subtítulo no topo */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-2">
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">Senhas</h1>
-        <p className="text-sm md:text-base text-muted-foreground mt-1">Gestão de senhas e credenciais de acesso</p>
-      </div>
-
-      {/* Header Fixo - Compacto no modo planilha */}
-      <div className={cn(
-        "flex-shrink-0 border-b bg-background/95 backdrop-blur-sm",
-        "px-4 py-2"
-      )}>
-        <div className="flex flex-row justify-between items-center gap-4">
-          <div className="hidden">
-            {/* Espaço reservado para manter layout */}
+      {/* Aviso de orientação para mobile em modo retrato */}
+      {isPortrait && !ignoreOrientationWarning && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border-2 border-primary rounded-lg p-6 max-w-md text-center shadow-2xl">
+            <div className="mb-4">
+              <LockKeyhole className="w-12 h-12 mx-auto text-primary mb-2" />
+              <h2 className="text-xl font-bold text-foreground mb-2">
+                Gire seu dispositivo
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Para consultar melhor todas as colunas de senhas, gire seu dispositivo para o modo horizontal (landscape).
+              </p>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-4"
+                onClick={() => setIgnoreOrientationWarning(true)}
+              >
+                Acessar mesmo assim
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 ml-auto">
-            {/* Botão para alternar entre Cards e Planilha */}
+        </div>
+      )}
+      {/* Header Fixo interno - apenas controles extras em desktop (sem filtros, que já estão no header global) */}
+      {!isMobile && (
+        <div className={cn(
+          "flex-shrink-0 border-b bg-background/95 backdrop-blur-sm",
+          "px-2 md:px-4 py-2"
+        )}>
+          <div className="flex flex-wrap items-center gap-2 justify-end">
             <div className="flex items-center gap-1 border rounded-md p-1 bg-background">
               <Button
                 variant={viewMode === "table" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => {
-                  setViewMode("table");
-                }}
-                className="gap-2"
+                onClick={() => setViewMode("table")}
+                className="gap-1 sm:gap-2 text-xs sm:text-sm justify-center"
               >
-                <Table2 className="w-4 h-4" />
-                Planilha
+                <Table2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Planilha</span>
               </Button>
               <Button
                 variant={viewMode === "cards" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => {
-                  setViewMode("cards");
-                }}
-                className="gap-2"
+                onClick={() => setViewMode("cards")}
+                className="gap-1 sm:gap-2 text-xs sm:text-sm justify-center"
               >
-                <LayoutGrid className="w-4 h-4" />
-                Cards
+                <LayoutGrid className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Cards</span>
               </Button>
             </div>
+
             <div className="hidden md:flex items-center gap-1 border rounded-md p-1 bg-background">
               <Type className="w-4 h-4 text-muted-foreground mx-1" />
               <Button
@@ -2366,33 +2472,23 @@ export default function Senhas() {
                 <ArrowUp className="w-3.5 h-3.5" />
               </Button>
             </div>
+
             {viewMode === "cards" && passwordProblems.length > 0 && (
               <Button 
                 onClick={() => setShowProblemsModal(true)} 
-                className="gap-2 bg-orange-500 hover:bg-orange-600 text-white border-orange-600" 
-                size="default"
+                className="gap-1 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white border-orange-600 text-xs sm:text-sm justify-center" 
+                size="sm"
                 variant="outline"
               >
-                <AlertTriangle className="w-4 h-4" />
-                Cards com problema ({passwordProblems.length})
+                <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Cards com problema</span>
+                <span className="sm:hidden">Problemas</span>
+                <span className="ml-1">({passwordProblems.length})</span>
               </Button>
             )}
-            <Button 
-              onClick={handleExportCSV} 
-              className="gap-2 bg-slate-500 hover:bg-slate-600 text-white border-slate-600" 
-              size="default"
-              variant="outline"
-            >
-              <Download className="w-4 h-4" />
-              Exportar CSV
-            </Button>
-            <Button onClick={() => setShowTypeSelectorModal(true)} className="gap-2" size="default">
-              <Plus className="w-4 h-4" />
-              Adicionar
-            </Button>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Conteúdo - Scroll apenas em modo cards, fixo em modo planilha */}
       <div className={cn(
@@ -2407,133 +2503,7 @@ export default function Senhas() {
             <div className={cn(
               "border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 sticky top-0 z-0 md:z-0 bg-background/95 backdrop-blur-sm"
             )}>
-              {/* Abas e Filtros */}
-              <div className="flex flex-col gap-2 w-full">
-                {/* Nav centralizado com abas, tipos e filtros - Oculto em mobile */}
-                <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
-                  <div className="flex flex-col items-center gap-3">
-                    {/* Nav com abas e tipos */}
-                    <nav className="-mb-px flex flex-wrap gap-x-2 gap-y-2 justify-center w-full" aria-label="Tabs">
-                      {tabCategories.map((tab) => {
-                        const Icon = tabIcons[tab];
-                        const isActive = activeTab === tab;
-                        // Usa as mesmas cores fixas dos cards
-                        const colorClasses = tabColorClasses[tab] || tabColorClasses["Todos"];
-                        return (
-                          <button
-                            key={tab}
-                            onClick={() => {
-                              setActiveTab(tab);
-                              // Reseta os filtros de dropdown ao trocar de aba principal
-                              setSubCategoryFilter("todas"); 
-                              setServiceFilter("todos");
-                            }}
-                            className={cn(
-                              "whitespace-nowrap py-2 px-3 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all duration-200 rounded-t-lg",
-                              isActive
-                                ? cn("border-b-2 shadow-sm", colorClasses) // Estilo da aba ativa com cor
-                                : cn("border-transparent", colorClasses, "hover:opacity-80") // Estilo das inativas com cor
-                            )}
-                          >
-                            {Icon && <Icon className={cn("w-4 h-4 transition-transform", isActive && "scale-110")} />}
-                            <span>{tab}</span>
-                          </button>
-                        );
-                      })}
-                      {/* Botões de Tipo dentro do nav */}
-                      {allTypes.map((tipo) => {
-                        const Icon = typeIcons[tipo];
-                        const isActive = subCategoryFilter === tipo;
-                        const displayName = tipo.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        const colorClasses = getColorClasses(tipo, 'tipo');
-                        return (
-                          <button
-                            key={tipo}
-                            onClick={() => setSubCategoryFilter(tipo)}
-                            className={cn(
-                              "whitespace-nowrap py-2 px-3 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all duration-200 rounded-t-lg",
-                              isActive
-                                ? cn("border-b-2 shadow-sm", colorClasses)
-                                : cn("border-transparent", colorClasses, "hover:opacity-80")
-                            )}
-                          >
-                            {Icon && <Icon className={cn("w-4 h-4 transition-transform", isActive && "scale-110")} />}
-                            <span>{displayName}</span>
-                          </button>
-                        );
-                      })}
-                    </nav>
-                  </div>
-                </div>
-
-                {/* Filtros centralizados - Sempre visíveis */}
-                <div className="flex flex-wrap items-center gap-3 justify-center pb-2">
-                  {/* Campo de Busca */}
-                  {showSearchField ? (
-                    <div className="relative min-w-[200px] max-w-[300px] flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Buscar por serviço, descrição ou utilizador..."
-                        value={searchTerm}
-                        autoComplete="off"
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onBlur={(e) => {
-                          // Mantém o campo aberto se houver texto
-                          const relatedTarget = e.relatedTarget as HTMLElement;
-                          if (!searchTerm && (!relatedTarget || !relatedTarget.closest('button'))) {
-                            setTimeout(() => {
-                              if (!searchTerm) {
-                                setShowSearchField(false);
-                              }
-                            }, 200);
-                          }
-                        }}
-                        className="pl-10 pr-10"
-                        autoFocus
-                      />
-                      {searchTerm && (
-                        <button
-                          onClick={() => setSearchTerm("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowSearchField(true)}
-                      className="gap-2"
-                    >
-                      <Search className="w-4 h-4" />
-                      Buscar
-                    </Button>
-                  )}
-
-                  {/* ++ Dropdown de Serviço (Atualizado) ++ */}
-                  {services.length > 1 && (
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
-                        Serviço:
-                      </label>
-                      <select
-                        value={serviceFilter}
-                        onChange={(e) => setServiceFilter(e.target.value)}
-                        className="px-3 py-2 bg-background border border-input rounded-md text-sm min-w-[150px]"
-                      >
-                        {services.map((service) => (
-                          <option key={service} value={service}>
-                            {service.charAt(0).toUpperCase() + service.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* Espaço reservado apenas para manter consistência visual no modo cards */}
             </div>
           )}
           {/* ++ FIM DAS NOVAS ABAS ++ */}
@@ -2629,129 +2599,65 @@ export default function Senhas() {
             <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 bg-background/95 backdrop-blur-sm relative z-0 md:z-0">
               {/* Abas e Filtros */}
               <div className="flex flex-col gap-2 w-full">
-                {/* Nav centralizado com abas, tipos e filtros - Oculto em mobile */}
-                <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
-                  <div className="flex flex-col items-center gap-3">
-                    {/* Nav com abas e tipos */}
-                    <nav className="-mb-px flex flex-wrap gap-x-2 gap-y-2 justify-center w-full" aria-label="Tabs">
-                      {tabCategories.map((tab) => {
-                        const Icon = tabIcons[tab];
-                        const isActive = activeTab === tab;
-                        // Usa as mesmas cores fixas dos cards
-                        const colorClasses = tabColorClasses[tab] || tabColorClasses["Todos"];
-                        return (
-                          <button
-                            key={tab}
-                            onClick={() => {
-                              setActiveTab(tab);
-                              setSubCategoryFilter("todas"); 
-                              setServiceFilter("todos");
-                            }}
-                            className={cn(
-                              "whitespace-nowrap py-2 px-3 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all duration-200 rounded-t-lg",
-                              isActive
-                                ? cn("border-b-2 shadow-sm", colorClasses) // Estilo da aba ativa com cor
-                                : cn("border-transparent", colorClasses, "hover:opacity-80") // Estilo das inativas com cor
-                            )}
-                          >
-                            {Icon && <Icon className={cn("w-4 h-4 transition-transform", isActive && "scale-110")} />}
-                            <span>{tab}</span>
-                          </button>
-                        );
-                      })}
-                      {/* Botões de Tipo dentro do nav */}
-                      {allTypes.map((tipo) => {
-                        const Icon = typeIcons[tipo];
-                        const isActive = subCategoryFilter === tipo;
-                        const displayName = tipo.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-                        const colorClasses = getColorClasses(tipo, 'tipo');
-                        return (
-                          <button
-                            key={tipo}
-                            onClick={() => setSubCategoryFilter(tipo)}
-                            className={cn(
-                              "whitespace-nowrap py-2 px-3 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all duration-200 rounded-t-lg",
-                              isActive
-                                ? cn("border-b-2 shadow-sm", colorClasses)
-                                : cn("border-transparent", colorClasses, "hover:opacity-80")
-                            )}
-                          >
-                            {Icon && <Icon className={cn("w-4 h-4 transition-transform", isActive && "scale-110")} />}
-                            <span>{displayName}</span>
-                          </button>
-                        );
-                      })}
-                    </nav>
+                {/* Nav colorido (abas) - aparece apenas em desktop e nunca em modo mobile */}
+                {!isMobile && (
+                  <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
+                    <div className="flex flex-col items-center gap-3">
+                      {/* Nav com abas e tipos */}
+                      <nav className="-mb-px flex flex-wrap gap-x-2 gap-y-2 justify-center w-full" aria-label="Tabs">
+                        {tabCategories.map((tab) => {
+                          const Icon = tabIcons[tab];
+                          const isActive = activeTab === tab;
+                          // Usa as mesmas cores fixas dos cards
+                          const colorClasses = tabColorClasses[tab] || tabColorClasses["Todos"];
+                          return (
+                            <button
+                              key={tab}
+                              onClick={() => {
+                                setActiveTab(tab);
+                                setSubCategoryFilter("todas"); 
+                                setServiceFilter("todos");
+                              }}
+                              className={cn(
+                                "whitespace-nowrap py-2 px-3 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all duration-200 rounded-t-lg",
+                                isActive
+                                  ? cn("border-b-2 shadow-sm", colorClasses)
+                                  : cn("border-transparent", colorClasses, "hover:opacity-80")
+                              )}
+                            >
+                              {Icon && <Icon className={cn("w-4 h-4 transition-transform", isActive && "scale-110")} />}
+                              <span>{tab}</span>
+                            </button>
+                          );
+                        })}
+                        {/* Botões de Tipo dentro do nav */}
+                        {allTypes.map((tipo) => {
+                          const Icon = typeIcons[tipo];
+                          const isActive = subCategoryFilter === tipo;
+                          const displayName = tipo.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                          const colorClasses = getColorClasses(tipo, 'tipo');
+                          return (
+                            <button
+                              key={tipo}
+                              onClick={() => setSubCategoryFilter(tipo)}
+                              className={cn(
+                                "whitespace-nowrap py-2 px-3 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all duration-200 rounded-t-lg",
+                                isActive
+                                  ? cn("border-b-2 shadow-sm", colorClasses)
+                                  : cn("border-transparent", colorClasses, "hover:opacity-80")
+                              )}
+                            >
+                              {Icon && <Icon className={cn("w-4 h-4 transition-transform", isActive && "scale-110")} />}
+                              <span>{displayName}</span>
+                            </button>
+                          );
+                        })}
+                      </nav>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Filtros centralizados - Sempre visíveis */}
-                <div className="flex flex-wrap items-center gap-3 justify-center pb-2">
-                  {/* Campo de Busca */}
-                  {showSearchField ? (
-                    <div className="relative min-w-[200px] max-w-[300px] flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        type="text"
-                        placeholder="Buscar por serviço, descrição ou utilizador..."
-                        value={searchTerm}
-                        autoComplete="off"
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onBlur={(e) => {
-                          // Mantém o campo aberto se houver texto
-                          const relatedTarget = e.relatedTarget as HTMLElement;
-                          if (!searchTerm && (!relatedTarget || !relatedTarget.closest('button'))) {
-                            setTimeout(() => {
-                              if (!searchTerm) {
-                                setShowSearchField(false);
-                              }
-                            }, 200);
-                          }
-                        }}
-                        className="pl-10 pr-10"
-                        autoFocus
-                      />
-                      {searchTerm && (
-                        <button
-                          onClick={() => setSearchTerm("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowSearchField(true)}
-                      className="gap-2"
-                    >
-                      <Search className="w-4 h-4" />
-                      Buscar
-                    </Button>
-                  )}
-
-                  {/* ++ Dropdown de Serviço (Atualizado) ++ */}
-                  {services.length > 1 && (
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
-                        Serviço:
-                      </label>
-                      <select
-                        value={serviceFilter}
-                        onChange={(e) => setServiceFilter(e.target.value)}
-                        className="px-3 py-2 bg-background border border-input rounded-md text-sm min-w-[150px]"
-                      >
-                        {services.map((service) => (
-                          <option key={service} value={service}>
-                            {service.charAt(0).toUpperCase() + service.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
+                {/* Filtros foram movidos para o header global da página (acima da planilha) */}
               </div>
             </div>
 
@@ -2823,7 +2729,7 @@ export default function Senhas() {
                 <TableHeader className="sticky top-0 z-[1] md:z-[100] bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0, fontSize: `${fontSize}px` }}>
                   <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[100px] text-center pl-4 pr-2 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[100px] text-center pl-4 pr-2 py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('tipo')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2837,7 +2743,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[100px] text-center pl-2 pr-4 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[100px] text-center pl-2 pr-4 py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('marina')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2851,7 +2757,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[120px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[120px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('service')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2865,7 +2771,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[200px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[200px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('description')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2879,7 +2785,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[150px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[150px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('username')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2893,7 +2799,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[120px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[120px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('password')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2907,7 +2813,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[150px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[150px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('url')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2921,7 +2827,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[100px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[100px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('local')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2935,7 +2841,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[150px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[150px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('contas_compartilhadas')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2949,7 +2855,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[100px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[100px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('winbox')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2963,7 +2869,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[150px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[150px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('www')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2977,7 +2883,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[100px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[100px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('ssh')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -2991,7 +2897,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[130px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[130px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('cloud_intelbras')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -3005,7 +2911,7 @@ export default function Senhas() {
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="font-semibold whitespace-nowrap min-w-[150px] bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="font-semibold whitespace-nowrap min-w-[150px] py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('link_rtsp')}
                       style={{ fontSize: `${fontSize}px` }}
                     >
@@ -3320,7 +3226,7 @@ export default function Senhas() {
 
       {/* --- NOVO MODAL: SELETOR DE TIPO --- */}
       <Dialog open={showTypeSelectorModal} onOpenChange={setShowTypeSelectorModal}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="w-[95vw] sm:w-full max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plus className="w-5 h-5" />
@@ -3385,7 +3291,7 @@ export default function Senhas() {
 
       {/* Modal de Formulário */}
       <Dialog open={showFormModal} onOpenChange={setShowFormModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 capitalize">
               <Plus className="w-5 h-5" />
@@ -3669,7 +3575,7 @@ export default function Senhas() {
 
       {/* Modal de Edição */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5" />

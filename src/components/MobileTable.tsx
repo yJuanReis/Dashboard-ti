@@ -70,3 +70,5 @@ export function MobileCardRow({ label, value, className }: MobileCardRowProps) {
   );
 }
 
+
+

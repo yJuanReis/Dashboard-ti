@@ -128,7 +128,7 @@ export default function AuditLogs() {
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Database className="w-5 h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-primary" />
+              <Database className="hidden sm:inline-block w-5 h-5 md:w-6 md:h-6 lg:w-8 lg:h-8 text-primary" />
               <span className="truncate">Logs de Auditoria</span>
             </h1>
             <p className="text-xs md:text-sm text-slate-600 dark:text-slate-400 mt-1">

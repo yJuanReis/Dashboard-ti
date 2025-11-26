@@ -3,7 +3,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useIsLandscapeMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,7 @@ const SidebarProvider = React.forwardRef<
   }
 >(({ defaultOpen = true, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }, ref) => {
   const isMobile = useIsMobile();
+  const isLandscapeMobile = useIsLandscapeMobile();
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
@@ -137,6 +138,7 @@ const Sidebar = React.forwardRef<
   }
 >(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const isLandscapeMobile = useIsLandscapeMobile();
 
   if (collapsible === "none") {
     return (
@@ -152,7 +154,11 @@ const Sidebar = React.forwardRef<
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+      <Sheet 
+        open={openMobile} 
+        onOpenChange={setOpenMobile} 
+        {...props}
+      >
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
@@ -218,7 +224,10 @@ Sidebar.displayName = "Sidebar";
 
 const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, React.ComponentProps<typeof Button>>(
   ({ className, onClick, ...props }, ref) => {
-    const { toggleSidebar } = useSidebar();
+    const { toggleSidebar, state, isMobile, openMobile } = useSidebar();
+
+    const isOpen = isMobile ? openMobile : state === "expanded";
+    const label = isOpen ? "Fechar menu lateral" : "Abrir menu lateral";
 
     return (
       <Button
@@ -227,6 +236,8 @@ const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, React.C
         variant="ghost"
         size="icon"
         className={cn("h-7 w-7", className)}
+        aria-label={label}
+        title={label}
         onClick={(event) => {
           onClick?.(event);
           toggleSidebar();
@@ -234,7 +245,7 @@ const SidebarTrigger = React.forwardRef<React.ElementRef<typeof Button>, React.C
         {...props}
       >
         <PanelLeft />
-        <span className="sr-only">Toggle Sidebar</span>
+        <span className="sr-only">{label}</span>
       </Button>
     );
   },

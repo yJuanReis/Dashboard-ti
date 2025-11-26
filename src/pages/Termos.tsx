@@ -8,6 +8,7 @@ import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { FileText, Download, Eye, RefreshCw, Laptop, Smartphone, Tablet, Monitor, Radio, Cloud, Shield, Zap, ExternalLink, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface TermoData {
   dia: string;
@@ -31,6 +32,7 @@ interface TermoData {
 }
 
 export default function TesteTermos() {
+  const isMobile = useIsMobile();
   // Links para modelos e armazenamento
   const linkModeloPC = "https://docs.google.com/document/d/1yC3RSg9FHkJSCTLUbOd4jBPhqeVwPJh0/edit?usp=drive_link&ouid=117439329535517834842&rtpof=true&sd=true";
   const linkModeloCelular = "https://docs.google.com/document/d/1Bz48DSzVfB0WJUTGmf6Rajpb0Z4R6PUI/edit?usp=drive_link&ouid=117439329535517834842&rtpof=true&sd=true";
@@ -932,13 +934,13 @@ export default function TesteTermos() {
   };
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] overflow-hidden flex items-center justify-center">
-      <div className="p-3 md:p-4 lg:p-6 w-full max-w-[95vw] mx-auto h-full flex flex-col">
+    <div className={isMobile ? "min-h-screen overflow-y-auto" : "h-[calc(100vh-3.5rem)] overflow-hidden flex items-center justify-center"}>
+      <div className={`${isMobile ? "p-2" : "p-3 md:p-4 lg:p-6"} w-full max-w-[95vw] mx-auto ${isMobile ? "" : "h-full flex flex-col"}`}>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0">
+        <div className={`grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-4 ${isMobile ? "" : "flex-1 min-h-0"}`}>
         {/* Formulário */}
-        <Card className="shadow-lg border-border/50 lg:col-span-3 flex flex-col">
-          <CardContent className="space-y-2 md:space-y-3 flex-1 overflow-y-auto pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4">
+        <Card className={`shadow-lg border-border/50 ${isMobile ? "" : "lg:col-span-3"} flex flex-col`}>
+          <CardContent className={`space-y-2 md:space-y-3 ${isMobile ? "" : "flex-1 overflow-y-auto"} pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4`}>
             {/* Seletor de Modelo */}
             <div>
               <Label htmlFor="tipoModelo" className="text-sm mb-2 block">Tipo de Termo</Label>
@@ -1399,6 +1401,7 @@ export default function TesteTermos() {
         </Card>
 
         {/* Preview */}
+        {!isMobile && (
         <Card className="shadow-lg border-border/50 lg:col-span-6 flex flex-col">
           <style>{`
             .hand-container {
@@ -1594,8 +1597,10 @@ export default function TesteTermos() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Card de Ações Rápidas */}
+        {!isMobile && (
         <Card className="shadow-lg border-border/50 lg:col-span-3 flex flex-col">
           <CardHeader className="flex-shrink-0">
             <CardTitle className="flex items-center gap-2">
@@ -1834,6 +1839,7 @@ export default function TesteTermos() {
             </div>
           </CardContent>
         </Card>
+        )}
 
         </div>
       </div>

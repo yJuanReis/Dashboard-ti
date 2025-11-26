@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -51,6 +52,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useNVR, NVR_MODELS, MARINA_OPTIONS, OWNER_OPTIONS, type NVR, type Slot } from "@/contexts/NVRContext";
+import { useSidebar } from "@/components/ui/sidebar";
+import { useIsLandscapeMobile } from "@/hooks/use-mobile";
 
 // Funções auxiliares
 function getHDSizeClass(size: number): string {
@@ -169,6 +172,8 @@ type SortDirection = "asc" | "desc";
 
 export default function ControleNVR() {
   const { nvrs, setNvrs, updateNVR, addNVR, deleteNVR, updateSlot, loading } = useNVR();
+  const { setOpenMobile, isMobile } = useSidebar();
+  const isLandscapeMobile = useIsLandscapeMobile();
   const [searchTerm, setSearchTerm] = useState("");
   const [marinaFilter, setMarinaFilter] = useState<string>("");
   const [ownerFilter, setOwnerFilter] = useState<string>("");
@@ -187,6 +192,50 @@ export default function ControleNVR() {
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef<boolean>(false);
   const slotButtonRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+  // Estado para detectar orientação
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [ignoreOrientationWarning, setIgnoreOrientationWarning] = useState(false);
+
+  // Detectar orientação e controlar sidebar
+  useEffect(() => {
+    const checkOrientation = () => {
+      // Verifica se está em mobile (largura menor que 768px) e em modo retrato
+      const isMobileDevice = window.innerWidth < 768;
+      const isPortraitMode = window.innerHeight > window.innerWidth;
+      const isLandscape = isMobileDevice && !isPortraitMode;
+      
+      setIsPortrait(isMobileDevice && isPortraitMode);
+      
+      // Se estiver em landscape no mobile, fecha a sidebar automaticamente
+      if (isMobileDevice && isLandscape && isMobile) {
+        setOpenMobile(false);
+      }
+    };
+
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', checkOrientation);
+
+    return () => {
+      window.removeEventListener('resize', checkOrientation);
+      window.removeEventListener('orientationchange', checkOrientation);
+    };
+  }, [isMobile, setOpenMobile]);
+
+  // Integração com campo de busca no header (modo landscape mobile)
+  useEffect(() => {
+    const handleSearchFromHeader = (event: Event) => {
+      const custom = event as CustomEvent<string>;
+      const value = typeof custom.detail === "string" ? custom.detail : "";
+      setSearchTerm(value);
+    };
+
+    window.addEventListener("nvr:setSearch", handleSearchFromHeader);
+    return () => {
+      window.removeEventListener("nvr:setSearch", handleSearchFromHeader);
+    };
+  }, []);
 
   const [formData, setFormData] = useState({
     marina: "",
@@ -437,166 +486,230 @@ export default function ControleNVR() {
   }, [slotEditorOpen]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Header Fixo */}
-      <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-3 md:px-4 py-2">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 md:gap-4">
-          <div>
-            <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
-              <Video className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-              Controle de NVR
-            </h1>
-            <p className="text-xs md:text-sm text-muted-foreground">Gerencie gravadores de vídeo e status dos HDs</p>
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <Link to="/evolucao-hds">
-              <Button variant="outline" size="sm" className="gap-2">
-                <HardDrive className="w-4 h-4" />
-                Evolução
+    <div className="flex flex-col h-full w-full overflow-hidden relative">
+      {/* Aviso de orientação para mobile em modo retrato */}
+      {isPortrait && !ignoreOrientationWarning && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border-2 border-primary rounded-lg p-6 max-w-md text-center shadow-2xl">
+            <div className="mb-4">
+              <Video className="w-12 h-12 mx-auto text-primary mb-2" />
+              <h2 className="text-xl font-bold text-foreground mb-2">
+                Gire seu dispositivo
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Para uma melhor visualização, gire seu dispositivo para o modo horizontal (landscape).
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 text-muted-foreground">
+              <div className="w-8 h-8 border-2 border-muted-foreground rounded flex items-center justify-center">
+                <span className="text-lg">📱</span>
+              </div>
+              <ArrowUpDown className="w-4 h-4" />
+              <div className="w-8 h-8 border-2 border-primary rounded flex items-center justify-center">
+                <span className="text-lg">📱</span>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-4"
+                onClick={() => setIgnoreOrientationWarning(true)}
+              >
+                Acessar mesmo assim
               </Button>
-            </Link>
-            <Button onClick={() => handleOpenDialog()} size="sm" className="gap-2 bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4" />
-              Novo NVR
-            </Button>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Filtros Fixos - Compactos */}
-      <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-3 md:px-4 py-2 bg-background/95 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[150px] sm:min-w-[200px] max-w-[300px]">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Buscar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-8 h-8 text-sm"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
+      )}
+      {/* Header Fixo */}
+      {!isMobile && (
+        <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-2 md:px-4 py-1 md:py-1.5">
+        <div className="flex flex-row justify-between items-center gap-2">
+          <div className="min-w-0 flex-1">
+            {!isMobile && (
+              <>
+                <h1 className="text-base md:text-xl font-bold text-foreground flex items-center gap-1.5 md:gap-2">
+                  <Video className="hidden sm:inline-block w-4 h-4 md:w-6 md:h-6 text-primary flex-shrink-0" />
+                  <span className="truncate">Controle de NVR</span>
+                </h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">
+                  Gerencie gravadores de vídeo e status dos HDs
+                </p>
+              </>
             )}
           </div>
-
-          <div className="flex items-center gap-1">
-            <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-              Marina:
-            </label>
-            <Select value={marinaFilter || undefined} onValueChange={(value) => setMarinaFilter(value || "")}>
-              <SelectTrigger className="h-8 min-w-[120px] text-xs">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                {MARINA_OPTIONS.sort().map((marina) => (
-                  <SelectItem key={marina} value={marina}>
-                    {marina}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-              Proprietário:
-            </label>
-            <Select value={ownerFilter || undefined} onValueChange={(value) => setOwnerFilter(value || "")}>
-              <SelectTrigger className="h-8 min-w-[120px] text-xs">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                {OWNER_OPTIONS.sort().map((owner) => (
-                  <SelectItem 
-                    key={owner} 
-                    value={owner}
-                    className={
-                      owner === "BR Marinas"
-                        ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/30"
-                        : owner === "Tele Litorânea"
-                        ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 focus:bg-orange-100 dark:focus:bg-orange-900/30"
-                        : ""
-                    }
-                  >
-                    {owner}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-              Modelo:
-            </label>
-            <Select value={modelFilter || undefined} onValueChange={(value) => setModelFilter(value || "")}>
-              <SelectTrigger className="h-8 min-w-[120px] text-xs">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.keys(NVR_MODELS).sort().map((model) => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {(searchTerm || marinaFilter || ownerFilter || modelFilter) && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearFilters}
-              className="whitespace-nowrap h-8 text-xs"
-            >
-              <X className="w-3 h-3 mr-1" />
-              Limpar
-            </Button>
+          {!isMobile && (
+            <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+              <Link to="/controle-hds">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 md:gap-2 text-xs md:text-sm px-2 md:px-3"
+                >
+                  <HardDrive className="w-3 h-3 md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">Controle HDs</span>
+                </Button>
+              </Link>
+              <Button
+                onClick={() => handleOpenDialog()}
+                size="sm"
+                className="gap-1 md:gap-2 bg-primary hover:bg-primary/90 text-xs md:text-sm px-2 md:px-3"
+              >
+                <Plus className="w-3 h-3 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">Novo NVR</span>
+                <span className="sm:hidden">Novo</span>
+              </Button>
+            </div>
           )}
         </div>
       </div>
+      )}
 
-      {/* Legenda Fixa */}
-      <div className="flex-shrink-0 border-b bg-background px-4 py-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs font-semibold text-muted-foreground">
-            Legenda:
-          </span>
-          {[
-            { size: 3, label: "3TB" },
-            { size: 4, label: "4TB" },
-            { size: 6, label: "6TB" },
-            { size: 12, label: "12TB" },
-            { size: 14, label: "14TB" },
-            { size: 18, label: "18TB" },
-            { size: 0, label: "Vazio" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-1.5">
-              <div
-                className={`w-4 h-4 rounded ${getHDSizeClass(item.size)}`}
+      {/* Faixa superior / filtros */}
+      {isMobile ? (
+        // Mobile: faixa fina sem filtros, para colar a tabela no header
+        <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-0.5 bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-2" />
+        </div>
+      ) : (
+        // Desktop: mantém filtros completos
+        <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-2 md:px-4 py-1.5 md:py-2 bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+            <div className="relative flex-1 min-w-[120px] sm:min-w-[200px] max-w-[250px] md:max-w-[300px]">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 md:w-4 md:h-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-7 md:pl-8 pr-7 md:pr-8 h-7 md:h-8 text-xs md:text-sm"
               />
-              <span className="text-xs">{item.label}</span>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
-          ))}
-          <div className="flex items-center gap-1.5">
-            <div className="w-4 h-4 rounded bg-yellow-400 opacity-50" />
-            <span className="text-xs">Inativo</span>
+
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap hidden sm:inline">
+                Marina:
+              </label>
+              <Select value={marinaFilter || undefined} onValueChange={(value) => setMarinaFilter(value || "")}>
+                <SelectTrigger className="h-7 md:h-8 min-w-[100px] sm:min-w-[120px] text-xs">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MARINA_OPTIONS.sort().map((marina) => (
+                    <SelectItem key={marina} value={marina}>
+                      {marina}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap hidden sm:inline">
+                Proprietário:
+              </label>
+              <Select value={ownerFilter || undefined} onValueChange={(value) => setOwnerFilter(value || "")}>
+                <SelectTrigger className="h-7 md:h-8 min-w-[100px] sm:min-w-[120px] text-xs">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  {OWNER_OPTIONS.sort().map((owner) => (
+                    <SelectItem 
+                      key={owner} 
+                      value={owner}
+                      className={
+                        owner === "BR Marinas"
+                          ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 focus:bg-blue-100 dark:focus:bg-blue-900/30"
+                          : owner === "Tele Litorânea"
+                          ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 focus:bg-orange-100 dark:focus:bg-orange-900/30"
+                          : ""
+                      }
+                    >
+                      {owner}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-semibold text-muted-foreground whitespace-nowrap hidden sm:inline">
+                Modelo:
+              </label>
+              <Select value={modelFilter || undefined} onValueChange={(value) => setModelFilter(value || "")}>
+                <SelectTrigger className="h-7 md:h-8 min-w-[100px] sm:min-w-[120px] text-xs">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(NVR_MODELS).sort().map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(searchTerm || marinaFilter || ownerFilter || modelFilter) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="whitespace-nowrap h-7 md:h-8 text-xs px-2"
+              >
+                <X className="w-3 h-3 mr-0.5 md:mr-1" />
+                <span className="hidden sm:inline">Limpar</span>
+              </Button>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Tabela com Scroll */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
-        <table className="w-full caption-bottom text-sm">
-            <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800">
-                <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
+      {/* Legenda Fixa - Oculta em todos os modos mobile para ganhar espaço */}
+      {!isMobile && (
+        <div className="flex-shrink-0 border-b bg-background px-2 md:px-4 py-1 md:py-2">
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-3">
+            <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">
+              Legenda:
+            </span>
+            {[
+              { size: 3, label: "3TB" },
+              { size: 4, label: "4TB" },
+              { size: 6, label: "6TB" },
+              { size: 12, label: "12TB" },
+              { size: 14, label: "14TB" },
+              { size: 18, label: "18TB" },
+              { size: 0, label: "Vazio" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-1.5">
+                <div
+                  className={`w-4 h-4 rounded ${getHDSizeClass(item.size)}`}
+                />
+                <span className="text-xs">{item.label}</span>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 rounded bg-yellow-400 opacity-50" />
+              <span className="text-xs">Inativo</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela com Scroll - Otimizada para landscape mobile */}
+      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full">
+        <table className="w-full caption-bottom text-xs md:text-sm min-w-[600px] border-collapse">
+            <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
+                <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2 leading-tight m-0">
                   <TableHead 
                     className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                     onClick={() => handleSort("owner")}
@@ -663,7 +776,7 @@ export default function ControleNVR() {
                     >
                       <TableCell className="text-center font-medium">
                         <span
-                          className={`inline-block px-3 py-1 rounded-md transition-colors ${
+                          className={`inline-block px-2 md:px-3 py-0.5 md:py-1 rounded-md transition-colors text-xs md:text-sm ${
                             nvr.owner === "BR Marinas"
                               ? "bg-blue-100 dark:bg-blue-900/30 cursor-default"
                               : nvr.owner === "Tele Litorânea"
@@ -675,120 +788,34 @@ export default function ControleNVR() {
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center gap-2 justify-center">
+                        <div className="flex items-center gap-1 md:gap-2 justify-center text-xs md:text-sm">
                           <span className="marina-cell">{nvr.marina}</span>
                           <span className="text-muted-foreground">/</span>
                           <span className="name-cell font-medium">{nvr.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center text-xs md:text-sm">
                         {nvr.model} ({NVR_MODELS[nvr.model]?.slots || 0} slots)
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center text-xs md:text-sm">
                         {nvr.cameras || 0} câmeras
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-3">
-                          <div className="flex gap-3 justify-center">
-                            {nvr.slots.slice(0, 4).map((slot, index) => {
-                              const isEditorOpen =
-                                slotEditorOpen?.nvrId === nvr.id &&
-                                slotEditorOpen?.slotIndex === index;
-
-                              return (
-                                <div key={index} className="flex flex-col items-center gap-1">
-                                  <div className="text-xs text-muted-foreground">#{index + 1}</div>
-                                  <div className="relative">
-                                    <button
-                                      className={`w-11 h-11 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
-                                        slot.status === "inactive"
-                                          ? "opacity-50"
-                                          : ""
-                                      } ${getSlotStatusClass(
-                                        slot.status,
-                                        slot.hdSize
-                                      )} ${
-                                        slot.hdSize === 0
-                                          ? "border-gray-600"
-                                          : "border-white/20"
-                                      }`}
-                                      title={`Slot ${index + 1}${
-                                        slot.hdSize > 0
-                                          ? ` - ${slot.hdSize}TB`
-                                          : ""
-                                      }\n\nClique rápido para editar este slot.\nClique longo para marcar TODOS os slots como ativos.`}
-                                      onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        isLongPressRef.current = false;
-                                        const timer = setTimeout(() => {
-                                          isLongPressRef.current = true;
-                                          setShowUpdateAllDialog(true);
-                                          setSlotEditorOpen(null);
-                                        }, 1000);
-                                        longPressTimerRef.current = timer;
-                                      }}
-                                      onMouseUp={(e) => {
-                                        e.stopPropagation();
-                                        if (longPressTimerRef.current) {
-                                          clearTimeout(longPressTimerRef.current);
-                                          longPressTimerRef.current = null;
-                                        }
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (longPressTimerRef.current) {
-                                          clearTimeout(longPressTimerRef.current);
-                                          longPressTimerRef.current = null;
-                                        }
-                                      }}
-                                      ref={(el) => {
-                                        if (el) {
-                                          const key = `${nvr.id}-${index}`;
-                                          slotButtonRefs.current.set(key, el);
-                                        }
-                                      }}
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        // Só abre o editor se não foi um clique longo
-                                        if (!isLongPressRef.current) {
-                                          handleSlotClick(e, nvr.id, index);
-                                        }
-                                        // Reset da flag após um pequeno delay
-                                        setTimeout(() => {
-                                          isLongPressRef.current = false;
-                                        }, 100);
-                                      }}
-                                    >
-                                      {slot.hdSize > 0 ? `${slot.hdSize}TB` : "-"}
-                                    </button>
-                                    {isEditorOpen && (
-                                      <SlotMenu
-                                        nvrId={nvr.id}
-                                        slotIndex={index}
-                                        slotButtonRefs={slotButtonRefs}
-                                        slotSizes={slotSizes}
-                                        onSelectSize={(size) => handleSlotUpdate(nvr.id, index, size)}
-                                      />
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          {nvr.slots.length > 4 && (
-                            <div className="flex gap-3 justify-center">
-                              {nvr.slots.slice(4).map((slot, index) => {
-                                const actualIndex = index + 4;
+                        {/* Desktop: mantém grid em 2 linhas como antes */}
+                        {!isMobile && (
+                          <div className="flex flex-col gap-2 md:gap-3">
+                            <div className="flex gap-1.5 md:gap-3 justify-center flex-wrap">
+                              {nvr.slots.slice(0, 4).map((slot, index) => {
                                 const isEditorOpen =
                                   slotEditorOpen?.nvrId === nvr.id &&
-                                  slotEditorOpen?.slotIndex === actualIndex;
+                                  slotEditorOpen?.slotIndex === index;
 
                                 return (
-                                  <div key={actualIndex} className="flex flex-col items-center gap-1">
-                                    <div className="text-xs text-muted-foreground">#{actualIndex + 1}</div>
+                                  <div key={index} className="flex flex-col items-center gap-0.5 md:gap-1">
+                                    <div className="text-[10px] md:text-xs text-muted-foreground">#{index + 1}</div>
                                     <div className="relative">
                                       <button
-                                        className={`w-11 h-11 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
+                                        className={`w-9 h-9 md:w-11 md:h-11 rounded-lg flex items-center justify-center text-white text-[10px] md:text-xs font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
                                           slot.status === "inactive"
                                             ? "opacity-50"
                                             : ""
@@ -800,7 +827,7 @@ export default function ControleNVR() {
                                             ? "border-gray-600"
                                             : "border-white/20"
                                         }`}
-                                        title={`Slot ${actualIndex + 1}${
+                                        title={`Slot ${index + 1}${
                                           slot.hdSize > 0
                                             ? ` - ${slot.hdSize}TB`
                                             : ""
@@ -830,7 +857,7 @@ export default function ControleNVR() {
                                         }}
                                         ref={(el) => {
                                           if (el) {
-                                            const key = `${nvr.id}-${actualIndex}`;
+                                            const key = `${nvr.id}-${index}`;
                                             slotButtonRefs.current.set(key, el);
                                           }
                                         }}
@@ -839,7 +866,7 @@ export default function ControleNVR() {
                                           e.stopPropagation();
                                           // Só abre o editor se não foi um clique longo
                                           if (!isLongPressRef.current) {
-                                            handleSlotClick(e, nvr.id, actualIndex);
+                                            handleSlotClick(e, nvr.id, index);
                                           }
                                           // Reset da flag após um pequeno delay
                                           setTimeout(() => {
@@ -852,10 +879,10 @@ export default function ControleNVR() {
                                       {isEditorOpen && (
                                         <SlotMenu
                                           nvrId={nvr.id}
-                                          slotIndex={actualIndex}
+                                          slotIndex={index}
                                           slotButtonRefs={slotButtonRefs}
                                           slotSizes={slotSizes}
-                                          onSelectSize={(size) => handleSlotUpdate(nvr.id, actualIndex, size)}
+                                          onSelectSize={(size) => handleSlotUpdate(nvr.id, index, size)}
                                         />
                                       )}
                                     </div>
@@ -863,8 +890,189 @@ export default function ControleNVR() {
                                 );
                               })}
                             </div>
-                          )}
-                        </div>
+                            {nvr.slots.length > 4 && (
+                              <div className="flex gap-1.5 md:gap-3 justify-center flex-wrap">
+                                {nvr.slots.slice(4).map((slot, index) => {
+                                  const actualIndex = index + 4;
+                                  const isEditorOpen =
+                                    slotEditorOpen?.nvrId === nvr.id &&
+                                    slotEditorOpen?.slotIndex === actualIndex;
+
+                                  return (
+                                    <div key={actualIndex} className="flex flex-col items-center gap-0.5 md:gap-1">
+                                      <div className="text-[10px] md:text-xs text-muted-foreground">#{actualIndex + 1}</div>
+                                      <div className="relative">
+                                        <button
+                                          className={`w-9 h-9 md:w-11 md:h-11 rounded-lg flex items-center justify-center text-white text-[10px] md:text-xs font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
+                                            slot.status === "inactive"
+                                              ? "opacity-50"
+                                              : ""
+                                          } ${getSlotStatusClass(
+                                            slot.status,
+                                            slot.hdSize
+                                          )} ${
+                                            slot.hdSize === 0
+                                              ? "border-gray-600"
+                                              : "border-white/20"
+                                          }`}
+                                          title={`Slot ${actualIndex + 1}${
+                                            slot.hdSize > 0
+                                              ? ` - ${slot.hdSize}TB`
+                                              : ""
+                                          }\n\nClique rápido para editar este slot.\nClique longo para marcar TODOS os slots como ativos.`}
+                                          onMouseDown={(e) => {
+                                            e.stopPropagation();
+                                            isLongPressRef.current = false;
+                                            const timer = setTimeout(() => {
+                                              isLongPressRef.current = true;
+                                              setShowUpdateAllDialog(true);
+                                              setSlotEditorOpen(null);
+                                            }, 1000);
+                                            longPressTimerRef.current = timer;
+                                          }}
+                                          onMouseUp={(e) => {
+                                            e.stopPropagation();
+                                            if (longPressTimerRef.current) {
+                                              clearTimeout(longPressTimerRef.current);
+                                              longPressTimerRef.current = null;
+                                            }
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            if (longPressTimerRef.current) {
+                                              clearTimeout(longPressTimerRef.current);
+                                              longPressTimerRef.current = null;
+                                            }
+                                          }}
+                                          ref={(el) => {
+                                            if (el) {
+                                              const key = `${nvr.id}-${actualIndex}`;
+                                              slotButtonRefs.current.set(key, el);
+                                            }
+                                          }}
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // Só abre o editor se não foi um clique longo
+                                            if (!isLongPressRef.current) {
+                                              handleSlotClick(e, nvr.id, actualIndex);
+                                            }
+                                            // Reset da flag após um pequeno delay
+                                            setTimeout(() => {
+                                              isLongPressRef.current = false;
+                                            }, 100);
+                                          }}
+                                        >
+                                          {slot.hdSize > 0 ? `${slot.hdSize}TB` : "-"}
+                                        </button>
+                                        {isEditorOpen && (
+                                          <SlotMenu
+                                            nvrId={nvr.id}
+                                            slotIndex={actualIndex}
+                                            slotButtonRefs={slotButtonRefs}
+                                            slotSizes={slotSizes}
+                                            onSelectSize={(size) => handleSlotUpdate(nvr.id, actualIndex, size)}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Mobile: todos os slots em linha única com scroll horizontal */}
+                        {isMobile && (
+                          <div className="w-full overflow-x-auto">
+                            <div className="flex gap-1.5 justify-start items-stretch min-w-max pr-2">
+                              {nvr.slots.map((slot, index) => {
+                                const isEditorOpen =
+                                  slotEditorOpen?.nvrId === nvr.id &&
+                                  slotEditorOpen?.slotIndex === index;
+
+                                return (
+                                  <div key={index} className="flex flex-col items-center gap-0.5">
+                                    <div className="text-[10px] text-muted-foreground">#{index + 1}</div>
+                                    <div className="relative">
+                                      <button
+                                        className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-[10px] font-bold shadow-md border-2 transition-all cursor-pointer hover:scale-105 ${
+                                          slot.status === "inactive"
+                                            ? "opacity-50"
+                                            : ""
+                                        } ${getSlotStatusClass(
+                                          slot.status,
+                                          slot.hdSize
+                                        )} ${
+                                          slot.hdSize === 0
+                                            ? "border-gray-600"
+                                            : "border-white/20"
+                                        }`}
+                                        title={`Slot ${index + 1}${
+                                          slot.hdSize > 0
+                                            ? ` - ${slot.hdSize}TB`
+                                            : ""
+                                        }\n\nClique rápido para editar este slot.\nClique longo para marcar TODOS os slots como ativos.`}
+                                        onMouseDown={(e) => {
+                                          e.stopPropagation();
+                                          isLongPressRef.current = false;
+                                          const timer = setTimeout(() => {
+                                            isLongPressRef.current = true;
+                                            setShowUpdateAllDialog(true);
+                                            setSlotEditorOpen(null);
+                                          }, 1000);
+                                          longPressTimerRef.current = timer;
+                                        }}
+                                        onMouseUp={(e) => {
+                                          e.stopPropagation();
+                                          if (longPressTimerRef.current) {
+                                            clearTimeout(longPressTimerRef.current);
+                                            longPressTimerRef.current = null;
+                                          }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          if (longPressTimerRef.current) {
+                                            clearTimeout(longPressTimerRef.current);
+                                            longPressTimerRef.current = null;
+                                          }
+                                        }}
+                                        ref={(el) => {
+                                          if (el) {
+                                            const key = `${nvr.id}-${index}`;
+                                            slotButtonRefs.current.set(key, el);
+                                          }
+                                        }}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          // Só abre o editor se não foi um clique longo
+                                          if (!isLongPressRef.current) {
+                                            handleSlotClick(e, nvr.id, index);
+                                          }
+                                          // Reset da flag após um pequeno delay
+                                          setTimeout(() => {
+                                            isLongPressRef.current = false;
+                                          }, 100);
+                                        }}
+                                      >
+                                        {slot.hdSize > 0 ? `${slot.hdSize}TB` : "-"}
+                                      </button>
+                                      {isEditorOpen && (
+                                        <SlotMenu
+                                          nvrId={nvr.id}
+                                          slotIndex={index}
+                                          slotButtonRefs={slotButtonRefs}
+                                          slotSizes={slotSizes}
+                                          onSelectSize={(size) => handleSlotUpdate(nvr.id, index, size)}
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -898,6 +1106,9 @@ export default function ControleNVR() {
             <DialogTitle>
               {editingNVR ? "Editar NVR" : "Novo NVR"}
             </DialogTitle>
+            <DialogDescription>
+              Preencha ou atualize as informações do equipamento NVR. Todos os campos obrigatórios estão marcados com *.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {/* 1. Responsável */}

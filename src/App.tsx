@@ -27,6 +27,7 @@ import TesteTermos from "./pages/Termos";
 import SecurityTest from "./pages/SecurityTest";
 import AuditLogs from "./pages/AuditLogs";
 import NotFound from "./pages/NotFound";
+import { NavigationHistoryProvider } from "@/contexts/NavigationHistoryContext";
 
 const queryClient = new QueryClient();
 
@@ -43,40 +44,42 @@ const App = () => (
           }}
         >
           <AuthProvider>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <PasswordTemporaryGuard>
-                      <NVRProvider>
-                        <Layout>
-                          <Routes>
-                          <Route path="/" element={<Navigate to="/home" replace />} />
-                          <Route path="/home" element={<PagePermissionGuard><Home /></PagePermissionGuard>} />
-                          <Route path="/assinaturas" element={<PagePermissionGuard><Assinaturas /></PagePermissionGuard>} />
-                          <Route path="/chamados" element={<PagePermissionGuard><Chamados /></PagePermissionGuard>} />
-                          <Route path="/configuracoes" element={<AdminOnlyRoute><Configuracoes /></AdminOnlyRoute>} />
-                          <Route path="/controle-nvr" element={<PagePermissionGuard><ControleNVR /></PagePermissionGuard>} />
-                          <Route path="/crachas" element={<PagePermissionGuard><Crachas /></PagePermissionGuard>} />
-                          <Route path="/Controle-hds" element={<PagePermissionGuard><EvolucaoHDs /></PagePermissionGuard>} />
-                          <Route path="/servidores" element={<PagePermissionGuard><Servidores /></PagePermissionGuard>} />
-                          <Route path="/senhas" element={<PagePermissionGuard><Senhas /></PagePermissionGuard>} />
-                          <Route path="/gestaorede" element={<PagePermissionGuard><GestaoRede /></PagePermissionGuard>} />
-                          <Route path="/termos" element={<PagePermissionGuard><TesteTermos /></PagePermissionGuard>} />
-                          <Route path="/security-test" element={<PagePermissionGuard><SecurityTest /></PagePermissionGuard>} />
-                          <Route path="/audit-logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />
-                          <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </Layout>
-                      </NVRProvider>
-                    </PasswordTemporaryGuard>
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
+            <NavigationHistoryProvider>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route
+                  path="/*"
+                  element={
+                    <ProtectedRoute>
+                      <PasswordTemporaryGuard>
+                        <NVRProvider>
+                          <Layout>
+                            <Routes>
+                              <Route path="/" element={<Navigate to="/home" replace />} />
+                              <Route path="/home" element={<PagePermissionGuard><Home /></PagePermissionGuard>} />
+                              <Route path="/assinaturas" element={<PagePermissionGuard><Assinaturas /></PagePermissionGuard>} />
+                              <Route path="/chamados" element={<PagePermissionGuard><Chamados /></PagePermissionGuard>} />
+                              <Route path="/configuracoes" element={<AdminOnlyRoute><Configuracoes /></AdminOnlyRoute>} />
+                              <Route path="/controle-nvr" element={<PagePermissionGuard><ControleNVR /></PagePermissionGuard>} />
+                              <Route path="/crachas" element={<PagePermissionGuard><Crachas /></PagePermissionGuard>} />
+                              <Route path="/controle-hds" element={<PagePermissionGuard><EvolucaoHDs /></PagePermissionGuard>} />
+                              <Route path="/servidores" element={<PagePermissionGuard><Servidores /></PagePermissionGuard>} />
+                              <Route path="/senhas" element={<PagePermissionGuard><Senhas /></PagePermissionGuard>} />
+                              <Route path="/gestaorede" element={<PagePermissionGuard><GestaoRede /></PagePermissionGuard>} />
+                              <Route path="/termos" element={<PagePermissionGuard><TesteTermos /></PagePermissionGuard>} />
+                              <Route path="/security-test" element={<PagePermissionGuard><SecurityTest /></PagePermissionGuard>} />
+                              <Route path="/audit-logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />
+                              <Route path="*" element={<NotFound />} />
+                            </Routes>
+                          </Layout>
+                        </NVRProvider>
+                      </PasswordTemporaryGuard>
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </NavigationHistoryProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

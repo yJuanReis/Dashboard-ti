@@ -86,7 +86,8 @@ export function PasswordChangeModal({
       });
 
       if (updateError) {
-        setError("Erro ao atualizar senha: " + updateError.message);
+        console.error("Erro ao atualizar senha:", updateError);
+        setError("Não foi possível atualizar a senha. Tente novamente.");
         setLoading(false);
         return;
       }
@@ -103,14 +104,13 @@ export function PasswordChangeModal({
         .select(); // Adicionar select para verificar se atualizou
 
       if (profileError) {
-        console.error("ERRO CRÍTICO ao atualizar perfil:", profileError);
-        console.error("Detalhes do erro:", {
+        console.error("ERRO CRÍTICO ao atualizar perfil:", {
           code: profileError.code,
           message: profileError.message,
           details: profileError.details,
-          hint: profileError.hint
+          hint: profileError.hint,
         });
-        setError("Erro ao atualizar perfil: " + profileError.message);
+        setError("Não foi possível atualizar seu perfil. Tente novamente.");
         setLoading(false);
         return;
       }
@@ -138,7 +138,7 @@ export function PasswordChangeModal({
         console.log("PasswordChangeModal: Dados verificados no banco:", verifyData);
         if (verifyData.password_temporary === true) {
           console.error("ERRO: password_temporary ainda está TRUE após atualização!");
-          setError("Erro: A flag de senha temporária não foi atualizada. Tente novamente.");
+          setError("Não foi possível concluir a atualização da senha. Tente novamente.");
           setLoading(false);
           return;
         }
