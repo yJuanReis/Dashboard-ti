@@ -7,7 +7,12 @@ try {
   const isPreCommit = process.env.GIT_HOOK === 'pre-commit' || process.argv.includes('--pre-commit');
   
   // Detecta se está rodando em CI (Vercel, GitHub Actions, etc)
-  const isCI = process.env.CI === 'true' || process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+  // Vercel define várias variáveis de ambiente, verificamos todas
+  const isCI = process.env.CI === 'true' || 
+               process.env.VERCEL === '1' || 
+               process.env.VERCEL_ENV !== undefined ||
+               process.env.VERCEL_URL !== undefined ||
+               process.env.VERCEL_REGION !== undefined;
   
   // Conta o número total de commits no repositório
   let commitCount = execSync('git rev-list --count HEAD', { encoding: 'utf-8' }).trim();
@@ -52,7 +57,7 @@ try {
   const versionPath = resolve(process.cwd(), 'src/lib/version.json');
   let shouldUpdate = true;
   
-  // Em CI, sempre atualiza para garantir que a versão está correta baseada nos commits do repositório
+  // Em CI (Vercel), SEMPRE atualiza para garantir que a versão está correta
   // Em desenvolvimento local, verifica se precisa atualizar
   if (existsSync(versionPath) && !isPreCommit && !isCI) {
     try {
@@ -66,6 +71,13 @@ try {
     } catch (e) {
       // Se não conseguir ler o arquivo, continua e atualiza
     }
+  }
+  
+  // Em CI, sempre atualiza (ignora a verificação acima)
+  if (isCI) {
+    shouldUpdate = true;
+    console.log(`🔄 CI detectado! Variáveis: VERCEL=${process.env.VERCEL}, VERCEL_ENV=${process.env.VERCEL_ENV}, CI=${process.env.CI}`);
+    console.log(`🔄 Atualizando versão baseada nos commits do repositório...`);
   }
   
   if (shouldUpdate) {
