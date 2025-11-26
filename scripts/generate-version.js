@@ -1,10 +1,13 @@
 import { execSync } from 'child_process';
-import { writeFileSync, readFileSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
 try {
   // Detecta se está rodando em um hook pre-commit
   const isPreCommit = process.env.GIT_HOOK === 'pre-commit' || process.argv.includes('--pre-commit');
+  
+  // Detecta se está rodando em CI (Vercel, GitHub Actions, etc)
+  const isCI = process.env.CI === 'true' || process.env.VERCEL === '1' || process.env.VERCEL_ENV;
   
   // Conta o número total de commits no repositório
   let commitCount = execSync('git rev-list --count HEAD', { encoding: 'utf-8' }).trim();
@@ -45,31 +48,52 @@ try {
   const patchFormatted = patch.toString().padStart(2, '0');
   const version = `1.${minor}.${patchFormatted}`;
   
-  // Cria o objeto de versão
-  const versionInfo = {
-    version,
-    commitCount: parseInt(commitCount, 10),
-    commitHash,
-    commitDate,
-    buildDate: new Date().toISOString()
-  };
-  
-  // Escreve o arquivo de versão em JSON
+  // Verifica se já existe uma versão commitada e se está correta
   const versionPath = resolve(process.cwd(), 'src/lib/version.json');
-  writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2), 'utf-8');
+  let shouldUpdate = true;
   
-  // Atualiza o package.json
-  const packageJsonPath = resolve(process.cwd(), 'package.json');
-  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  packageJson.version = version;
-  writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
+  // Em CI, sempre atualiza para garantir que a versão está correta baseada nos commits do repositório
+  // Em desenvolvimento local, verifica se precisa atualizar
+  if (existsSync(versionPath) && !isPreCommit && !isCI) {
+    try {
+      const existingVersion = JSON.parse(readFileSync(versionPath, 'utf-8'));
+      // Se a versão existente corresponde aos commits atuais, não precisa atualizar
+      if (existingVersion.commitCount === parseInt(commitCount, 10) && 
+          existingVersion.commitHash === commitHash) {
+        shouldUpdate = false;
+        console.log(`✅ Versão já está atualizada: ${existingVersion.version} (${existingVersion.commitCount} commits)`);
+      }
+    } catch (e) {
+      // Se não conseguir ler o arquivo, continua e atualiza
+    }
+  }
   
-  if (isPreCommit) {
-    console.log(`✅ Versão atualizada para commit: ${version} (${commitCount} commits após este commit)`);
-  } else {
-    console.log(`✅ Versão gerada: ${version} (${commitCount} commits)`);
-    console.log(`   Commit: ${commitHash}`);
-    console.log(`   Data: ${commitDate}`);
+  if (shouldUpdate) {
+    // Cria o objeto de versão
+    const versionInfo = {
+      version,
+      commitCount: parseInt(commitCount, 10),
+      commitHash,
+      commitDate,
+      buildDate: new Date().toISOString()
+    };
+    
+    // Escreve o arquivo de versão em JSON
+    writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2), 'utf-8');
+    
+    // Atualiza o package.json
+    const packageJsonPath = resolve(process.cwd(), 'package.json');
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    packageJson.version = version;
+    writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
+    
+    if (isPreCommit) {
+      console.log(`✅ Versão atualizada para commit: ${version} (${commitCount} commits após este commit)`);
+    } else {
+      console.log(`✅ Versão gerada: ${version} (${commitCount} commits)`);
+      console.log(`   Commit: ${commitHash}`);
+      console.log(`   Data: ${commitDate}`);
+    }
   }
   
 } catch (error) {
