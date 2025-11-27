@@ -55,7 +55,7 @@ Atualmente, o sistema **não envia automaticamente** um email com as credenciais
 
 1. **Enviar manualmente** após criar o usuário
 2. **Criar uma Edge Function** que envia email personalizado
-3. **Integrar com serviço de email externo** (SendGrid, Mailgun, etc.)
+3. **Integrar com serviço de email externo** (Mailgun, SES, etc.)
 
 ## 🎯 Como Usar
 

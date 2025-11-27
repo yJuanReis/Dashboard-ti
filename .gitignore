@@ -31,3 +31,5 @@ dist-ssr
 *.sw?
 
 estilo34
+.vercel
+.env*.local

@@ -14,6 +14,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
@@ -279,6 +289,7 @@ export default function Configuracoes() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(false);
   const [novoUsuario, setNovoUsuario] = useState({ email: "", role: "user" as "admin" | "user" });
+  const [permissoesPaginasNovoUsuario, setPermissoesPaginasNovoUsuario] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
   const [nomeExibicao, setNomeExibicao] = useState(user?.user_metadata?.nome || user?.user_metadata?.name || "");
   const [loadingNome, setLoadingNome] = useState(false);
@@ -326,6 +337,13 @@ export default function Configuracoes() {
   
   // Estados para modal de confirmação de email
   const [modalConfirmacaoEmail, setModalConfirmacaoEmail] = useState(false);
+  
+  // Estado para modal de confirmação de exclusão
+  const [modalConfirmacaoExclusao, setModalConfirmacaoExclusao] = useState(false);
+  const [usuarioParaExcluir, setUsuarioParaExcluir] = useState<Usuario | null>(null);
+  
+  // Estado para modal de confirmação de criação/atualização de usuário
+  const [modalConfirmacaoCriacao, setModalConfirmacaoCriacao] = useState(false);
   const [nomeConfirmacao, setNomeConfirmacao] = useState("");
   const [senhaConfirmacao, setSenhaConfirmacao] = useState("");
   const [showSenhaConfirmacao, setShowSenhaConfirmacao] = useState(false);
@@ -1008,6 +1026,7 @@ export default function Configuracoes() {
   useEffect(() => {
     // Resetar campos de novo usuário quando o componente montar
     setNovoUsuario({ email: "", role: "user" });
+    setPermissoesPaginasNovoUsuario([]);
   }, []);
 
   // Estados para o visualizador de logs - EM DESENVOLVIMENTO
@@ -1019,20 +1038,39 @@ export default function Configuracoes() {
   // const [mostrarLogs, setMostrarLogs] = useState(false);
   // const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
 
-  // Função para criar usuário e enviar email de reset password
-  const handleEnviarResetPassword = useCallback(async () => {
+  // Função para abrir modal de confirmação antes de criar/atualizar usuário
+  const handleEnviarResetPassword = useCallback(() => {
     if (!novoUsuario.email) {
       setStatusMessage("Preencha o email");
       toast.error("Preencha o email");
       return;
     }
+    setModalConfirmacaoCriacao(true);
+  }, [novoUsuario.email]);
 
+  // Função para criar usuário e enviar email de reset password (executada após confirmação)
+  const handleConfirmarCriacaoUsuario = useCallback(async () => {
+    console.log('🚀 [Configuracoes] handleConfirmarCriacaoUsuario chamado');
+    
+    if (!novoUsuario.email) {
+      setStatusMessage("Preencha o email");
+      toast.error("Preencha o email");
+      setModalConfirmacaoCriacao(false);
+      return;
+    }
+
+    console.log('📝 [Configuracoes] Criando/atualizando usuário:', novoUsuario.email);
+    
+    // Fechar modal de confirmação
+    setModalConfirmacaoCriacao(false);
+    
     // Adicionar estado de loading
     setLoadingUsuarios(true);
     setStatusMessage("Processando...");
 
     try {
       const emailLower = novoUsuario.email.toLowerCase().trim();
+      const senhaTemporariaPadrao = '12345a.';
       
       // 1. Verificar se o usuário já existe
       const { data: existingProfile, error: profileError } = await supabase
@@ -1053,9 +1091,9 @@ export default function Configuracoes() {
         isNewUser = true;
         console.log("Criando novo usuário...");
         
-        // 2. Gerar senha aleatória forte
-        const novaSenha = generateRandomPassword(20);
-        console.log("Senha gerada para novo usuário (não será exibida novamente)");
+        // 2. Definir senha padrão para novo usuário
+        const novaSenha = senhaTemporariaPadrao;
+        console.log("Senha padrão atribuída para novo usuário (não será exibida)");
 
         // 3. Criar usuário diretamente no banco usando função RPC
         const { data: createResult, error: createError } = await supabase.rpc(
@@ -1089,9 +1127,9 @@ export default function Configuracoes() {
 
       // 5. Se usuário já existia, atualizar senha e perfil
       if (!isNewUser) {
-        // Gerar nova senha aleatória
-        const novaSenha = generateRandomPassword(20);
-        console.log("Senha gerada para usuário existente (não será exibida novamente)");
+        // Definir nova senha padrão para usuário existente
+        const novaSenha = senhaTemporariaPadrao;
+        console.log("Senha padrão atribuída para usuário existente (não será exibida)");
 
         // Atualizar senha do usuário usando função admin
         try {
@@ -1123,6 +1161,64 @@ export default function Configuracoes() {
         }
       }
 
+      // Salvar permissões de páginas (apenas para usuários não-admin)
+      if (novoUsuario.role !== "admin") {
+        // Lógica de permissões (similar ao modal de edição):
+        // permissoesPaginasNovoUsuario armazena as páginas OCULTAS (marcadas)
+        // No banco, page_permissions armazena as páginas VISÍVEIS
+        let permissoesFinais: string[] | null = null;
+        if (permissoesPaginasNovoUsuario.length === 0) {
+          // Se nenhuma página está marcada (oculta), todas são visíveis = salvar null (acesso total)
+          permissoesFinais = null;
+        } else {
+          // Se algumas páginas estão marcadas (ocultas), calcular as visíveis (todas menos as ocultas)
+          const paginasVisiveis = PAGINAS_DISPONIVEIS
+            .map(p => p.path)
+            .filter(path => !permissoesPaginasNovoUsuario.includes(path));
+          permissoesFinais = paginasVisiveis;
+        }
+
+        // Salvar permissões usando RPC (mais confiável para arrays)
+        let permissoesParaSalvar: string[] = [];
+        if (permissoesFinais !== null && Array.isArray(permissoesFinais)) {
+          permissoesParaSalvar = permissoesFinais;
+        }
+
+        // Tentar usar RPC primeiro (se a função existir)
+        const { error: rpcError } = await supabase.rpc('update_user_page_permissions', {
+          target_user_id: userId,
+          new_permissions: permissoesParaSalvar
+        });
+
+        if (rpcError) {
+          // Se RPC falhar, tentar update direto
+          console.warn("RPC não disponível, usando update direto:", rpcError);
+          const { error: directUpdateError } = await supabase
+            .from("user_profiles")
+            .update({ page_permissions: permissoesParaSalvar })
+            .eq("user_id", userId);
+
+          if (directUpdateError) {
+            console.error("Erro ao salvar permissões:", directUpdateError);
+            // Não bloquear se falhar, apenas avisar
+            toast.warning("Permissões podem não ter sido salvas corretamente. Tente novamente.");
+          }
+        }
+      } else {
+        // Se for admin, garantir que não tenha permissões (null)
+        const { error: adminPermError } = await supabase.rpc('update_user_page_permissions', {
+          target_user_id: userId,
+          new_permissions: []
+        });
+        if (adminPermError) {
+          // Se RPC falhar, tentar update direto
+          await supabase
+            .from("user_profiles")
+            .update({ page_permissions: [] })
+            .eq("user_id", userId);
+        }
+      }
+
       // 6. Não enviar email de reset - o usuário fará login e o modal aparecerá automaticamente
       // O usuário receberá instruções para fazer login e o modal de troca de senha aparecerá na Home
 
@@ -1138,8 +1234,72 @@ export default function Configuracoes() {
           : `Senha temporária atualizada! O usuário pode fazer login e será solicitado a trocar a senha.`
       );
       
+      // Enviar email de confirmação de signup via Supabase
+      try {
+        console.log('📧 [EMAIL] Iniciando envio de email de confirmação para:', emailLower);
+        
+        const redirectTo = `${window.location.origin}`;
+        console.log('📧 [EMAIL] RedirectTo configurado:', redirectTo);
+        
+        // Usar resend para enviar email de confirmação de signup
+        const { data, error } = await supabase.auth.resend({
+          type: 'signup',
+          email: emailLower,
+          options: {
+            emailRedirectTo: redirectTo,
+          }
+        });
+
+        console.log('📧 [EMAIL] Resposta completa do resend:', { 
+          hasData: !!data, 
+          hasError: !!error,
+          errorCode: error?.code,
+          errorMessage: error?.message 
+        });
+
+        if (error) {
+          console.error('❌ [EMAIL] Erro detalhado:', {
+            code: error.code,
+            message: error.message,
+            status: error.status,
+            error: error
+          });
+          toast.error('Erro ao enviar email: ' + error.message);
+        } else {
+          console.log('✅ [EMAIL] Email de confirmação enviado com sucesso');
+          
+          // Confirmar email automaticamente para permitir login imediato
+          try {
+            const { data: confirmResult, error: confirmError } = await supabase.rpc(
+              'confirm_user_email',
+              { user_email: emailLower }
+            );
+
+            if (confirmError) {
+              console.warn('⚠️ [EMAIL] Erro ao confirmar email automaticamente:', confirmError);
+              // Não bloquear o fluxo, apenas avisar
+            } else if (confirmResult?.success) {
+              console.log('✅ [EMAIL] Email confirmado automaticamente - usuário pode fazer login');
+            }
+          } catch (confirmErr) {
+            console.warn('⚠️ [EMAIL] Erro ao confirmar email:', confirmErr);
+            // Não bloquear o fluxo
+          }
+          
+          toast.success('✅ Email de confirmação enviado! Usuário pode fazer login com a senha: 12345a.');
+        }
+      } catch (emailError: any) {
+        console.error('❌ [EMAIL] Exceção ao enviar email:', {
+          message: emailError.message,
+          stack: emailError.stack,
+          error: emailError
+        });
+        toast.error('Não foi possível enviar o email. Erro: ' + (emailError.message || 'Desconhecido'));
+      }
+
       // Limpar campos após sucesso
       setNovoUsuario({ email: "", role: "user" });
+      setPermissoesPaginasNovoUsuario([]);
       setTimeout(() => setStatusMessage(""), 5000);
       setLoadingUsuarios(false);
 
@@ -1158,7 +1318,7 @@ export default function Configuracoes() {
       }
       setLoadingUsuarios(false);
     }
-  }, [novoUsuario, carregarUsuarios]);
+  }, [novoUsuario, permissoesPaginasNovoUsuario, carregarUsuarios, user]);
 
   // Função para abrir modal de alteração de senha (Admin)
   const abrirModalSenha = (usuario: Usuario) => {
@@ -1197,41 +1357,54 @@ export default function Configuracoes() {
     }
   };
 
-  const handleDeleteUser = useCallback(async (usuario: Usuario) => {
-    if (!window.confirm("Tem certeza que deseja remover este utilizador? Esta ação não pode ser desfeita.")) {
-      return;
-    }
+  // Função para abrir modal de confirmação de exclusão
+  const abrirModalConfirmacaoExclusao = (usuario: Usuario) => {
+    setUsuarioParaExcluir(usuario);
+    setModalConfirmacaoExclusao(true);
+  };
 
+  // Função para confirmar e executar exclusão
+  const handleConfirmarExclusao = useCallback(async () => {
+    if (!usuarioParaExcluir) return;
+    
     // Não permitir deletar o próprio usuário
-    if (usuario.user_id === user?.id) {
+    if (usuarioParaExcluir.user_id === user?.id) {
       toast.error("Você não pode remover seu próprio usuário");
+      setModalConfirmacaoExclusao(false);
+      setUsuarioParaExcluir(null);
       return;
     }
 
     setLoading(true);
+    setModalConfirmacaoExclusao(false);
+    
     try {
       // Usa o serviço admin que valida permissões e remove o usuário
       await deleteUserByAdmin(
-        usuario.user_id,
-        usuario.email,
-        usuario.nome
+        usuarioParaExcluir.user_id,
+        usuarioParaExcluir.email,
+        usuarioParaExcluir.nome
       );
 
       toast.success("Utilizador removido do sistema.");
       
       // Log
       const ip = await getUserIP();
-      await registrarLogSeguranca(user!.id, "admin_delete_user", ip, `Deleted user ${usuario.user_id}`);
+      await registrarLogSeguranca(user!.id, "admin_delete_user", ip, `Deleted user ${usuarioParaExcluir.user_id}`);
       
       // Recarregar lista de usuários
       carregarUsuarios();
+      
+      // Limpar estado
+      setUsuarioParaExcluir(null);
     } catch (error: any) {
       console.error("Erro ao remover usuário:", error);
       toast.error("Erro ao remover usuário: " + (error.message || "Erro desconhecido"));
+      setUsuarioParaExcluir(null);
     } finally {
       setLoading(false);
     }
-  }, [usuarios, user, carregarUsuarios]);
+  }, [usuarioParaExcluir, user, carregarUsuarios]);
 
   // Função para abrir modal de edição de usuário (Admin)
   const abrirModalEditarUsuario = async (usuario: Usuario) => {
@@ -1797,7 +1970,13 @@ export default function Configuracoes() {
                       />
                       <Select
                         value={novoUsuario.role}
-                        onValueChange={(value: "admin" | "user") => setNovoUsuario({...novoUsuario, role: value})}
+                        onValueChange={(value: "admin" | "user") => {
+                          setNovoUsuario({...novoUsuario, role: value});
+                          // Limpar permissões se mudar para admin
+                          if (value === "admin") {
+                            setPermissoesPaginasNovoUsuario([]);
+                          }
+                        }}
                         disabled={loadingUsuarios}
                       >
                         <SelectTrigger>
@@ -1828,6 +2007,87 @@ export default function Configuracoes() {
                         )}
                       </Button>
                     </div>
+
+                    {/* Seleção de Páginas (apenas para usuários não-admin) */}
+                    {novoUsuario.role === "user" && (
+                      <div className="border-t pt-4 mt-4">
+                        <Label className="text-base font-semibold mb-3 block">
+                          Páginas que o usuário poderá ver
+                        </Label>
+                        <p className="text-xs text-muted-foreground mb-4">
+                          Por padrão, todas as páginas estarão visíveis. Clique nas páginas para ocultá-las.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
+                          {PAGINAS_DISPONIVEIS.map((pagina) => {
+                            const estaOculta = permissoesPaginasNovoUsuario.includes(pagina.path);
+                            
+                            return (
+                              <div
+                                key={pagina.path}
+                                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                  estaOculta
+                                    ? "border-red-500 bg-red-50 hover:border-red-600 hover:bg-red-100"
+                                    : "border-green-500 bg-green-50 hover:border-green-600 hover:bg-green-100"
+                                }`}
+                                onClick={() => {
+                                  setPermissoesPaginasNovoUsuario(prev => {
+                                    if (prev.includes(pagina.path)) {
+                                      return prev.filter(p => p !== pagina.path);
+                                    } else {
+                                      return [...prev, pagina.path];
+                                    }
+                                  });
+                                }}
+                                title={estaOculta ? "Clique para tornar esta página visível" : "Clique para ocultar esta página"}
+                              >
+                                <div className="flex items-center gap-2 flex-1">
+                                  <span className="text-lg">{pagina.icon}</span>
+                                  <span className={`font-medium ${
+                                    estaOculta ? "text-red-700" : "text-green-700"
+                                  }`}>
+                                    {pagina.nome}
+                                  </span>
+                                </div>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                  estaOculta
+                                    ? "border-red-500 bg-red-500"
+                                    : "border-green-500 bg-green-500"
+                                }`}>
+                                  {estaOculta ? (
+                                    <X className="w-3 h-3 text-white" />
+                                  ) : (
+                                    <Check className="w-3 h-3 text-white" />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            {permissoesPaginasNovoUsuario.length} página{permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''} oculta{permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''} • {PAGINAS_DISPONIVEIS.length - permissoesPaginasNovoUsuario.length} visível{PAGINAS_DISPONIVEIS.length - permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (permissoesPaginasNovoUsuario.length === PAGINAS_DISPONIVEIS.length) {
+                                // Todas estão ocultas, tornar todas visíveis
+                                setPermissoesPaginasNovoUsuario([]);
+                              } else {
+                                // Algumas ou nenhuma está oculta, ocultar todas
+                                setPermissoesPaginasNovoUsuario(PAGINAS_DISPONIVEIS.map(p => p.path));
+                              }
+                            }}
+                            type="button"
+                          >
+                            {permissoesPaginasNovoUsuario.length === PAGINAS_DISPONIVEIS.length ? "Tornar Todas Visíveis" : "Ocultar Todas"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {statusMessage && (
                       <p className={`text-sm mt-2 ${statusMessage.includes("Erro") || statusMessage.includes("não encontrado") ? "text-red-600" : "text-green-600"}`}>
                         {statusMessage}
@@ -2353,10 +2613,8 @@ export default function Configuracoes() {
               <Button 
                 variant="destructive" 
                 onClick={() => {
-                  if (window.confirm("Tem certeza que deseja remover este utilizador? Esta ação não pode ser desfeita.")) {
-                    handleDeleteUser(usuarioEditando);
-                    setModalEditarUsuarioOpen(false);
-                  }
+                  setModalEditarUsuarioOpen(false);
+                  abrirModalConfirmacaoExclusao(usuarioEditando);
                 }}
                 disabled={loading || usuarioEditando.user_id === user?.id}
                 className="flex items-center gap-2"
@@ -2479,6 +2737,139 @@ export default function Configuracoes() {
               disabled={loadingEmail || !nomeConfirmacao.trim() || !senhaConfirmacao}
             >
               {loadingEmail ? "A enviar..." : "Enviar Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <AlertDialog open={modalConfirmacaoExclusao} onOpenChange={setModalConfirmacaoExclusao}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover o utilizador <strong>{usuarioParaExcluir?.nome || usuarioParaExcluir?.email}</strong>? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setUsuarioParaExcluir(null)}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmarExclusao}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal de Confirmação de Criação/Atualização de Usuário */}
+      <Dialog open={modalConfirmacaoCriacao} onOpenChange={setModalConfirmacaoCriacao}>
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Confirmar Criação/Atualização de Usuário</DialogTitle>
+            <DialogDescription>
+              Por favor, confirme as informações antes de criar ou atualizar o usuário.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Email */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Email</Label>
+              <div className="p-3 bg-muted rounded-md">
+                <span className="text-sm">{novoUsuario.email || "Não informado"}</span>
+              </div>
+            </div>
+
+            {/* Tipo de Usuário */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Tipo de Usuário</Label>
+              <div className="p-3 bg-muted rounded-md">
+                <Badge variant={novoUsuario.role === "admin" ? "default" : "outline"} className="text-sm">
+                  {novoUsuario.role === "admin" ? "Administrador" : "Usuário"}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Permissões de Páginas */}
+            {novoUsuario.role === "user" ? (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Permissões de Páginas</Label>
+                <div className="p-3 bg-muted rounded-md space-y-2">
+                  {(() => {
+                    const paginasVisiveis = PAGINAS_DISPONIVEIS.filter(
+                      p => !permissoesPaginasNovoUsuario.includes(p.path)
+                    );
+                    const paginasOcultas = permissoesPaginasNovoUsuario.map(
+                      path => PAGINAS_DISPONIVEIS.find(p => p.path === path)
+                    ).filter(Boolean);
+
+                    return (
+                      <>
+                        {paginasVisiveis.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-green-700 mb-2">
+                              Páginas Visíveis ({paginasVisiveis.length}):
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {paginasVisiveis.map((pagina) => (
+                                <Badge key={pagina.path} variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                                  <span className="mr-1">{pagina.icon}</span>
+                                  {pagina.nome}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {paginasOcultas.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-red-700 mb-2">
+                              Páginas Ocultas ({paginasOcultas.length}):
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {paginasOcultas.map((pagina) => (
+                                <Badge key={pagina!.path} variant="outline" className="bg-red-50 text-red-700 border-red-300">
+                                  <span className="mr-1">{pagina!.icon}</span>
+                                  {pagina!.nome}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {paginasVisiveis.length === 0 && paginasOcultas.length === 0 && (
+                          <p className="text-xs text-muted-foreground">Nenhuma página configurada</p>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Permissões de Páginas</Label>
+                <div className="p-3 bg-muted rounded-md">
+                  <p className="text-sm text-muted-foreground">
+                    Administradores têm acesso a todas as páginas automaticamente.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setModalConfirmacaoCriacao(false)}
+              disabled={loadingUsuarios}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmarCriacaoUsuario}
+              disabled={loadingUsuarios}
+            >
+              {loadingUsuarios ? "Processando..." : "Confirmar e Criar/Atualizar"}
             </Button>
           </DialogFooter>
         </DialogContent>

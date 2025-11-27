@@ -79,7 +79,7 @@ Redefinir Senha - Dashboard TI BR Marinas
 
 1. Vá em **Authentication** > **Settings** > **SMTP Settings**
 2. Configure:
-   - **SMTP Host**: Ex: `smtp.gmail.com`, `smtp.sendgrid.net`
+   - **SMTP Host**: Ex: `smtp.gmail.com`, `smtp.mailgun.org`
    - **SMTP Port**: Ex: `587` (TLS) ou `465` (SSL)
    - **SMTP User**: Seu email/usuário SMTP
    - **SMTP Password**: Senha do SMTP
@@ -87,7 +87,6 @@ Redefinir Senha - Dashboard TI BR Marinas
    - **Sender Name**: Nome que aparecerá como remetente (ex: "BR Marinas TI")
 
 **Serviços SMTP Populares:**
-- **SendGrid**: smtp.sendgrid.net (porta 587)
 - **Mailgun**: smtp.mailgun.org (porta 587)
 - **Gmail**: smtp.gmail.com (porta 587) - Requer "App Password"
 - **AWS SES**: smtp.email.us-east-1.amazonaws.com (porta 587)
