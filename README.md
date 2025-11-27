@@ -1,110 +1,130 @@
-# Welcome to your Lovable project
+# Dashboard TI BR Marinas
 
-## Project info
+Painel interno para TI com gestão de credenciais, NVRs, termos, crachás, monitoramento e ferramentas administrativas. Frontend em React/Vite + Supabase como backend (Auth, Postgres, Storage, Functions).
 
-**URL**: https://lovable.dev/projects/3942c7ce-0bfa-41ac-9663-8c2084cd0be9
+---
 
-## How can I edit this code?
+## Índice
+- [Tecnologias](#tecnologias)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Configuração local](#configuração-local)
+- [Checklist Supabase](#checklist-supabase)
+- [Principais páginas](#principais-páginas)
+- [Scripts úteis](#scripts-úteis)
+- [Deploy](#deploy)
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## Tecnologias
+- [React + Vite](https://vitejs.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [shadcn/ui + Tailwind CSS](https://ui.shadcn.com/)
+- [Supabase](https://supabase.com/) (Auth, Postgres, Storage, Functions)
+- Outras libs: `@supabase/supabase-js`, `lucide-react`, `sonner`, `zxcvbn`, `html2canvas`, `cropperjs`, `pdf-lib`
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/3942c7ce-0bfa-41ac-9663-8c2084cd0be9) and start prompting.
+---
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+## Estrutura do projeto
+```
+├─ src/
+│  ├─ pages/                  # Páginas principais
+│  ├─ components/             # Layout, UI compartilhada
+│  ├─ contexts/               # Auth, NVR, Theme, History
+│  ├─ lib/                    # Serviços (Supabase, audit, NVR, senhas, etc.)
+│  ├─ config/                 # Navegação, maintenance
+│  └─ main.tsx, App.tsx
+├─ docs/md/paginas/           # Documentação por página
+├─ docs/md/supabase.md        # Checklist completo do backend
+├─ docs/md/overview.md        # Visão geral
+├─ tutorial/sql/              # Scripts SQL para Supabase
+└─ README.md (este arquivo)
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Configuração local
 
-**Use GitHub Codespaces**
+1. **Instale dependências**
+   ```bash
+   npm install
+   ```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2. **Crie `.env.local`**
+   ```env
+   VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+   VITE_SUPABASE_ANON_KEY=sua-chave-anon
+   ```
+   > As chaves ficam em Supabase Dashboard > Settings > API
 
-## What technologies are used for this project?
+3. **Rodar em desenvolvimento**
+   ```bash
+   npm run dev
+   ```
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Supabase (Backend & Authentication)
+## Checklist Supabase
+> Guia completo em [`docs/md/supabase.md`](docs/md/supabase.md). Resumo rápido:
 
-## 🔧 Configuração Local
+- Variáveis: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- Tabelas necessárias: `passwords`, `nvrs`, `nvr_config`, `pages_maintenance`, `audit_logs`, `user_profiles`, `user_security_logs`
+- Policies RLS habilitadas com acesso para usuários autenticados e admins
+- Realtime ligado para `nvrs`
+- Funções RPC:
+  - `update_user_password_by_admin`
+  - `delete_user_by_admin`
+- Storage público com as imagens usadas em Crachás/Assinaturas
 
-### Variáveis de Ambiente
+Scripts SQL na pasta `tutorial/sql/` ajudam a criar toda a estrutura.
 
-Crie um arquivo `.env.local` na raiz do projeto:
+---
 
-```env
-VITE_SUPABASE_URL=https://seu-projeto.supabase.co
-VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui
-```
+## Principais páginas
+Cada rota tem documentação em `docs/md/paginas/<pagina>.md`. Highlights:
 
-**Onde encontrar:**
-- Supabase Dashboard > Settings > API
+| Página | Rota | Descrição rápida |
+|--------|------|-------------------|
+| Login | `/login` | Autenticação Supabase |
+| Senhas | `/senhas` | Cofre com cards/tabela e export CSV |
+| Controle NVR | `/controle-nvr` | CRUD de NVRs + slots (Realtime) |
+| Controle de HDs | `/controle-hds` | KPIs, custo estimado, export XLSX |
+| Crachás | `/crachas` | Upload/crop e download PNG |
+| Termos | `/termos` | Preenchimento e geração de PDF via `pdf-lib` |
+| Configurações | `/configuracoes` | Gestão de usuários, permissões, páginas em manutenção, versão |
+| Audit Logs | `/audit-logs` | Consulta dos logs de auditoria |
+| Security Test | `/security-test` | Suíte de pentest automatizado |
 
-### Instalação
+Veja `docs/md/overview.md` para fluxo completo e guardas de rota.
 
-```sh
-npm install
-npm run dev
-```
+---
 
-## How can I deploy this project?
+## Scripts úteis
+- `npm run dev` – ambiente de desenvolvimento
+- `npm run build` – cria build de produção (gera `src/lib/version.json` automaticamente)
+- `npm run preview` – valida build localmente
+- Pastas `tutorial/sql/` – migrações e funções RPC prontas para o Supabase
 
-### Deploy no Vercel (Recomendado)
+---
 
-Este projeto está configurado para deploy no Vercel. Veja o guia completo em [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md)
-
-**Passos rápidos:**
-1. Conecte seu repositório Git ao Vercel
-2. Configure as variáveis de ambiente:
+## Deploy
+### Vercel
+1. Conecte o repositório no Vercel
+2. Configure as variáveis:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-3. Faça o deploy!
+3. Deploy automático (`npm run build`)
+
+Guia detalhado em [`DEPLOY_VERCEL.md`](DEPLOY_VERCEL.md).
 
 ### Outras opções
+Qualquer plataforma que rode apps Vite/React (Netlify, Render, etc.) também funciona, desde que configure as variáveis de ambiente e sirva o build estático.
 
-- **Lovable**: Abra [Lovable](https://lovable.dev/projects/3942c7ce-0bfa-41ac-9663-8c2084cd0be9) e clique em Share -> Publish
-- **Netlify**: Similar ao Vercel, configure as variáveis de ambiente
-- **Outros**: Qualquer plataforma que suporte projetos Vite/React
+---
 
-## Can I connect a custom domain to my Lovable project?
+## Suporte e documentação adicional
+- **Paginas**: `docs/md/paginas/`
+- **Supabase**: `docs/md/supabase.md`
+- **Visão geral**: `docs/md/overview.md`
+- **Termos e scripts**: pasta `tutorial/`
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Contribuições e melhorias são bem-vindas! Abra PRs ou issues com sugestões. 🚀

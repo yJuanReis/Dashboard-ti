@@ -30,6 +30,8 @@ dist-ssr
 *.sln
 *.sw?
 
-estilo34
+# Documentation (moved to docs/)
+docs
+
 .vercel
 .env*.local
