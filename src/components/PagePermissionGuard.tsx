@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
+import { normalizeRoutePath } from "@/lib/pathUtils";
 
 interface PagePermissionGuardProps {
   children: ReactNode;
@@ -61,7 +62,10 @@ export function PagePermissionGuard({ children }: PagePermissionGuardProps) {
       }
       
       // Se há valores no array, verificar se a rota atual está nas permissões
-      const hasAccess = permissions.includes(currentPath);
+      const normalizedPermissions = Array.isArray(permissions)
+        ? permissions.map(normalizeRoutePath)
+        : [];
+      const hasAccess = normalizedPermissions.includes(normalizeRoutePath(currentPath));
       
       setHasPermission(hasAccess);
     } catch (error) {

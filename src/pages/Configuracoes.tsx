@@ -52,6 +52,7 @@ import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService
 import { generateRandomPassword } from "@/lib/passwordGenerator";
 import { logUpdate } from "@/lib/auditService";
 import { logger } from "@/lib/logger";
+import { normalizeRoutePath } from "@/lib/pathUtils";
 import zxcvbn from "zxcvbn";
 import { 
   getAllPagesMaintenance, 
@@ -79,7 +80,7 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/crachas', nome: 'Crachás', icon: '🪪' },
   { path: '/assinaturas', nome: 'Assinaturas', icon: '✉️' },
   { path: '/controle-nvr', nome: 'Controle NVR', icon: '📹' },
-  { path: '/Controle-hds', nome: 'Controle de HDs', icon: '💾' }, // Nota: case-sensitive
+  { path: '/controle-hds', nome: 'Controle de HDs', icon: '💾' }, // Nota: case-sensitive
   { path: '/termos', nome: 'Termo de Responsabilidade', icon: '📄' },
   { path: '/gestaorede', nome: 'Gestão de Rede', icon: '🌐' },
   { path: '/servidores', nome: 'Servidores', icon: '🖥️' },
@@ -850,8 +851,11 @@ export default function Configuracoes() {
       
       // Verificar se há páginas no banco que não estão em PAGINAS_DISPONIVEIS
       const pathsNoBanco = pages.map(p => p.page_path);
-      const pathsDisponiveis = PAGINAS_DISPONIVEIS.map(p => p.path);
-      const pathsNaoEncontrados = pathsNoBanco.filter(path => !pathsDisponiveis.includes(path));
+      const normalizedDisponiveis = PAGINAS_DISPONIVEIS.map(p => normalizeRoutePath(p.path));
+      const pathsNaoEncontrados = pathsNoBanco.filter(path => {
+        const normalizedPath = normalizeRoutePath(path);
+        return !normalizedDisponiveis.includes(normalizedPath);
+      });
       if (pathsNaoEncontrados.length > 0) {
         console.warn('[Configuracoes] Páginas no banco que não estão em PAGINAS_DISPONIVEIS:', pathsNaoEncontrados);
       }
@@ -1427,16 +1431,20 @@ export default function Configuracoes() {
     let paginasOcultas: string[] = [];
     if (usuario.page_permissions && Array.isArray(usuario.page_permissions)) {
       // Páginas ocultas = todas as páginas menos as que estão em page_permissions (visíveis)
+      const normalizedPermissions = new Set(
+        usuario.page_permissions.map(normalizeRoutePath)
+      );
       paginasOcultas = PAGINAS_DISPONIVEIS
         .map(p => p.path)
-        .filter(path => !usuario.page_permissions!.includes(path));
+        .filter(path => !normalizedPermissions.has(normalizeRoutePath(path)));
     } else {
       // Se page_permissions é null, usar apenas as páginas ocultas por padrão (em desenvolvimento/avaliação)
       // A lista é gerenciada automaticamente no banco de dados
       const hiddenPages = await getPagesHiddenByDefaultService();
-      paginasOcultas = hiddenPages.filter(path => 
-        PAGINAS_DISPONIVEIS.some(p => p.path === path)
-      );
+      const normalizedHiddenPages = new Set(hiddenPages.map(normalizeRoutePath));
+      paginasOcultas = PAGINAS_DISPONIVEIS
+        .map(p => p.path)
+        .filter(path => normalizedHiddenPages.has(normalizeRoutePath(path)));
     }
     logger.log("Permissões iniciais no modal (páginas ocultas):", paginasOcultas);
     setPermissoesPaginas(paginasOcultas);
@@ -1565,9 +1573,12 @@ export default function Configuracoes() {
         });
         
         // Verificar se salvou corretamente
-        const salvouCorretamente = Array.isArray(usuarioAtualizado.page_permissions) && 
-          usuarioAtualizado.page_permissions.length === permissoesParaSalvar.length &&
-          permissoesParaSalvar.every(p => usuarioAtualizado.page_permissions.includes(p));
+        const normalizedSavedPermissions = Array.isArray(usuarioAtualizado.page_permissions)
+          ? usuarioAtualizado.page_permissions.map(normalizeRoutePath)
+          : [];
+        const normalizedExpectedPermissions = permissoesParaSalvar.map(normalizeRoutePath);
+        const salvouCorretamente = normalizedSavedPermissions.length === normalizedExpectedPermissions.length &&
+          normalizedExpectedPermissions.every(p => normalizedSavedPermissions.includes(p));
         
         if (!salvouCorretamente && permissoesParaSalvar.length > 0) {
           console.error("⚠️ PERMISSÕES NÃO FORAM SALVAS CORRETAMENTE!");

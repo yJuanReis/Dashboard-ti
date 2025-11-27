@@ -42,6 +42,22 @@ Painel interno para TI com gestão de credenciais, NVRs, termos, crachás, monit
 
 ---
 
+## Documentação detalhada
+Toda a documentação vive na pasta `docs/`, agora versionada junto com o código. Referências principais:
+
+| Caminho | Conteúdo |
+| --- | --- |
+| `docs/md/README.md` | Índice geral com navegação entre guias |
+| `docs/md/paginas.md` + `docs/md/paginas/*.md` | Documentação específica de cada rota |
+| `docs/md/supabase.md` | Checklist completo de tabelas, policies e funções RPC |
+| `docs/md/overview.md` | Visão macro do produto e dos fluxos de autenticação |
+| `docs/md/DEPLOY_VERCEL.md` | Passo a passo de deploy |
+| `docs/sql/*.sql` | Scripts para criar/ajustar estruturas no Supabase |
+
+> Sempre que atualizar telas, fluxos ou infraestrutura, inclua o ajuste correspondente nos arquivos acima para manter o histórico no GitHub.
+
+---
+
 ## Configuração local
 
 1. **Instale dependências**
@@ -122,9 +138,10 @@ Qualquer plataforma que rode apps Vite/React (Netlify, Render, etc.) também fun
 ---
 
 ## Suporte e documentação adicional
+- **Índice geral**: `docs/md/README.md`
 - **Paginas**: `docs/md/paginas/`
 - **Supabase**: `docs/md/supabase.md`
 - **Visão geral**: `docs/md/overview.md`
-- **Termos e scripts**: pasta `tutorial/`
+- **Termos, security e scripts**: `docs/md/*.md` + pasta `tutorial/`
 
 Contribuições e melhorias são bem-vindas! Abra PRs ou issues com sugestões. 🚀

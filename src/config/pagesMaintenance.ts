@@ -23,7 +23,7 @@ export interface PageMaintenanceConfig {
  */
 export const PAGES_IN_MAINTENANCE: PageMaintenanceConfig[] = [
   {
-    path: "/Controle-hds",
+    path: "/controle-hds",
     status: "avaliar",
     badgeText: "Avaliar",
     badgeVariant: "yellow",

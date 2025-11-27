@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
+import { normalizeRoutePath } from "@/lib/pathUtils";
 
 export function usePagePermissions() {
   const { user } = useAuth();
@@ -45,8 +46,9 @@ export function usePagePermissions() {
           // Se nunca foi definido, acesso total
           setPermissions([]);
         } else {
-          // Se foi definido (mesmo que vazio), usar o valor
-          setPermissions(data.page_permissions || []);
+          // Se foi definido (mesmo que vazio), usar o valor normalizado
+          const normalizedPerms = (data.page_permissions || []).map(normalizeRoutePath);
+          setPermissions(normalizedPerms);
         }
       } catch (error) {
         console.error("Erro ao carregar permissões:", error);
@@ -65,7 +67,7 @@ export function usePagePermissions() {
     if (role === "admin") return true;
     
     // Normalizar path para comparação (garantir que começa com /)
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const normalizedPath = normalizeRoutePath(path);
     
     // Se permissions está vazio, significa acesso total
     if (permissions.length === 0) {
@@ -73,10 +75,7 @@ export function usePagePermissions() {
     }
     
     // Se há permissões definidas, verificar se está no array
-    const hasAccess = permissions.some(perm => {
-      const normalizedPerm = perm.startsWith('/') ? perm : `/${perm}`;
-      return normalizedPerm === normalizedPath;
-    });
+    const hasAccess = permissions.some(perm => normalizeRoutePath(perm) === normalizedPath);
     
     return hasAccess;
   }, [role, permissions]);
