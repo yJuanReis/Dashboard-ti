@@ -1,126 +1,128 @@
-# Documentação da Estilização da Barra Lateral
+# 📚 Documentação do Dashboard TI
 
-Esta pasta contém toda a documentação sobre a estilização e composição da barra lateral (sidebar) do projeto.
+Este diretório contém toda a documentação do projeto organizada por categorias.
 
-## Estrutura dos Arquivos
+## 📁 Estrutura de Pastas
 
-### 01-variaveis-css-sidebar.md
-Contém todas as variáveis CSS relacionadas à sidebar, tanto para modo claro quanto escuro, e como são utilizadas no Tailwind.
+### 🔒 [seguranca/](./seguranca/)
+Documentação sobre segurança, auditoria, logging e tratamento de erros.
 
-### 02-componentes-sidebar.md
-Documentação completa de todos os componentes que compõem a sidebar, suas funções, propriedades e classes padrão.
+- `SECURITY_GUIDE.md` - Guia geral de segurança
+- `INSTRUCOES_SEGURANCA.md` - Instruções de segurança
+- `CORRECOES_SEGURANCA.md` - Correções de segurança
+- `CORRIGIR_SEGURANCA.md` - Como corrigir problemas de segurança
+- `GUIA_CORRECAO_SEGURANCA.md` - Guia de correção de segurança
+- `SISTEMA_ERROS_SEGURANCA.md` - Sistema de erros e segurança
+- `SISTEMA_LOGGING_SEGURO.md` - Sistema de logging seguro
+- `SISTEMA_AUDITORIA.md` - Sistema completo de auditoria
 
-### 03-estilos-appsidebar.md
-Estilos específicos do componente `AppSidebar`, incluindo header, navegação, footer e modais.
+### 🛡️ [csp/](./csp/)
+Documentação sobre Content Security Policy (CSP).
 
-### 04-classes-tailwind-utilizadas.md
-Lista completa de todas as classes Tailwind utilizadas na sidebar, organizadas por categoria.
+- `CSP_IMPLEMENTADO.md` - Implementação do CSP
+- `CSP_INDEX.md` - Índice do CSP
+- `CSP_QUICK_START.md` - Guia rápido de CSP
+- `CSP_ROADMAP.md` - Roadmap do CSP
+- `CSP_SUMMARY.md` - Resumo do CSP
+- `TESTE_CSP.md` - Testes de CSP
+- `IMPLEMENTACAO_DOMPURIFY.md` - Implementação do DOMPurify
 
-### 05-estrutura-completa.md
-Estrutura hierárquica completa da sidebar, estados (expandida/colapsada), modais e responsividade.
+### ⚙️ [configuracao/](./configuracao/)
+Guias de configuração do sistema, usuários, email, etc.
 
-### 06-gradientes-e-cores.md
-Documentação detalhada de todos os gradientes, cores específicas, opacidades e estados visuais.
+- `CONFIGURACAO_ADMIN.md` - Como configurar admin
+- `CONFIGURACAO_LOGIN.md` - Configuração de login
+- `CONFIGURACAO_EMAIL_RESET_PASSWORD.md` - Configuração de email para reset de senha
+- `CONFIGURACAO_RECAPTCHA.md` - Configuração do reCAPTCHA
+- `CONFIGURAR_EMAIL_SENHA_TEMPORARIA.md` - Configurar email para senha temporária
+- `GESTAO_USUARIOS_ADMIN.md` - Gestão de usuários (admin)
+- `COMO_ATIVAR_ADMIN.md` - Como ativar conta de admin
+- `FLUXO_COMPLETO_ADICIONAR_USUARIO.md` - Fluxo completo de adicionar usuário
+- `FLUXO_SENHA_TEMPORARIA.md` - Fluxo de senha temporária
+- `DEBUG_MODAL_SENHA_TEMPORARIA.md` - Debug do modal de senha temporária
+- `RESUMO_CONFIGURACAO_EMAIL.md` - Resumo da configuração de email
+- `INSTRUCOES_IP_SERVICE.md` - Instruções do serviço de IP
+- `CORRIGIR_ERRO_UPDATED_AT.md` - Como corrigir erro de updated_at
 
-## Componentes Principais
+### 🔧 [sistemas/](./sistemas/)
+Documentação de sistemas específicos do projeto.
 
-### AppSidebar
-- **Localização**: `src/components/AppSidebar.tsx`
-- **Função**: Componente principal da barra lateral com navegação, perfil do usuário e configurações
+- `SISTEMA_VERSIONAMENTO.md` - Sistema de versionamento
+- `SOLUCAO_RATE_LIMITING.md` - Solução de rate limiting
+- `IMPLEMENTACAO_RPC_PASSWORDS.md` - Implementação de RPC para senhas
+- `TESTES_RPC_PASSWORDS.md` - Testes de RPC para senhas
 
-### Sidebar (shadcn/ui)
-- **Localização**: `src/components/ui/sidebar.tsx`
-- **Função**: Componente base da sidebar do shadcn/ui com toda a lógica de colapso e responsividade
+### 🚀 [deploy/](./deploy/)
+Documentação sobre deploy e produção.
 
-## Características Principais
+- `DEPLOY_VERCEL.md` - Guia de deploy na Vercel
 
-### Dimensões
-- **Expandida**: 240px (w-60)
-- **Colapsada**: 56px (w-14)
-- **Mobile**: 288px (18rem)
+### 🗄️ [supabase/](./supabase/)
+Documentação sobre configuração e uso do Supabase.
 
-### Cores Principais
-- **Background**: Branco (claro) / Quase preto azulado (escuro)
-- **Primária**: Azul vibrante (`217 91% 60%` claro / `217 91% 65%` escuro)
-- **Accent**: Cinza azulado claro para hover/ativo
+- `supabase.md` - Checklist completo do Supabase
+- `ESTRUTURA_TABELA_NVRS.md` - Estrutura da tabela NVRs
 
-### Funcionalidades
-- Navegação com 11 itens principais
-- Sistema de permissões para filtrar itens
-- Badges de manutenção dinâmicos
-- Perfil do usuário com avatar e informações
-- Modais de notificações e configurações
-- Toggle de tema
-- Responsivo (mobile/desktop)
-- Colapsável com animações suaves
+### 🎨 [ui/](./ui/)
+Documentação sobre componentes de UI e sidebar.
 
-## Uso das Variáveis CSS
+- `SIDEBAR_DOCUMENTACAO.md` - Documentação da sidebar
+- `01-variaveis-css-sidebar.md` - Variáveis CSS da sidebar
+- `02-componentes-sidebar.md` - Componentes da sidebar
+- `03-estilos-appsidebar.md` - Estilos do AppSidebar
+- `04-classes-tailwind-utilizadas.md` - Classes Tailwind utilizadas
+- `05-estrutura-completa.md` - Estrutura completa
+- `06-gradientes-e-cores.md` - Gradientes e cores
+- `07-exemplos-praticos.md` - Exemplos práticos
 
-Todas as cores da sidebar são definidas através de variáveis CSS no arquivo `src/index.css`:
+### 🔍 [pentest/](./pentest/)
+Documentação sobre testes de penetração e segurança.
 
-```css
---sidebar-background
---sidebar-foreground
---sidebar-primary
---sidebar-primary-foreground
---sidebar-accent
---sidebar-accent-foreground
---sidebar-border
---sidebar-ring
-```
+- `PENTEST_MANUAL.md` - Pentest manual
+- `PENTEST_SUMMARY.md` - Resumo do pentest
 
-Essas variáveis são utilizadas através das classes Tailwind:
-- `bg-sidebar`
-- `text-sidebar-foreground`
-- `bg-sidebar-accent`
-- `border-sidebar-border`
-- etc.
+### 📄 [paginas/](./paginas/)
+Documentação específica de cada página/rota do sistema.
 
-## Estados da Sidebar
+- `home.md` - Página inicial
+- `login.md` - Página de login
+- `reset-password.md` - Reset de senha
+- `senhas.md` - Gerenciamento de senhas
+- `crachas.md` - Gerenciamento de crachás
+- `assinaturas.md` - Assinaturas
+- `controle-nvr.md` - Controle de NVR
+- `controle-hds.md` - Controle de HDs
+- `termos.md` - Termos de responsabilidade
+- `gestao-rede.md` - Gestão de rede
+- `servidores.md` - Servidores
+- `chamados.md` - Chamados
+- `configuracoes.md` - Configurações
+- `audit-logs.md` - Logs de auditoria
+- `security-test.md` - Teste de segurança
+- `not-found.md` - Página 404
 
-1. **Expandida**: Mostra todos os textos, labels e informações completas
-2. **Colapsada**: Mostra apenas ícones, com tooltips no hover
-3. **Mobile**: Converte em drawer (Sheet) que abre/fecha lateralmente
+## 📋 Arquivos na Raiz
 
-## Navegação
+- `README.md` - Este arquivo
+- `overview.md` - Visão geral do projeto
+- `paginas.md` - Índice das páginas
+- `LOGS_DOCUMENTATION.md` - Documentação de logs
 
-A sidebar contém os seguintes itens de navegação:
-1. Início
-2. Senhas
-3. Crachás
-4. Assinaturas
-5. Controle NVR
-6. Controle de HDs
-7. Termo de Responsabilidade
-8. Gestão de Rede
-9. Servidores
-10. Chamados
-11. Configurações (apenas admin)
+## 🔗 Links Rápidos
 
-## Modais Integrados
+- [Checklist de Segurança](../../CHECKLIST_SEGURANCA.md) - Checklist completo de segurança
+- [Relatório de Segurança](../../RELATORIO_SEGURANCA.md) - Relatório de segurança
+- [Variáveis de Ambiente](../ENV_VARIABLES.md) - Variáveis de ambiente
+- [CSP README](../CSP_README.md) - README do CSP
 
-### Modal de Notificações
-- Toggle de notificações por email
-- Toggle de alertas do sistema
-- Botão para limpar cache
+## 📝 Como Contribuir
 
-### Modal de Configurações
-- Edição de nome de exibição
-- Alteração de senha (com validação de força)
-- Envio de email de reset de senha
+Ao adicionar nova documentação:
 
-## Responsividade
+1. Coloque o arquivo na pasta apropriada
+2. Atualize este README com o novo arquivo
+3. Mantenha a organização por categorias
 
-- **Desktop**: Sidebar fixa na lateral, colapsável
-- **Mobile**: Sidebar convertida em drawer com overlay
-- **Transições**: Animações suaves de 200ms entre estados
+---
 
-## Acessibilidade
-
-- Atalho de teclado: `Ctrl/Cmd + B` para toggle
-- Suporte a screen readers
-- Anéis de foco visíveis
-- Estados de hover e ativo bem definidos
-
-
-
+**Última atualização**: 28/11/2024

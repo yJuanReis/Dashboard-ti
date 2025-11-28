@@ -24,6 +24,24 @@ Painel interno para TI com gestão de credenciais, NVRs, termos, crachás, monit
 
 ---
 
+## 📚 Documentação
+
+Toda a documentação está organizada em `docs/md/` por categorias:
+
+- **🔒 [seguranca/](docs/md/seguranca/)** - Segurança, auditoria, logging
+- **🛡️ [csp/](docs/md/csp/)** - Content Security Policy
+- **⚙️ [configuracao/](docs/md/configuracao/)** - Guias de configuração
+- **🔧 [sistemas/](docs/md/sistemas/)** - Sistemas específicos
+- **🚀 [deploy/](docs/md/deploy/)** - Deploy e produção
+- **🗄️ [supabase/](docs/md/supabase/)** - Configuração Supabase
+- **🎨 [ui/](docs/md/ui/)** - Componentes de UI
+- **🔍 [pentest/](docs/md/pentest/)** - Testes de penetração
+- **📄 [paginas/](docs/md/paginas/)** - Documentação de cada página
+
+Ver [docs/md/README.md](docs/md/README.md) para índice completo.
+
+---
+
 ## Estrutura do projeto
 ```
 ├─ src/
@@ -43,15 +61,23 @@ Painel interno para TI com gestão de credenciais, NVRs, termos, crachás, monit
 ---
 
 ## Documentação detalhada
-Toda a documentação vive na pasta `docs/`, agora versionada junto com o código. Referências principais:
+Toda a documentação está organizada em `docs/md/` por categorias. Ver [docs/md/README.md](docs/md/README.md) para índice completo.
+
+**Principais categorias:**
+- **🔒 [Segurança](docs/md/seguranca/)** - Auditoria, logging, erros
+- **🛡️ [CSP](docs/md/csp/)** - Content Security Policy
+- **⚙️ [Configuração](docs/md/configuracao/)** - Guias de setup
+- **🗄️ [Supabase](docs/md/supabase/)** - Checklist completo do backend
+- **📄 [Páginas](docs/md/paginas/)** - Documentação de cada rota
+- **🚀 [Deploy](docs/md/deploy/)** - Guia de deploy
 
 | Caminho | Conteúdo |
 | --- | --- |
-| `docs/md/README.md` | Índice geral com navegação entre guias |
+| `docs/md/README.md` | Índice geral com navegação entre todas as categorias |
 | `docs/md/paginas.md` + `docs/md/paginas/*.md` | Documentação específica de cada rota |
-| `docs/md/supabase.md` | Checklist completo de tabelas, policies e funções RPC |
+| `docs/md/supabase/supabase.md` | Checklist completo de tabelas, policies e funções RPC |
 | `docs/md/overview.md` | Visão macro do produto e dos fluxos de autenticação |
-| `docs/md/DEPLOY_VERCEL.md` | Passo a passo de deploy |
+| `docs/md/deploy/DEPLOY_VERCEL.md` | Passo a passo de deploy |
 | `docs/sql/*.sql` | Scripts para criar/ajustar estruturas no Supabase |
 
 > Sempre que atualizar telas, fluxos ou infraestrutura, inclua o ajuste correspondente nos arquivos acima para manter o histórico no GitHub.
@@ -80,7 +106,7 @@ Toda a documentação vive na pasta `docs/`, agora versionada junto com o códig
 ---
 
 ## Checklist Supabase
-> Guia completo em [`docs/md/supabase.md`](docs/md/supabase.md). Resumo rápido:
+> Guia completo em [`docs/md/supabase/supabase.md`](docs/md/supabase/supabase.md). Resumo rápido:
 
 - Variáveis: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - Tabelas necessárias: `passwords`, `nvrs`, `nvr_config`, `pages_maintenance`, `audit_logs`, `user_profiles`, `user_security_logs`
@@ -138,10 +164,11 @@ Qualquer plataforma que rode apps Vite/React (Netlify, Render, etc.) também fun
 ---
 
 ## Suporte e documentação adicional
-- **Índice geral**: `docs/md/README.md`
-- **Paginas**: `docs/md/paginas/`
-- **Supabase**: `docs/md/supabase.md`
-- **Visão geral**: `docs/md/overview.md`
-- **Termos, security e scripts**: `docs/md/*.md` + pasta `tutorial/`
+- **Índice geral**: [`docs/md/README.md`](docs/md/README.md)
+- **Páginas**: [`docs/md/paginas/`](docs/md/paginas/)
+- **Segurança**: [`docs/md/seguranca/`](docs/md/seguranca/)
+- **Supabase**: [`docs/md/supabase/`](docs/md/supabase/)
+- **Configuração**: [`docs/md/configuracao/`](docs/md/configuracao/)
+- **Visão geral**: [`docs/md/overview.md`](docs/md/overview.md)
 
 Contribuições e melhorias são bem-vindas! Abra PRs ou issues com sugestões. 🚀
