@@ -61,7 +61,7 @@ import {
   getPagesHiddenByDefault as getPagesHiddenByDefaultService,
   type PageMaintenanceConfig as PageMaintenanceConfigService 
 } from "@/lib/pagesMaintenanceService";
-import { getVersionString, getVersionInfo } from "@/lib/version";
+import { getInternalVersionString, getVersionInfo } from "@/lib/version";
 
 // Tipo para usuário
 type Usuario = {
@@ -2395,7 +2395,15 @@ export default function Configuracoes() {
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Versão:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{getVersionString()}</span>
+                  <span className="font-semibold text-foreground font-mono text-xs">{getInternalVersionString()}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Commits:</span>
+                  <span className="font-mono">{getVersionInfo().commitCount}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Build:</span>
+                  <span className="font-mono text-xs">{new Date(getVersionInfo().buildDate).toLocaleDateString('pt-BR')}</span>
                 </div>
                 <div className="pt-4 border-t">
                   <Button

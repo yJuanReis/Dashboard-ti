@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSidebar } from "@/components/ui/sidebar";
 import { logAction, AuditAction } from "@/lib/auditService";
+import { PasswordField as SecurePasswordField } from "@/components/PasswordField";
 
 // --- Componentes de Card Modulares ---
 
@@ -103,7 +104,7 @@ function CopyableField({
   );
 }
 
-// Componente para campo de senha
+// Componente para campo de senha (mantido para compatibilidade, mas agora usa SecurePasswordField internamente)
 function PasswordField({ 
   password, 
   isVisible, 
@@ -119,31 +120,16 @@ function PasswordField({
 }) {
   if (!password.password) return null;
   
+  // Usa o componente seguro, mas mantém a interface antiga para compatibilidade
+  // O componente seguro gerencia sua própria visibilidade, então ignoramos isVisible
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-base font-medium text-slate-500 dark:text-slate-400">Senha:</span>
-      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-md pr-1">
-        <span className="text-base font-mono font-medium text-slate-800 dark:text-slate-200 px-2 py-0.5">
-          {isVisible ? password.password : "••••••••"}
-        </span>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-7 w-7 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700" 
-          onClick={onToggleVisibility}
-        >
-          {isVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-7 w-7 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700" 
-          onClick={() => onCopy(password.password || '', "Senha")}
-        >
-          {copied === 'Senha' ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-        </Button>
-      </div>
-    </div>
+    <SecurePasswordField
+      value={password.password}
+      auditLog={true}
+      passwordId={password.id}
+      passwordService={password.service}
+      onCopy={() => onCopy(password.password || '', "Senha")}
+    />
   );
 }
 
@@ -258,27 +244,16 @@ function DetailsModal({
                   </span>
                   <div className="flex items-center gap-2 flex-1">
                     {field.isPassword ? (
-                      <>
-                        <span className="font-mono text-sm text-slate-800 dark:text-slate-200 flex-1 text-right">
-                          {isVisible ? field.value : "••••••••"}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={onToggleVisibility}
-                        >
-                          {isVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleCopy(field.value || '', field.label)}
-                        >
-                          {copied === field.label ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                        </Button>
-                      </>
+                      <div className="flex-1 flex justify-end">
+                        <SecurePasswordField
+                          value={field.value || ''}
+                          auditLog={true}
+                          passwordId={password.id}
+                          passwordService={password.service}
+                          showLabel={false}
+                          className="justify-end"
+                        />
+                      </div>
                     ) : field.label === 'Link de Acesso' && field.value ? (
                       <>
                         <a
@@ -3025,34 +3000,14 @@ export default function Senhas() {
                         {/* 6. Senha */}
                         <TableCell className="py-3 px-4" style={{ fontSize: `${fontSize}px` }}>
                           {password.password ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-sm text-slate-900 dark:text-slate-100" style={{ fontSize: `${fontSize}px` }}>
-                                {isVisible ? password.password : "••••••••"}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 hover:bg-slate-200 dark:hover:bg-slate-700"
-                                onClick={() => togglePasswordVisibility(password.id)}
-                              >
-                                {isVisible ? (
-                                  <EyeOff className="w-3.5 h-3.5" />
-                                ) : (
-                                  <Eye className="w-3.5 h-3.5" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 hover:bg-slate-200 dark:hover:bg-slate-700"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(password.password);
-                                  toast.success('Senha copiada!');
-                                }}
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
+                            <SecurePasswordField
+                              value={password.password}
+                              auditLog={true}
+                              passwordId={password.id}
+                              passwordService={password.service}
+                              showLabel={false}
+                              className="justify-start"
+                            />
                           ) : (
                             <span className="text-slate-400 text-sm" style={{ fontSize: `${fontSize}px` }}>-</span>
                           )}

@@ -76,7 +76,7 @@
 
 ### 2. Implementar Visualização Segura de Senhas
 
-- [ ] **2.1** Criar componente `PasswordField.tsx` seguro
+- [x] **2.1** Criar componente `PasswordField.tsx` seguro
   ```typescript
   // src/components/PasswordField.tsx
   interface Props {
@@ -86,13 +86,13 @@
   }
   ```
 
-- [ ] **2.2** Adicionar estado "oculto" por padrão
+- [x] **2.2** Adicionar estado "oculto" por padrão
   ```typescript
   const [isVisible, setIsVisible] = useState(false);
   const [showTimer, setShowTimer] = useState<NodeJS.Timeout | null>(null);
   ```
 
-- [ ] **2.3** Implementar auto-ocultar após 30 segundos
+- [x] **2.3** Implementar auto-ocultar após 30 segundos
   ```typescript
   useEffect(() => {
     if (isVisible) {
@@ -103,7 +103,7 @@
   }, [isVisible]);
   ```
 
-- [ ] **2.4** Adicionar botão "Copiar" que não exibe a senha
+- [x] **2.4** Adicionar botão "Copiar" que não exibe a senha
   ```typescript
   const handleCopy = async () => {
     await navigator.clipboard.writeText(value);
@@ -112,7 +112,7 @@
   };
   ```
 
-- [ ] **2.5** Registrar visualização em auditoria
+- [x] **2.5** Registrar visualização em auditoria
   ```typescript
   const logPasswordView = async () => {
     await supabase.from('audit_logs').insert({
@@ -124,12 +124,12 @@
   };
   ```
 
-- [ ] **2.6** Substituir campo de senha em `src/pages/Senhas.tsx`
-  - [ ] Tabela de senhas (view mode)
-  - [ ] Cards de senhas
-  - [ ] Modal de edição
+- [x] **2.6** Substituir campo de senha em `src/pages/Senhas.tsx`
+  - [x] Tabela de senhas (view mode)
+  - [x] Cards de senhas
+  - [x] Modal de detalhes (DetailsModal)
 
-- [ ] **2.7** Adicionar ícone de "olho" para mostrar/ocultar
+- [x] **2.7** Adicionar ícone de "olho" para mostrar/ocultar
 - [ ] **2.8** Testar funcionalidade completa
 - [ ] **2.9** Verificar que auditoria está registrando corretamente
 
@@ -1046,19 +1046,34 @@
 
 ---
 
-### 16. Ocultar Versão do Sistema
+### 16. Ocultar Versão do Sistema ✅
 
-- [ ] **16.1** Criar constante de versão pública diferente da interna
+- [x] **16.1** Criar constante de versão pública diferente da interna ✅
   ```typescript
   // src/lib/version.ts
   export const PUBLIC_VERSION = '1.0.0'; // Genérico
-  export const INTERNAL_VERSION = getVersionString(); // Detalhado, apenas admin
+  export const INTERNAL_VERSION = `${version.version} (${version.commitHash})`; // Detalhado, apenas admin
   ```
 
-- [ ] **16.2** Atualizar páginas públicas para usar PUBLIC_VERSION
-- [ ] **16.3** Mostrar INTERNAL_VERSION apenas em /configuracoes
-- [ ] **16.4** Remover versão de headers HTTP
-- [ ] **16.5** Verificar que não há exposição em erros
+- [x] **16.2** Atualizar páginas públicas para usar PUBLIC_VERSION ✅
+  - `getVersionString()` agora retorna versão pública genérica
+  - Versão interna disponível apenas via `getInternalVersionString()`
+
+- [x] **16.3** Mostrar INTERNAL_VERSION apenas em /configuracoes ✅
+  - Página `/configuracoes` usa `getInternalVersionString()`
+  - Exibe versão completa: `1.3.04 (b53dee7)`
+  - Mostra também número de commits e data de build
+
+- [x] **16.4** Remover versão de headers HTTP ✅
+  - Verificado `vercel.json` - nenhum header de versão encontrado
+  - Nenhuma exposição em headers HTTP
+
+- [x] **16.5** Verificar que não há exposição em erros ✅
+  - Verificado `errorService.ts` - nenhuma referência à versão
+  - Verificado logs - nenhuma exposição de versão em erros
+  - Verificado console - nenhuma exposição de versão
+
+**Status**: ✅ Implementado - Versão pública genérica (`1.0.0`) para usuários, versão interna detalhada apenas para admins em `/configuracoes`
 
 ---
 
