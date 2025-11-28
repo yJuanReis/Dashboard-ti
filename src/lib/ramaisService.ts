@@ -7,6 +7,7 @@ export interface RamalDB {
   id: string;
   nome_local?: string | null;
   ramais?: string | null;
+  marina?: string | null;
   created_at?: string;
 }
 
@@ -15,6 +16,7 @@ export interface Ramal {
   id: string;
   nome_local?: string;
   ramais?: string;
+  marina?: string;
 }
 
 /**
@@ -25,6 +27,7 @@ function dbToRamal(dbRamal: RamalDB): Ramal {
     id: String(dbRamal.id),
     nome_local: dbRamal.nome_local || undefined,
     ramais: dbRamal.ramais || undefined,
+    marina: dbRamal.marina || undefined,
   };
 }
 
@@ -35,6 +38,7 @@ function ramalToDB(ramal: Partial<Ramal>): Partial<RamalDB> {
   return {
     nome_local: ramal.nome_local || null,
     ramais: ramal.ramais || null,
+    marina: ramal.marina || null,
   };
 }
 
@@ -117,7 +121,7 @@ export async function createRamal(ramal: Omit<Ramal, 'id'>): Promise<Ramal> {
       'ramais',
       novoRamal.id,
       novoRamal,
-      `Criou ramal: ${novoRamal.nome_local || 'Sem nome'} - ${novoRamal.ramais || 'Sem ramais'}`
+      `Criou ramal: ${novoRamal.marina || 'Sem marina'} - ${novoRamal.nome_local || 'Sem nome'} - ${novoRamal.ramais || 'Sem ramais'}`
     ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
 
     logger.log('✅ Ramal criado com sucesso:', novoRamal);
@@ -170,7 +174,7 @@ export async function updateRamal(
         id,
         oldRamal,
         ramalAtualizado,
-        `Atualizou ramal: ${ramalAtualizado.nome_local || 'Sem nome'} - ${ramalAtualizado.ramais || 'Sem ramais'}`
+        `Atualizou ramal: ${ramalAtualizado.marina || 'Sem marina'} - ${ramalAtualizado.nome_local || 'Sem nome'} - ${ramalAtualizado.ramais || 'Sem ramais'}`
       ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
     }
 
@@ -214,7 +218,7 @@ export async function deleteRamal(id: string): Promise<void> {
         'ramais',
         id,
         oldRamal,
-        `Deletou ramal: ${oldRamal.nome_local || 'Sem nome'} - ${oldRamal.ramais || 'Sem ramais'}`
+        `Deletou ramal: ${oldRamal.marina || 'Sem marina'} - ${oldRamal.nome_local || 'Sem nome'} - ${oldRamal.ramais || 'Sem ramais'}`
       ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
     }
 

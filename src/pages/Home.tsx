@@ -6,6 +6,13 @@ import { Phone, Printer, Loader2, Database, Activity } from "lucide-react";
 import { logger } from "@/lib/logger";
 import { SimpleModal } from "@/components/ui/SimpleModal";
 import { SectionCard } from "@/components/ui/SectionCard";
+import { toast } from "sonner";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 export default function Home() {
   const [ramais, setRamais] = useState<Ramal[]>([]);
@@ -60,6 +67,57 @@ export default function Home() {
       acc[marina].push(imp);
       return acc;
     }, {} as Record<string, Impressora[]>);
+
+  // Função para extrair marina do ramal
+  const extractMarinaFromRamal = (ramal: Ramal): string => {
+    // Primeiro, verifica se o ramal já tem o campo marina (prioridade máxima)
+    if (ramal.marina && ramal.marina.trim()) {
+      const marina = ramal.marina.trim();
+      // Normaliza o nome da marina
+      const marinaLower = marina.toLowerCase();
+      if (marinaLower.includes("verolme")) return "Verolme";
+      if (marinaLower.includes("bracuhy") || marinaLower.includes("braçuhy")) return "Bracuhy";
+      if (marinaLower.includes("boa vista") || marinaLower.includes("boavista")) return "Boa Vista";
+      return marina; // Retorna o nome original se não reconhecer
+    }
+    
+    // Se não tiver campo marina, tenta extrair do nome_local
+    const nomeLocal = ramal.nome_local;
+    if (!nomeLocal) return "Verolme"; // Padrão: Verolme
+    
+    const nomeLower = nomeLocal.toLowerCase().trim();
+    
+    // Verifica padrões específicos (ordem de prioridade)
+    // Verolme - várias formas de escrita
+    if (nomeLower.includes("verolme") || nomeLower.includes("verol") || nomeLower.includes("vlme")) return "Verolme";
+    
+    // Bracuhy - várias formas
+    if (nomeLower.includes("bracuhy") || nomeLower.includes("braçuhy") || nomeLower.includes("bracuhi")) return "Bracuhy";
+    
+    // Boa Vista
+    if (nomeLower.includes("boa vista") || nomeLower.includes("boavista")) return "Boa Vista";
+    if ((nomeLower.includes(" bv ") || nomeLower.endsWith(" bv")) && !nomeLower.includes("verolme")) return "Boa Vista";
+    
+    // Se nada foi encontrado, assume Verolme como padrão (já que a maioria é Verolme)
+    return "Verolme";
+  };
+
+  // Função para agrupar ramais por marina
+  const groupRamaisByMarina = (
+    ramais: Ramal[]
+  ): Record<string, Ramal[]> =>
+    ramais.reduce((acc, ramal) => {
+      const marina = extractMarinaFromRamal(ramal);
+      if (!acc[marina]) acc[marina] = [];
+      acc[marina].push(ramal);
+      return acc;
+    }, {} as Record<string, Ramal[]>);
+
+  // Função para copiar IP da impressora
+  const handleCopyIP = (ip: string, local: string) => {
+    navigator.clipboard.writeText(ip);
+    toast.success(`IP ${ip} copiado! (${local})`);
+  };
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -147,35 +205,116 @@ export default function Home() {
           open={openRamais}
           onOpenChange={setOpenRamais}
           title="Lista de Ramais"
+          maxWidth="7xl"
         >
           {loading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-              {ramais.map((ramal) => {
-                const ramaisList = parseRamais(ramal.ramais);
-                return (
-                  <Card key={ramal.id} className="p-2">
-                    <div className="text-xs font-semibold text-center">
-                      {ramal.nome_local}
-                    </div>
-                    <div className="flex flex-wrap justify-center mt-1 gap-1">
-                      {ramaisList.map((n, i) => (
-                        <span
-                          key={i}
-                          className="px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200 rounded text-[10px] font-mono"
-                        >
-                          {n}
-                        </span>
-                      ))}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          ) : (() => {
+            const marinasOrdenadas = Object.entries(groupRamaisByMarina(ramais))
+              .sort(([a], [b]) => {
+                if (a === "Outros") return 1;
+                if (b === "Outros") return -1;
+                return a.localeCompare(b);
+              });
+            
+            const marinasCol1 = marinasOrdenadas.filter((_, index) => index % 2 === 0);
+            const marinasCol2 = marinasOrdenadas.filter((_, index) => index % 2 === 1);
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Accordion type="multiple" className="w-full space-y-3" defaultValue={[]}>
+                  {marinasCol1.map(([marina, itens]) => (
+                    <AccordionItem 
+                      key={marina} 
+                      value={marina} 
+                      className="border rounded-lg px-4 bg-card hover:bg-accent/50 transition-colors"
+                    >
+                      <AccordionTrigger className="hover:no-underline py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-base">
+                            {marina}
+                          </span>
+                          <span className="text-muted-foreground text-sm font-normal">
+                            ({itens.length} {itens.length === 1 ? 'ramal' : 'ramais'})
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {itens.map((ramal) => {
+                            const ramaisList = parseRamais(ramal.ramais);
+                            return (
+                              <Card key={ramal.id} className="p-2">
+                                <div className="text-xs font-semibold text-center">
+                                  {ramal.nome_local}
+                                </div>
+                                <div className="flex flex-wrap justify-center mt-1 gap-1">
+                                  {ramaisList.map((n, i) => (
+                                    <span
+                                      key={i}
+                                      className="px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200 rounded text-[10px] font-mono"
+                                    >
+                                      {n}
+                                    </span>
+                                  ))}
+                                </div>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+                <Accordion type="multiple" className="w-full space-y-3" defaultValue={[]}>
+                  {marinasCol2.map(([marina, itens]) => (
+                    <AccordionItem 
+                      key={marina} 
+                      value={marina} 
+                      className="border rounded-lg px-4 bg-card hover:bg-accent/50 transition-colors"
+                    >
+                      <AccordionTrigger className="hover:no-underline py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-base">
+                            {marina}
+                          </span>
+                          <span className="text-muted-foreground text-sm font-normal">
+                            ({itens.length} {itens.length === 1 ? 'ramal' : 'ramais'})
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {itens.map((ramal) => {
+                            const ramaisList = parseRamais(ramal.ramais);
+                            return (
+                              <Card key={ramal.id} className="p-2">
+                                <div className="text-xs font-semibold text-center">
+                                  {ramal.nome_local}
+                                </div>
+                                <div className="flex flex-wrap justify-center mt-1 gap-1">
+                                  {ramaisList.map((n, i) => (
+                                    <span
+                                      key={i}
+                                      className="px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200 rounded text-[10px] font-mono"
+                                    >
+                                      {n}
+                                    </span>
+                                  ))}
+                                </div>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+            );
+          })()}
         </SimpleModal>
 
         {/* -------- MODAL IMPRESSORAS -------- */}
@@ -183,43 +322,124 @@ export default function Home() {
           open={openImpressoras}
           onOpenChange={setOpenImpressoras}
           title="Lista de Impressoras"
+          maxWidth="7xl"
         >
           {loadingImpressoras ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
-          ) : (
-            Object.entries(groupImpressorasByMarina(impressoras))
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([marina, itens]) => (
-                <div key={marina} className="mb-6">
-                  <h4 className="font-semibold text-sm mb-2">
-                    {marina}{" "}
-                    <span className="text-muted-foreground text-xs">
-                      ({itens.length})
-                    </span>
-                  </h4>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                    {itens.map((imp) => (
-                      <Card key={imp.id} className="p-2">
-                        <div className="text-xs font-semibold text-center">
-                          {imp.local}
+          ) : (() => {
+            const marinasOrdenadas = Object.entries(groupImpressorasByMarina(impressoras))
+              .sort(([a], [b]) => a.localeCompare(b));
+            
+            const marinasCol1 = marinasOrdenadas.filter((_, index) => index % 2 === 0);
+            const marinasCol2 = marinasOrdenadas.filter((_, index) => index % 2 === 1);
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <Accordion type="multiple" className="w-full space-y-3" defaultValue={[]}>
+                  {marinasCol1.map(([marina, itens]) => (
+                    <AccordionItem 
+                      key={marina} 
+                      value={marina} 
+                      className="border rounded-lg px-4 bg-card hover:bg-accent/50 transition-colors"
+                    >
+                      <AccordionTrigger className="hover:no-underline py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-base">
+                            {marina}
+                          </span>
+                          <span className="text-muted-foreground text-sm font-normal">
+                            ({itens.length} {itens.length === 1 ? 'impressora' : 'impressoras'})
+                          </span>
                         </div>
-                        {imp.ip ? (
-                          <div className="mt-1 text-center px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200 rounded text-[10px] font-mono">
-                            {imp.ip}
-                          </div>
-                        ) : (
-                          <div className="text-[10px] text-muted-foreground text-center mt-1 italic">
-                            Sem IP
-                          </div>
-                        )}
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              ))
-          )}
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {itens.map((imp) => (
+                            <Card
+                              key={imp.id}
+                              className={`p-2 ${
+                                imp.ip
+                                  ? "cursor-pointer hover:shadow-md hover:border-purple-400 dark:hover:border-purple-600 transition-all"
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                imp.ip && handleCopyIP(imp.ip, imp.local || "Impressora")
+                              }
+                            >
+                              <div className="text-xs font-semibold text-center">
+                                {imp.local}
+                              </div>
+                              {imp.ip ? (
+                                <div className="mt-1 text-center px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200 rounded text-[10px] font-mono">
+                                  {imp.ip}
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-muted-foreground text-center mt-1 italic">
+                                  Sem IP
+                                </div>
+                              )}
+                            </Card>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+                <Accordion type="multiple" className="w-full space-y-3" defaultValue={[]}>
+                  {marinasCol2.map(([marina, itens]) => (
+                    <AccordionItem 
+                      key={marina} 
+                      value={marina} 
+                      className="border rounded-lg px-4 bg-card hover:bg-accent/50 transition-colors"
+                    >
+                      <AccordionTrigger className="hover:no-underline py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-base">
+                            {marina}
+                          </span>
+                          <span className="text-muted-foreground text-sm font-normal">
+                            ({itens.length} {itens.length === 1 ? 'impressora' : 'impressoras'})
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {itens.map((imp) => (
+                            <Card
+                              key={imp.id}
+                              className={`p-2 ${
+                                imp.ip
+                                  ? "cursor-pointer hover:shadow-md hover:border-purple-400 dark:hover:border-purple-600 transition-all"
+                                  : ""
+                              }`}
+                              onClick={() =>
+                                imp.ip && handleCopyIP(imp.ip, imp.local || "Impressora")
+                              }
+                            >
+                              <div className="text-xs font-semibold text-center">
+                                {imp.local}
+                              </div>
+                              {imp.ip ? (
+                                <div className="mt-1 text-center px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200 rounded text-[10px] font-mono">
+                                  {imp.ip}
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-muted-foreground text-center mt-1 italic">
+                                  Sem IP
+                                </div>
+                              )}
+                            </Card>
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+            );
+          })()}
         </SimpleModal>
 
         {/* -------- MODAL CARD 3 -------- */}

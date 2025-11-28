@@ -51,7 +51,7 @@ import {
 import { useSidebar } from "@/components/ui/sidebar";
 import { logger } from "@/lib/logger";
 
-type SortField = "nome_local" | "ramais";
+type SortField = "marina" | "nome_local" | "ramais";
 type SortDirection = "asc" | "desc";
 
 export default function Ramais() {
@@ -67,6 +67,7 @@ export default function Ramais() {
   const [ramalToDelete, setRamalToDelete] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
+    marina: "",
     nome_local: "",
     ramais: "",
   });
@@ -91,6 +92,7 @@ export default function Ramais() {
     const handleOpenDialogFromHeader = () => {
       setEditingRamal(null);
       setFormData({
+        marina: "",
         nome_local: "",
         ramais: "",
       });
@@ -126,7 +128,7 @@ export default function Ramais() {
     .filter((ramal) => {
       const matchesSearch =
         !searchTerm ||
-        `${ramal.nome_local || ""} ${ramal.ramais || ""}`
+        `${ramal.marina || ""} ${ramal.nome_local || ""} ${ramal.ramais || ""}`
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
       return matchesSearch;
@@ -154,12 +156,14 @@ export default function Ramais() {
     if (ramal) {
       setEditingRamal(ramal);
       setFormData({
+        marina: ramal.marina || "",
         nome_local: ramal.nome_local || "",
         ramais: ramal.ramais || "",
       });
     } else {
       setEditingRamal(null);
       setFormData({
+        marina: "",
         nome_local: "",
         ramais: "",
       });
@@ -235,6 +239,15 @@ export default function Ramais() {
             <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
               <TableHead
                 className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                onClick={() => handleSort("marina")}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  Marina
+                  <SortIcon field="marina" />
+                </div>
+              </TableHead>
+              <TableHead
+                className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 onClick={() => handleSort("nome_local")}
               >
                 <div className="flex items-center justify-center gap-1">
@@ -257,7 +270,7 @@ export default function Ramais() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={3} className="text-center py-8">
+                <TableCell colSpan={4} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     <p className="text-muted-foreground">Carregando ramais...</p>
@@ -266,7 +279,7 @@ export default function Ramais() {
               </TableRow>
             ) : filteredAndSortedRamais.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} className="text-center py-8">
+                <TableCell colSpan={4} className="text-center py-8">
                   <p className="text-muted-foreground">
                     Nenhum ramal encontrado
                   </p>
@@ -278,6 +291,9 @@ export default function Ramais() {
                   key={ramal.id}
                   className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
                 >
+                  <TableCell className="text-center text-xs md:text-sm font-medium">
+                    {ramal.marina || "-"}
+                  </TableCell>
                   <TableCell className="text-center text-xs md:text-sm font-medium">
                     {ramal.nome_local || "-"}
                   </TableCell>
@@ -325,6 +341,15 @@ export default function Ramais() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="marina">Marina</Label>
+              <Input
+                id="marina"
+                value={formData.marina}
+                onChange={(e) => setFormData({ ...formData, marina: e.target.value })}
+                placeholder="Ex: Marina Costabella, Marina Verolme"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="nome_local">Nome/Local *</Label>
               <Input
