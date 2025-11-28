@@ -4,6 +4,8 @@ Esta pasta contém toda a documentação relacionada à segurança do sistema.
 
 ## 📄 Arquivos
 
+- **CHECKLIST_SEGURANCA.md** - Checklist completo de segurança ⭐
+- **RELATORIO_SEGURANCA.md** - Relatório detalhado de segurança ⭐
 - **SECURITY_GUIDE.md** - Guia geral de segurança do sistema
 - **INSTRUCOES_SEGURANCA.md** - Instruções detalhadas de segurança
 - **CORRECOES_SEGURANCA.md** - Lista de correções de segurança aplicadas
@@ -12,10 +14,10 @@ Esta pasta contém toda a documentação relacionada à segurança do sistema.
 - **SISTEMA_ERROS_SEGURANCA.md** - Documentação do sistema de erros e segurança
 - **SISTEMA_LOGGING_SEGURO.md** - Sistema de logging seguro
 - **SISTEMA_AUDITORIA.md** - Sistema completo de auditoria (logs, alertas, retenção)
+- **LOGS_DOCUMENTATION.md** - Documentação de logs
 
 ## 🔗 Links Relacionados
 
-- [Checklist de Segurança](../../../CHECKLIST_SEGURANCA.md)
-- [Relatório de Segurança](../../../RELATORIO_SEGURANCA.md)
 - [CSP (Content Security Policy)](../csp/)
+- [Pentest](../pentest/)
 

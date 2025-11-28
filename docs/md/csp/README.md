@@ -4,6 +4,7 @@ Esta pasta contém toda a documentação sobre Content Security Policy.
 
 ## 📄 Arquivos
 
+- **CSP_README.md** - README principal do CSP ⭐
 - **CSP_IMPLEMENTADO.md** - Documentação da implementação do CSP
 - **CSP_INDEX.md** - Índice e referência rápida do CSP
 - **CSP_QUICK_START.md** - Guia rápido para começar com CSP
@@ -14,6 +15,5 @@ Esta pasta contém toda a documentação sobre Content Security Policy.
 
 ## 🔗 Links Relacionados
 
-- [CSP README](../../CSP_README.md)
 - [Segurança](../seguranca/)
 

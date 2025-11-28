@@ -19,9 +19,12 @@ Esta pasta contém todos os guias de configuração do sistema.
 - **RESUMO_CONFIGURACAO_EMAIL.md** - Resumo da configuração de email
 
 ### Outros
+- **ENV_VARIABLES.md** - Variáveis de ambiente ⭐
 - **CONFIGURACAO_RECAPTCHA.md** - Configuração do reCAPTCHA
 - **INSTRUCOES_IP_SERVICE.md** - Instruções do serviço de IP
+- **RESUMO_IMPLEMENTACAO_IP_SERVICE.md** - Resumo da implementação do IP Service
 - **CORRIGIR_ERRO_UPDATED_AT.md** - Como corrigir erro de updated_at
+- **RESUMO_MELHORIAS_ERROS.md** - Resumo de melhorias de erros
 
 ## 🔗 Links Relacionados
 

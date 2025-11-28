@@ -110,10 +110,11 @@ Documentação específica de cada página/rota do sistema.
 
 ## 🔗 Links Rápidos
 
-- [Checklist de Segurança](../../CHECKLIST_SEGURANCA.md) - Checklist completo de segurança
-- [Relatório de Segurança](../../RELATORIO_SEGURANCA.md) - Relatório de segurança
-- [Variáveis de Ambiente](../ENV_VARIABLES.md) - Variáveis de ambiente
-- [CSP README](../CSP_README.md) - README do CSP
+- [Checklist de Segurança](seguranca/CHECKLIST_SEGURANCA.md) - Checklist completo de segurança ⭐
+- [Relatório de Segurança](seguranca/RELATORIO_SEGURANCA.md) - Relatório de segurança ⭐
+- [Variáveis de Ambiente](configuracao/ENV_VARIABLES.md) - Variáveis de ambiente
+- [CSP README](csp/CSP_README.md) - README do CSP
+- [SQL Scripts](../sql/README.md) - Índice de scripts SQL
 
 ## 📝 Como Contribuir
 

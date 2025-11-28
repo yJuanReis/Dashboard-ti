@@ -108,6 +108,11 @@ Toda a documentação está organizada em `docs/md/` por categorias. Ver [docs/m
 ## Checklist Supabase
 > Guia completo em [`docs/md/supabase/supabase.md`](docs/md/supabase/supabase.md). Resumo rápido:
 
+## 📋 Documentos Principais
+
+- **[Checklist de Segurança](docs/md/seguranca/CHECKLIST_SEGURANCA.md)** - Checklist completo de segurança
+- **[Relatório de Segurança](docs/md/seguranca/RELATORIO_SEGURANCA.md)** - Relatório detalhado de segurança
+
 - Variáveis: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - Tabelas necessárias: `passwords`, `nvrs`, `nvr_config`, `pages_maintenance`, `audit_logs`, `user_profiles`, `user_security_logs`
 - Policies RLS habilitadas com acesso para usuários autenticados e admins
