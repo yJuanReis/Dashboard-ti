@@ -137,6 +137,8 @@ Cada rota tem documentação em `docs/md/paginas/<pagina>.md`. Highlights:
 | Controle de HDs | `/controle-hds` | KPIs, custo estimado, export XLSX |
 | Crachás | `/crachas` | Upload/crop e download PNG |
 | Termos | `/termos` | Preenchimento e geração de PDF via `pdf-lib` |
+| Impressoras | `/impressoras` | CRUD de impressoras com filtros e badges coloridos |
+| Ramais | `/ramais` | Gerenciamento de ramais telefônicos |
 | Configurações | `/configuracoes` | Gestão de usuários, permissões, páginas em manutenção, versão |
 | Audit Logs | `/audit-logs` | Consulta dos logs de auditoria |
 | Security Test | `/security-test` | Suíte de pentest automatizado |

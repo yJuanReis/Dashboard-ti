@@ -137,9 +137,32 @@ async function getCurrentUserInfo(): Promise<{
 function getChangedFields(oldData: Record<string, any>, newData: Record<string, any>): string[] {
   const changed: string[] = [];
   
+  // Função auxiliar para comparar valores (incluindo arrays e objetos)
+  const isEqual = (a: any, b: any): boolean => {
+    if (a === b) return true;
+    if (a == null || b == null) return false;
+    if (typeof a !== typeof b) return false;
+    
+    // Compara arrays
+    if (Array.isArray(a) && Array.isArray(b)) {
+      if (a.length !== b.length) return false;
+      return a.every((val, idx) => isEqual(val, b[idx]));
+    }
+    
+    // Compara objetos
+    if (typeof a === 'object' && typeof b === 'object') {
+      const keysA = Object.keys(a);
+      const keysB = Object.keys(b);
+      if (keysA.length !== keysB.length) return false;
+      return keysA.every(key => isEqual(a[key], b[key]));
+    }
+    
+    return false;
+  };
+  
   // Verifica campos que mudaram ou foram adicionados
   for (const key in newData) {
-    if (oldData[key] !== newData[key]) {
+    if (!isEqual(oldData[key], newData[key])) {
       changed.push(key);
     }
   }
@@ -212,37 +235,85 @@ export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Prom
     const context = getAuditContext();
     
     // Prepara o registro
-    const logRecord: Omit<AuditLog, 'id'> = {
+    // NOTA: Apenas campos que existem na tabela audit_logs devem ser incluídos
+    // Schema da tabela: id, action_type, table_name, record_id, user_id, user_email, 
+    // user_name, old_data, new_data, changed_fields, description, ip_address, created_at
+    // Campos NÃO disponíveis: device, user_agent, location, action
+    
+    // Adiciona informações de device/user_agent na description se disponível
+    let descriptionWithContext = entry.description || '';
+    if (context.device || context.userAgent) {
+      const deviceInfo = context.device ? ` [${context.device}]` : '';
+      if (descriptionWithContext && deviceInfo) {
+        descriptionWithContext += deviceInfo;
+      }
+    }
+    
+    // Prepara o registro apenas com campos que existem na tabela
+    const logRecord: Record<string, any> = {
       action_type: entry.action_type,
       table_name: entry.table_name,
-      record_id: entry.record_id,
-      user_id: entry.user_id || userInfo.user_id,
-      user_email: entry.user_email || userInfo.user_email,
-      user_name: entry.user_name || userInfo.user_name,
+      record_id: String(entry.record_id), // Garante que seja string
+      user_id: entry.user_id || userInfo.user_id || null,
+      user_email: entry.user_email || userInfo.user_email || null,
+      user_name: entry.user_name || userInfo.user_name || null,
       old_data: entry.old_data ? sanitizeData(entry.old_data) : null,
       new_data: entry.new_data ? sanitizeData(entry.new_data) : null,
       changed_fields: entry.changed_fields || [],
-      description: entry.description,
-      ip_address: ipAddress || entry.ip_address,
-      user_agent: entry.user_agent || context.userAgent,
-      device: entry.device || context.device,
-      location: entry.location,
-      action: entry.action,
-      created_at: new Date().toISOString(),
+      description: descriptionWithContext || null,
+      ip_address: ipAddress || entry.ip_address || null,
+      // created_at será definido automaticamente pelo banco (DEFAULT NOW())
+      // NÃO incluir: device, user_agent, location, action (não existem na tabela)
     };
 
+    // Validação antes de inserir
+    if (!entry.table_name || !entry.record_id) {
+      logger.error('❌ Tentativa de inserir log inválido:', {
+        table_name: entry.table_name,
+        record_id: entry.record_id,
+        action_type: entry.action_type
+      });
+      return;
+    }
+
     // Insere no banco de dados
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('audit_logs')
-      .insert(logRecord);
+      .insert(logRecord)
+      .select()
+      .single();
 
     if (error) {
-      logger.error('Erro ao registrar log de auditoria:', error);
+      logger.error('❌ Erro ao registrar log de auditoria:', error);
+      logger.error('Detalhes do erro:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        table: entry.table_name,
+        record_id: entry.record_id,
+        action_type: entry.action_type
+      });
+      logger.error('Dados do log que falhou:', {
+        table_name: logRecord.table_name,
+        record_id: logRecord.record_id,
+        action_type: logRecord.action_type,
+        description: logRecord.description
+      });
       // Não lança erro para não quebrar o fluxo da aplicação
       // Mas registra no console para debug
+    } else {
+      logger.log('✅ Log de auditoria registrado com sucesso:', {
+        id: data?.id,
+        table: entry.table_name,
+        record_id: entry.record_id,
+        description: entry.description,
+        action_type: entry.action_type
+      });
     }
-  } catch (error) {
-    logger.error('Erro ao registrar log de auditoria:', error);
+  } catch (error: any) {
+    logger.error('❌ Erro ao registrar log de auditoria (catch):', error);
+    logger.error('Stack trace:', error?.stack);
     // Não lança erro para não quebrar o fluxo da aplicação
   }
 }
@@ -275,17 +346,38 @@ export async function logUpdate(
   newData: Record<string, any>,
   description?: string
 ): Promise<void> {
-  const changedFields = getChangedFields(oldData, newData);
-  
-  await logAudit({
-    action_type: 'UPDATE',
-    table_name: tableName,
-    record_id: recordId,
-    old_data: oldData,
-    new_data: newData,
-    changed_fields: changedFields,
-    description: description || `Atualizou registro em ${tableName}`,
-  });
+  try {
+    // Garante que recordId seja string
+    const recordIdStr = String(recordId);
+    
+    // Validação básica
+    if (!tableName || !recordIdStr) {
+      logger.warn('⚠️ Tentativa de log com dados inválidos:', { tableName, recordId: recordIdStr });
+      return;
+    }
+    
+    const changedFields = getChangedFields(oldData, newData);
+    
+    await logAudit({
+      action_type: 'UPDATE',
+      table_name: tableName,
+      record_id: recordIdStr,
+      old_data: oldData,
+      new_data: newData,
+      changed_fields: changedFields,
+      description: description || `Atualizou registro em ${tableName}`,
+    });
+  } catch (error: any) {
+    logger.error('❌ Erro em logUpdate:', error);
+    logger.error('Detalhes:', {
+      tableName,
+      recordId,
+      errorMessage: error?.message,
+      errorStack: error?.stack
+    });
+    // Re-lança o erro para que o código chamador possa tratá-lo
+    throw error;
+  }
 }
 
 /**
@@ -484,7 +576,7 @@ export async function checkSuspiciousActivity(userId: string): Promise<{
       .from('audit_logs')
       .select('*')
       .eq('user_id', userId)
-      .eq('action', AuditAction.USER_LOGIN_FAILED)
+      .ilike('description', `%${AuditAction.USER_LOGIN_FAILED}%`)
       .gte('created_at', oneDayAgo);
 
     if (failedLogins && failedLogins.length >= 5) {

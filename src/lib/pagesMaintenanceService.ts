@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient";
 import { logger } from "@/lib/logger";
+import { logCreate, logUpdate } from "./auditService";
 
 export type MaintenanceStatus = "avaliar" | "dev" | "manutencao";
 export type BadgeVariant = "yellow" | "gray" | "blue";
@@ -104,36 +105,70 @@ export async function updatePageMaintenance(
       .single();
 
     if (existing) {
+      // Busca dados antigos antes de atualizar (para o log de auditoria)
+      const { data: oldData } = await supabase
+        .from("pages_maintenance")
+        .select("*")
+        .eq("page_path", pagePath)
+        .single();
+
       // Atualizar página existente
       const updateData: any = { is_active: isActive };
       if (status) updateData.status = status;
       if (badgeText) updateData.badge_text = badgeText;
       if (badgeVariant) updateData.badge_variant = badgeVariant;
 
-      const { error } = await supabase
+      const { data: newData, error } = await supabase
         .from("pages_maintenance")
         .update(updateData)
-        .eq("page_path", pagePath);
+        .eq("page_path", pagePath)
+        .select()
+        .single();
 
       if (error) {
         logger.error("Erro ao atualizar página:", error);
         return { success: false, error: error.message };
       }
+
+      // Registra log de auditoria
+      if (oldData && newData) {
+        await logUpdate(
+          'pages_maintenance',
+          existing.id,
+          oldData as Record<string, any>,
+          newData as Record<string, any>,
+          `Atualizou manutenção da página: ${pagePath}`
+        ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+      }
     } else if (isActive) {
       // Criar nova entrada se estiver ativando
-      const { error } = await supabase
+      const newPageData = {
+        page_path: pagePath,
+        status: status || "avaliar",
+        badge_text: badgeText || "Avaliar",
+        badge_variant: badgeVariant || "yellow",
+        is_active: true,
+      };
+
+      const { data: createdData, error } = await supabase
         .from("pages_maintenance")
-        .insert({
-          page_path: pagePath,
-          status: status || "avaliar",
-          badge_text: badgeText || "Avaliar",
-          badge_variant: badgeVariant || "yellow",
-          is_active: true,
-        });
+        .insert(newPageData)
+        .select()
+        .single();
 
       if (error) {
         logger.error("Erro ao criar página:", error);
         return { success: false, error: error.message };
+      }
+
+      // Registra log de auditoria
+      if (createdData) {
+        await logCreate(
+          'pages_maintenance',
+          createdData.id,
+          createdData as Record<string, any>,
+          `Criou manutenção para página: ${pagePath}`
+        ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
       }
     }
 

@@ -19,6 +19,7 @@ import { getIcon } from './iconMap';
 import type { LucideIcon } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { sanitizeText } from './sanitize';
+import { logCreate, logUpdate, logDelete } from './auditService';
 
 // =====================================================
 // INTERFACES
@@ -260,8 +261,18 @@ export async function createPassword(
 
     logger.log(`✅ Senha criada com sucesso: ${dbEntry.servico}`);
 
+    const createdPassword = dbToComponent(data[0] as PasswordEntryDB);
+    
+    // Registra log de auditoria
+    await logCreate(
+      'passwords',
+      createdPassword.id,
+      dbEntry as Record<string, any>,
+      `Criou senha: ${dbEntry.servico || 'Sem serviço'}`
+    ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+
     // Retorna o primeiro registro (RPC retorna array)
-    return dbToComponent(data[0] as PasswordEntryDB);
+    return createdPassword;
   } catch (error) {
     logger.error('Erro ao criar senha:', error);
     throw error;
@@ -279,6 +290,34 @@ export async function updatePassword(
     // Valida ID
     if (!id) {
       throw new Error('ID é obrigatório para atualização');
+    }
+
+    // Busca dados antigos antes de atualizar (para o log de auditoria)
+    // Usa a função RPC get_passwords e filtra pelo ID, já que acesso direto pode ter problemas de RLS
+    let oldData: Record<string, any> | null = null;
+    try {
+      const { data: allPasswords } = await supabase.rpc('get_passwords');
+      if (allPasswords && Array.isArray(allPasswords)) {
+        const found = allPasswords.find((p: any) => String(p.id) === String(id));
+        if (found) {
+          oldData = found as Record<string, any>;
+        }
+      }
+    } catch (err) {
+      logger.warn('Não foi possível buscar dados antigos para log:', err);
+      // Tenta buscar diretamente como fallback (pode falhar por RLS)
+      try {
+        const { data: oldPasswordData } = await supabase
+          .from('passwords')
+          .select('*')
+          .eq('id', parseInt(id))
+          .single();
+        if (oldPasswordData) {
+          oldData = oldPasswordData as Record<string, any>;
+        }
+      } catch (fallbackErr) {
+        logger.warn('Fallback também falhou ao buscar dados antigos:', fallbackErr);
+      }
     }
 
     // Converte para formato do banco
@@ -314,8 +353,21 @@ export async function updatePassword(
 
     logger.log(`✅ Senha atualizada com sucesso: ID ${id}`);
 
+    const updatedPassword = dbToComponent(data[0] as PasswordEntryDB);
+    
+    // Registra log de auditoria
+    if (oldData) {
+      await logUpdate(
+        'passwords',
+        id,
+        oldData,
+        data[0] as Record<string, any>,
+        `Atualizou senha: ${updatedPassword.service || 'Sem serviço'}`
+      ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+    }
+
     // Retorna o primeiro registro (RPC retorna array)
-    return dbToComponent(data[0] as PasswordEntryDB);
+    return updatedPassword;
   } catch (error) {
     logger.error('Erro ao atualizar senha:', error);
     throw error;
@@ -332,6 +384,34 @@ export async function deletePassword(id: string): Promise<void> {
       throw new Error('ID é obrigatório para exclusão');
     }
 
+    // Busca dados antes de deletar (para o log de auditoria)
+    // Usa a função RPC get_passwords e filtra pelo ID, já que acesso direto pode ter problemas de RLS
+    let oldData: Record<string, any> | null = null;
+    try {
+      const { data: allPasswords } = await supabase.rpc('get_passwords');
+      if (allPasswords && Array.isArray(allPasswords)) {
+        const found = allPasswords.find((p: any) => String(p.id) === String(id));
+        if (found) {
+          oldData = found as Record<string, any>;
+        }
+      }
+    } catch (err) {
+      logger.warn('Não foi possível buscar dados antigos para log:', err);
+      // Tenta buscar diretamente como fallback (pode falhar por RLS)
+      try {
+        const { data: oldPasswordData } = await supabase
+          .from('passwords')
+          .select('*')
+          .eq('id', parseInt(id))
+          .single();
+        if (oldPasswordData) {
+          oldData = oldPasswordData as Record<string, any>;
+        }
+      } catch (fallbackErr) {
+        logger.warn('Fallback também falhou ao buscar dados antigos:', fallbackErr);
+      }
+    }
+
     // Chama a função RPC
     const { data, error } = await supabase.rpc('delete_password', {
       p_id: parseInt(id),
@@ -342,6 +422,16 @@ export async function deletePassword(id: string): Promise<void> {
     }
 
     logger.log(`✅ Senha deletada com sucesso: ID ${id}`);
+
+    // Registra log de auditoria
+    if (oldData) {
+      await logDelete(
+        'passwords',
+        id,
+        oldData,
+        `Excluiu senha: ${oldData.servico || 'Sem serviço'}`
+      ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+    }
 
     // data contém informações sobre o registro deletado (opcional)
     if (data) {

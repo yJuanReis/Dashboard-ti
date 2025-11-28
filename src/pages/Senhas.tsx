@@ -1546,7 +1546,21 @@ export default function Senhas() {
   }); // Modo de visualização: cards ou planilha, sincronizado com localStorage
   const [sortColumn, setSortColumn] = useState<string | null>(null); // Coluna atual para ordenação
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc"); // Direção da ordenação
-  const [fontSize, setFontSize] = useState(14); // Tamanho da fonte em pixels (padrão 14px = text-sm)
+  const [fontSize, setFontSize] = useState(() => {
+    if (typeof window === "undefined") return 14;
+    try {
+      const stored = window.localStorage.getItem("senhas_font_size");
+      if (stored) {
+        const size = parseInt(stored, 10);
+        if (!isNaN(size) && size >= 10 && size <= 24) {
+          return size;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 14;
+  }); // Tamanho da fonte em pixels (padrão 14px = text-sm)
   const [showSearchField, setShowSearchField] = useState(false); // Controla visibilidade do campo de busca
   const [showProblemsModal, setShowProblemsModal] = useState(false); // Controla o modal de cards com problema
   
@@ -2358,6 +2372,19 @@ export default function Senhas() {
     window.dispatchEvent(event);
   }, [viewMode]);
 
+  // Sincroniza fontSize com localStorage e com o header global
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("senhas_font_size", fontSize.toString());
+    } catch {
+      // ignore
+    }
+
+    // Notifica o header/layout que o tamanho da fonte mudou
+    const event = new CustomEvent("senhas:fontSizeChanged", { detail: fontSize });
+    window.dispatchEvent(event);
+  }, [fontSize]);
+
   useEffect(() => {
     const handleSetViewMode = (e: Event) => {
       const custom = e as CustomEvent;
@@ -2367,9 +2394,19 @@ export default function Senhas() {
       }
     };
 
+    const handleSetFontSize = (e: Event) => {
+      const custom = e as CustomEvent;
+      const size = custom.detail;
+      if (typeof size === 'number' && size >= 10 && size <= 24) {
+        setFontSize(size);
+      }
+    };
+
     window.addEventListener("senhas:setViewMode", handleSetViewMode);
+    window.addEventListener("senhas:setFontSize", handleSetFontSize);
     return () => {
       window.removeEventListener("senhas:setViewMode", handleSetViewMode);
+      window.removeEventListener("senhas:setFontSize", handleSetFontSize);
     };
   }, []);
 
@@ -2399,7 +2436,7 @@ export default function Senhas() {
   return (
     <div className={cn(
       "flex flex-col h-full relative",
-      viewMode === "table" ? "h-[calc(100vh-3.5rem)] overflow-hidden" : "min-h-[calc(100vh-3.5rem)]"
+      viewMode === "table" ? "h-[calc(100vh-3.5rem)] overflow-hidden w-full" : "min-h-[calc(100vh-3.5rem)]"
     )}>
       {/* Aviso de orientação para mobile em modo retrato */}
       {isPortrait && !ignoreOrientationWarning && (
@@ -2427,92 +2464,37 @@ export default function Senhas() {
           </div>
         </div>
       )}
-      {/* Header Fixo interno - apenas controles extras em desktop (sem filtros, que já estão no header global) */}
-      {!isMobile && (
+      {/* Botão de Cards com Problema - apenas quando necessário */}
+      {viewMode === "cards" && passwordProblems.length > 0 && (
         <div className={cn(
           "flex-shrink-0 border-b bg-background/95 backdrop-blur-sm",
           "px-2 md:px-4 py-2"
         )}>
           <div className="flex flex-wrap items-center gap-2 justify-end">
-            <div className="flex items-center gap-1 border rounded-md p-1 bg-background">
-              <Button
-                variant={viewMode === "table" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("table")}
-                className="gap-1 sm:gap-2 text-xs sm:text-sm justify-center"
-              >
-                <Table2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Planilha</span>
-              </Button>
-              <Button
-                variant={viewMode === "cards" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("cards")}
-                className="gap-1 sm:gap-2 text-xs sm:text-sm justify-center"
-              >
-                <LayoutGrid className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Cards</span>
-              </Button>
-            </div>
-
-            <div className="hidden md:flex items-center gap-1 border rounded-md p-1 bg-background">
-              <Type className="w-4 h-4 text-muted-foreground mx-1" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setFontSize(Math.max(10, fontSize - 1))}
-                className="h-7 w-7 p-0"
-                title="Diminuir fonte"
-              >
-                <ArrowDown className="w-3.5 h-3.5" />
-              </Button>
-              <span className="text-xs font-medium text-foreground min-w-[2.5rem] text-center">
-                {fontSize}px
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-                className="h-7 w-7 p-0"
-                title="Aumentar fonte"
-              >
-                <ArrowUp className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-
-            {viewMode === "cards" && passwordProblems.length > 0 && (
-              <Button 
-                onClick={() => setShowProblemsModal(true)} 
-                className="gap-1 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white border-orange-600 text-xs sm:text-sm justify-center" 
-                size="sm"
-                variant="outline"
-              >
-                <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Cards com problema</span>
-                <span className="sm:hidden">Problemas</span>
-                <span className="ml-1">({passwordProblems.length})</span>
-              </Button>
-            )}
+            <Button 
+              onClick={() => setShowProblemsModal(true)} 
+              className="gap-1 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white border-orange-600 text-xs sm:text-sm justify-center" 
+              size="sm"
+              variant="outline"
+            >
+              <AlertTriangle className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Cards com problema</span>
+              <span className="sm:hidden">Problemas</span>
+              <span className="ml-1">({passwordProblems.length})</span>
+            </Button>
           </div>
         </div>
       )}
 
       {/* Conteúdo - Scroll apenas em modo cards, fixo em modo planilha */}
       <div className={cn(
-        viewMode === "table" ? "flex-1 overflow-hidden flex flex-col min-h-0 relative" : "flex-1 overflow-y-auto overflow-x-hidden"
+        viewMode === "table" ? "flex-1 overflow-hidden flex flex-col min-h-0 relative w-full" : "flex-1 overflow-y-auto overflow-x-hidden"
       )}>
         <div className={cn(
-          viewMode === "table" ? "flex-1 flex flex-col min-h-0 h-full" : "space-y-6"
+          viewMode === "table" ? "flex-1 flex flex-col min-h-0 h-full w-full" : "space-y-6"
         )}>
 
           {/* ++ NOVAS ABAS DE FILTRO ++ - Ocultas no modo planilha e em mobile */}
-          {viewMode === "cards" && (
-            <div className={cn(
-              "border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 sticky top-0 z-0 md:z-0 bg-background/95 backdrop-blur-sm"
-            )}>
-              {/* Espaço reservado apenas para manter consistência visual no modo cards */}
-            </div>
-          )}
           {/* ++ FIM DAS NOVAS ABAS ++ */}
 
           {/* ++ Submenu de Problemas ++ - Oculto no modo planilha */}
@@ -2603,12 +2585,12 @@ export default function Senhas() {
           // Visualização em Planilha - Ocupa toda a altura disponível
           <div className="flex flex-col flex-1 min-h-0 h-full w-full bg-white dark:bg-slate-900">
             {/* Filtros integrados na planilha */}
-            <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-4 pt-2 bg-background/95 backdrop-blur-sm relative z-0 md:z-0">
+            <div className="flex-shrink-0 border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-4 pt-2 bg-background/95 backdrop-blur-sm relative z-0">
               {/* Abas e Filtros */}
               <div className="flex flex-col gap-2 w-full">
                 {/* Nav colorido (abas) - aparece apenas em desktop e nunca em modo mobile */}
                 {!isMobile && (
-                  <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg px-2 pt-2 w-full">
+                  <div className="hidden md:block border-b border-border bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-2 pt-2 w-full">
                     <div className="flex flex-col items-center gap-3">
                       {/* Nav com abas e tipos */}
                       <nav className="-mb-px flex flex-wrap gap-x-2 gap-y-2 justify-center w-full" aria-label="Tabs">
@@ -2675,7 +2657,8 @@ export default function Senhas() {
                 scrollbarColor: 'rgb(148 163 184) rgb(241 245 249)',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
-                boxSizing: 'border-box'
+                boxSizing: 'border-box',
+                isolation: 'isolate'
               }}
             >
               <style>{`
@@ -2733,8 +2716,9 @@ export default function Senhas() {
               `}</style>
               <div style={{ width: `${2200 * (fontSize / 14)}px`, minWidth: `${2200 * (fontSize / 14)}px`, display: 'block', flexShrink: 0, position: 'relative' }}>
                 <table className="w-full caption-bottom text-sm" style={{ width: `${2200 * (fontSize / 14)}px`, minWidth: `${2200 * (fontSize / 14)}px`, tableLayout: 'auto' }}>
-                <TableHeader className="sticky top-0 z-[1] md:z-[100] bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0, fontSize: `${fontSize}px` }}>
+                <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0, fontSize: `${fontSize}px` }}>
                   <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
+                    <TableHead className="font-semibold text-center whitespace-nowrap min-w-[80px] bg-slate-100 dark:bg-slate-800" style={{ fontSize: `${fontSize}px` }}>Ações</TableHead>
                     <TableHead 
                       className="font-semibold whitespace-nowrap min-w-[100px] text-center pl-4 pr-2 py-1 bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => handleSort('tipo')}
@@ -2931,7 +2915,6 @@ export default function Senhas() {
                         )}
                       </div>
                     </TableHead>
-                    <TableHead className="font-semibold text-center whitespace-nowrap min-w-[80px] bg-slate-100 dark:bg-slate-800" style={{ fontSize: `${fontSize}px` }}>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody style={{ fontSize: `${fontSize}px` }}>
@@ -2948,6 +2931,17 @@ export default function Senhas() {
                         )}
                         style={{ fontSize: `${fontSize}px` }}
                       >
+                        {/* Ações */}
+                        <TableCell className="py-3 px-4 text-center" style={{ fontSize: `${fontSize}px` }}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(password)}
+                            className="gap-1 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
                         {/* 1. Tipo */}
                         <TableCell className="py-3 pl-4 pr-2 text-center" style={{ fontSize: `${fontSize}px` }}>
                           {password.tipo ? (
@@ -3179,16 +3173,6 @@ export default function Senhas() {
                           ) : (
                             <span className="text-slate-400 text-sm" style={{ fontSize: `${fontSize}px` }}>-</span>
                           )}
-                        </TableCell>
-                        <TableCell className="py-3 px-4 text-center" style={{ fontSize: `${fontSize}px` }}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(password)}
-                            className="gap-1 hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </Button>
                         </TableCell>
                       </TableRow>
                     );

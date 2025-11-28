@@ -206,10 +206,18 @@ export function NVRProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const contextValue: NVRContextType = {
+    nvrs,
+    setNvrs,
+    updateNVR,
+    addNVR,
+    deleteNVR,
+    updateSlot,
+    loading,
+  };
+
   return (
-    <NVRContext.Provider
-      value={{ nvrs, setNvrs, updateNVR, addNVR, deleteNVR, updateSlot, loading }}
-    >
+    <NVRContext.Provider value={contextValue}>
       {children}
     </NVRContext.Provider>
   );
@@ -218,6 +226,12 @@ export function NVRProvider({ children }: { children: ReactNode }) {
 export function useNVR() {
   const context = useContext(NVRContext);
   if (context === undefined) {
+    // Durante hot reload do Vite, pode haver um momento onde o contexto não está disponível
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      const errorMsg = "useNVR must be used within a NVRProvider. Se você está vendo isso durante hot reload, recarregue a página (Ctrl+Shift+R ou F5).";
+      console.error('❌', errorMsg);
+      throw new Error(errorMsg);
+    }
     throw new Error("useNVR must be used within a NVRProvider");
   }
   return context;

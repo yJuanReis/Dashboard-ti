@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { useLocation } from "react-router-dom";
-import { LayoutDashboard, Key, IdCard, Mail, Video, HardDrive, FileText, Network, Server, Wrench, Settings } from "lucide-react";
+import { LayoutDashboard, Key, IdCard, Mail, Video, HardDrive, FileText, Network, Server, Wrench, Printer, Settings } from "lucide-react";
 
 type RecentItem = {
   path: string;
@@ -35,6 +35,7 @@ const navigationMeta: Record<
   "/gestaorede": { title: "Gestão de Rede", icon: Network },
   "/servidores": { title: "Servidores", icon: Server },
   "/chamados": { title: "Chamados", icon: Wrench },
+  "/impressoras": { title: "Impressoras", icon: Printer },
   "/configuracoes": { title: "Configurações", icon: Settings },
 };
 

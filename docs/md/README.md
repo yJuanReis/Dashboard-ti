@@ -96,6 +96,8 @@ Documentação específica de cada página/rota do sistema.
 - `gestao-rede.md` - Gestão de rede
 - `servidores.md` - Servidores
 - `chamados.md` - Chamados
+- `impressoras.md` - Gerenciamento de impressoras
+- `ramais.md` - Gerenciamento de ramais telefônicos
 - `configuracoes.md` - Configurações
 - `audit-logs.md` - Logs de auditoria
 - `security-test.md` - Teste de segurança

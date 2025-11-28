@@ -16,6 +16,7 @@ import zxcvbn from "zxcvbn";
 import { useAuth } from "@/contexts/AuthContext";
 import { logger } from "@/lib/logger";
 import { sanitizeText } from "@/lib/sanitize";
+import { logUpdate } from "@/lib/auditService";
 
 interface PasswordChangeModalProps {
   open: boolean;
@@ -97,6 +98,14 @@ export function PasswordChangeModal({
 
       // 2. Atualizar nome e remover flag de senha temporária no user_profiles
       logger.log("PasswordChangeModal: Tentando atualizar perfil - userId:", userId, "nome:", nomeSanitizado);
+      
+      // Busca dados antigos antes de atualizar (para o log de auditoria)
+      const { data: oldProfileData } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
       const { data: updateData, error: profileError } = await supabase
         .from("user_profiles")
         .update({
@@ -126,6 +135,18 @@ export function PasswordChangeModal({
       }
 
       logger.log("PasswordChangeModal: Perfil atualizado com sucesso:", updateData);
+      
+      // Registra log de auditoria
+      if (oldProfileData && updateData && updateData.length > 0) {
+        await logUpdate(
+          'user_profiles',
+          userId,
+          oldProfileData as Record<string, any>,
+          updateData[0] as Record<string, any>,
+          `Alterou senha e atualizou nome: ${userEmail}`
+        ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+      }
+      
       logger.log("PasswordChangeModal: Verificando se password_temporary foi atualizado para false...");
       
       // Verificar se realmente foi atualizado

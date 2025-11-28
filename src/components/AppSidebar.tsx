@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import zxcvbn from "zxcvbn";
 import { getPagesInMaintenance } from "@/lib/pagesMaintenanceService";
 import { logger } from "@/lib/logger";
+import { logUpdate } from "@/lib/auditService";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,7 @@ import {
   SidebarMenuItem,
   SidebarFooter,
   SidebarHeader,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 
@@ -65,9 +67,7 @@ type NavigationItem = NavigationItemConfig & {
   };
 };
 
-interface AppSidebarProps {
-  sidebarTriggerRef?: React.RefObject<HTMLButtonElement | null>;
-}
+interface AppSidebarProps {}
 
 const getBadgeClasses = (variant: "blue" | "gray" | "yellow") => {
   switch (variant) {
@@ -135,7 +135,7 @@ function calcularForcaSenha(senha: string): PasswordStrength {
   return strengths[score];
 }
 
-export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
+export function AppSidebar({}: AppSidebarProps) {
   const { state, setOpenMobile, isMobile, openMobile } = useSidebar();
   const location = useLocation();
   const { user } = useAuth();
@@ -210,18 +210,8 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
       firstNavItemRef.current.focus();
     }
 
-    // Quando fechar no mobile, restaurar foco no botão de menu (SidebarTrigger)
-    if (
-      isMobile &&
-      previousOpenMobileRef.current &&
-      !openMobile &&
-      sidebarTriggerRef?.current
-    ) {
-      sidebarTriggerRef.current.focus();
-    }
-
     previousOpenMobileRef.current = openMobile;
-  }, [isMobile, openMobile, sidebarTriggerRef]);
+  }, [isMobile, openMobile]);
 
   // Fechar sidebar mobile sempre que a rota mudar
   useEffect(() => {
@@ -445,10 +435,19 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
       // Atualizar também na tabela user_profiles se existir
       try {
-        const { error: profileError } = await supabase
+        // Busca dados antigos antes de atualizar (para o log de auditoria)
+        const { data: oldProfileData } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        const { data: updatedProfileData, error: profileError } = await supabase
           .from("user_profiles")
           .update({ nome: nomeExibicao.trim() })
-          .eq("user_id", user.id);
+          .eq("user_id", user.id)
+          .select()
+          .single();
 
         // Ignorar erro se a tabela não existir
         if (profileError) {
@@ -469,6 +468,15 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
           if (!isTableNotFound) {
             logger.warn("Erro ao atualizar perfil:", profileError);
           }
+        } else if (oldProfileData && updatedProfileData) {
+          // Registra log de auditoria
+          await logUpdate(
+            'user_profiles',
+            user.id,
+            oldProfileData as Record<string, any>,
+            updatedProfileData as Record<string, any>,
+            `Atualizou nome de exibição na sidebar: ${nomeExibicao.trim()}`
+          ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
         }
       } catch (profileErr) {
         // Ignorar erros de tabela não encontrada
@@ -624,15 +632,22 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
       {/* Header */}
       <SidebarHeader className="border-b border-sidebar-border px-4 py-3">
         {/* Desktop / tablet */}
-        <div className="hidden md:flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20">
-            <Waves className="w-5 h-5 text-white" />
-          </div>
-          {!isCollapsed && (
-            <div>
-              <h2 className="font-bold text-sidebar-foreground text-base tracking-tight">
-                BR Marinas
-              </h2>
+        <div className="hidden md:flex items-center gap-2">
+          {!isCollapsed ? (
+            <>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-blue-600 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-500/20 flex-shrink-0">
+                <Waves className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0 transition-opacity duration-300 ease-in-out">
+                <h2 className="font-bold text-sidebar-foreground text-base tracking-tight truncate">
+                  BR Marinas
+                </h2>
+              </div>
+              <SidebarTrigger className="hover:bg-sidebar-accent h-8 w-8 flex-shrink-0" />
+            </>
+          ) : (
+            <div className="w-full flex items-center justify-center">
+              <SidebarTrigger className="hover:bg-sidebar-accent h-8 w-8 flex-shrink-0" />
             </div>
           )}
         </div>
@@ -666,19 +681,26 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
       <SidebarContent className="p-2">
         {/* Navigation Group */}
-        <SidebarGroup className="p-2">
+        <SidebarGroup className={cn("transition-all duration-300 ease-in-out", isCollapsed ? "p-2" : "p-2")}>
           <SidebarGroupLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 py-1.5">
             {!isCollapsed && "Navegação"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className={cn(isCollapsed && "items-center")}>
               {filteredNavigationItems.map((item, index) => {
                 const Icon = item.icon;
                 const active = isActive(item.url);
                 
                 return (
-                  <SidebarMenuItem key={item.url}>
-                    <SidebarMenuButton asChild className="h-8 text-sm mb-0.5">
+                  <SidebarMenuItem key={item.url} className={cn(isCollapsed && "flex justify-center")}>
+                    <SidebarMenuButton 
+                      asChild 
+                      tooltip={isCollapsed ? item.title : undefined}
+                      className={cn(
+                        "text-sm mb-0.5 transition-all duration-300 ease-in-out",
+                        isCollapsed ? "h-10 w-10 justify-center items-center" : "h-8"
+                      )}
+                    >
                       <NavLink 
                         to={item.url}
                         aria-label={item.title}
@@ -689,19 +711,25 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
                             setOpenMobile(false);
                           }
                         }}
-                        className="transition-all duration-200 hover:bg-sidebar-accent text-sidebar-foreground flex items-center gap-2 px-2 py-1.5 rounded-md group"
+                        className={cn(
+                          "transition-all duration-300 ease-in-out hover:bg-sidebar-accent text-sidebar-foreground flex rounded-md group",
+                          isCollapsed ? "justify-center items-center w-10 h-10 p-0" : "items-center gap-2 px-2 py-1.5"
+                        )}
                         activeClassName="bg-sidebar-accent text-sidebar-primary font-semibold"
                       >
-                        <Icon className="w-3.5 h-3.5 flex-shrink-0" />
+                        <Icon className={cn(
+                          "flex-shrink-0 transition-all duration-300 ease-in-out",
+                          isCollapsed ? "w-5 h-5" : "w-3.5 h-3.5"
+                        )} />
                         {!isCollapsed && (
                           <>
-                            <span className="font-medium text-xs truncate flex-1">
+                            <span className="font-medium text-xs truncate flex-1 transition-opacity duration-300 ease-in-out">
                               {item.title}
                             </span>
                             {item.badge && (
                               <Badge 
                                 variant="outline" 
-                                className={`${getBadgeClasses(item.badge.variant)} text-[10px] px-1.5 py-0 h-4 shadow`}
+                                className={`${getBadgeClasses(item.badge.variant)} text-[10px] px-1.5 py-0 h-4 shadow transition-opacity duration-300 ease-in-out`}
                               >
                                 {item.badge.text}
                               </Badge>
@@ -746,7 +774,10 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
                 onClick={() => setNotificationsModalOpen(true)}
                 title="Notificações"
               >
-                <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+                <Bell className={cn(
+                  "text-muted-foreground transition-all",
+                  isCollapsed ? "w-4 h-4" : "w-3.5 h-3.5"
+                )} />
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -768,7 +799,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
           <div className="flex flex-col items-center gap-2">
             <button
               onClick={() => setSettingsModalOpen(true)}
-              className="w-7 h-7 bg-gradient-to-br from-primary/20 to-primary/30 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
+              className="w-8 h-8 bg-gradient-to-br from-primary/20 to-primary/30 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
               title="Configurações"
             >
               <span className="text-primary font-semibold text-[10px]">
@@ -778,20 +809,20 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-7 w-7"
+              className="h-8 w-8"
               onClick={() => setNotificationsModalOpen(true)}
               title="Notificações"
             >
-              <Bell className="w-3.5 h-3.5 text-muted-foreground" />
+              <Bell className="w-5 h-5 text-muted-foreground" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={logout}
-              className="h-7 w-7"
+              className="h-8 w-8"
               title="Sair"
             >
-              <LogOut className="w-3.5 h-3.5 text-muted-foreground" />
+              <LogOut className="w-5 h-5 text-muted-foreground" />
             </Button>
             <div className="scale-75">
               <ThemeToggle />

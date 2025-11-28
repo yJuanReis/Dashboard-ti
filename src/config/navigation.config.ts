@@ -10,6 +10,8 @@ import {
   Network,
   Server,
   Wrench,
+  Printer,
+  Phone,
   Settings,
 } from "lucide-react";
 
@@ -95,6 +97,16 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     title: "Chamados",
     url: "/chamados",
     icon: Wrench,
+  },
+  {
+    title: "Impressoras",
+    url: "/impressoras",
+    icon: Printer,
+  },
+  {
+    title: "Ramais",
+    url: "/ramais",
+    icon: Phone,
   },
   {
     title: "Configurações",

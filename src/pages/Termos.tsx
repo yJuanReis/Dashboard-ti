@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +87,23 @@ export default function TesteTermos() {
   const tab3Ref = useRef<HTMLLabelElement>(null);
   const gliderRef = useRef<HTMLSpanElement>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Ref para debounce do preview
+  const previewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Ref para armazenar a URL anterior do preview (para evitar recriação do useCallback)
+  const previewPdfUrlRef = useRef<string>("");
+  // Refs para armazenar os dados atuais (para evitar recriação do updatePreview)
+  const termoDataRef = useRef<TermoData>(termoData);
+  const camposNARef = useRef<Record<string, boolean>>(camposNA);
+  
+  // Atualizar refs quando os dados mudarem
+  useEffect(() => {
+    termoDataRef.current = termoData;
+  }, [termoData]);
+  
+  useEffect(() => {
+    camposNARef.current = camposNA;
+  }, [camposNA]);
   
   // Estado para controlar o hover
   const [hoveredTab, setHoveredTab] = useState<number | null>(null);
@@ -262,21 +279,14 @@ export default function TesteTermos() {
     setCamposNA({});
   }, [tipoModelo]);
 
-  // Atualizar preview quando os dados mudarem
-  useEffect(() => {
-    if (pdfBytes) {
-      updatePreview();
-    }
-  }, [termoData, pdfBytes, camposNA]);
-
   // Limpar URL do preview quando o componente desmontar
   useEffect(() => {
     return () => {
-      if (previewPdfUrl) {
-        URL.revokeObjectURL(previewPdfUrl);
+      if (previewPdfUrlRef.current) {
+        URL.revokeObjectURL(previewPdfUrlRef.current);
       }
     };
-  }, [previewPdfUrl]);
+  }, []);
 
   // ============================================
   // CONFIGURAÇÃO DE CAMPOS DO PDF
@@ -597,29 +607,54 @@ export default function TesteTermos() {
     }
   };
 
-  const updatePreview = async () => {
+  const updatePreview = useCallback(async () => {
     if (!pdfBytes) return;
 
     try {
       const pdfDoc = await PDFDocument.load(pdfBytes);
-      await fillPdfFields(pdfDoc);
+      // Usar os valores atuais das refs
+      await fillPdfFields(pdfDoc, termoDataRef.current, camposNARef.current);
 
       // Gerar bytes do PDF atualizado
       const pdfBytesUpdated = await pdfDoc.save();
       
-      // Limpar URL anterior se existir
-      if (previewPdfUrl) {
-        URL.revokeObjectURL(previewPdfUrl);
+      // Limpar URL anterior se existir (usando ref para evitar dependência)
+      if (previewPdfUrlRef.current) {
+        URL.revokeObjectURL(previewPdfUrlRef.current);
       }
       
       // Criar URL para preview
       const blob = new Blob([pdfBytesUpdated as unknown as BlobPart], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
+      previewPdfUrlRef.current = url;
       setPreviewPdfUrl(url);
     } catch (error) {
       logger.error("Erro ao atualizar preview do PDF:", error);
     }
-  };
+  }, [pdfBytes, tipoModelo]);
+
+  // Atualizar preview quando os dados mudarem (com debounce para evitar piscar)
+  useEffect(() => {
+    if (pdfBytes) {
+      // Limpar timeout anterior se existir
+      if (previewTimeoutRef.current) {
+        clearTimeout(previewTimeoutRef.current);
+      }
+      
+      // Criar novo timeout para atualizar o preview após 500ms de inatividade
+      previewTimeoutRef.current = setTimeout(() => {
+        updatePreview();
+      }, 500);
+      
+      // Limpar timeout quando o componente desmontar ou quando pdfBytes mudar
+      return () => {
+        if (previewTimeoutRef.current) {
+          clearTimeout(previewTimeoutRef.current);
+        }
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termoData, pdfBytes, camposNA]);
 
   const handleInputChange = (field: keyof TermoData, value: string) => {
     setTermoData((prev) => ({
@@ -935,915 +970,910 @@ export default function TesteTermos() {
   };
 
   return (
-    <div className={isMobile ? "min-h-screen overflow-y-auto" : "h-[calc(100vh-3.5rem)] overflow-hidden flex items-center justify-center"}>
-      <div className={`${isMobile ? "p-2" : "p-3 md:p-4 lg:p-6"} w-full max-w-[95vw] mx-auto ${isMobile ? "" : "h-full flex flex-col"}`}>
-
-        <div className={`grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-4 ${isMobile ? "" : "flex-1 min-h-0"}`}>
-        {/* Formulário */}
-        <Card className={`shadow-lg border-border/50 ${isMobile ? "" : "lg:col-span-3"} flex flex-col`}>
-          <CardContent className={`space-y-2 md:space-y-3 ${isMobile ? "" : "flex-1 overflow-y-auto"} pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4`}>
-            {/* Seletor de Modelo */}
-            <div>
-              <Label htmlFor="tipoModelo" className="text-sm mb-2 block">Tipo de Termo</Label>
-              <div className="tabs-container" ref={tabsContainerRef}>
-                <div className="tabs">
-                  <input 
-                    type="radio" 
-                    id="radio-1" 
-                    name="tabs" 
-                    checked={tipoModelo === "computadores"}
-                    onChange={() => setTipoModelo("computadores")}
-                  />
-                  <label 
-                    className="tab" 
-                    htmlFor="radio-1"
-                    ref={tab1Ref}
-                    onMouseEnter={() => setHoveredTab(0)}
-                    onMouseLeave={() => setHoveredTab(null)}
-                  >
-                    Computadores
-                  </label>
-                  <input 
-                    type="radio" 
-                    id="radio-2" 
-                    name="tabs"
-                    checked={tipoModelo === "celulares"}
-                    onChange={() => setTipoModelo("celulares")}
-                  />
-                  <label 
-                    className="tab" 
-                    htmlFor="radio-2"
-                    ref={tab2Ref}
-                    onMouseEnter={() => setHoveredTab(1)}
-                    onMouseLeave={() => setHoveredTab(null)}
-                  >
-                    Celulares
-                  </label>
-                  <input 
-                    type="radio" 
-                    id="radio-3" 
-                    name="tabs"
-                    checked={tipoModelo === "em_breve"}
-                    onChange={() => setTipoModelo("em_breve")}
-                  />
-                  <label 
-                    className="tab" 
-                    htmlFor="radio-3"
-                    ref={tab3Ref}
-                    onMouseEnter={() => setHoveredTab(2)}
-                    onMouseLeave={() => setHoveredTab(null)}
-                  >
-                    Em breve
-                  </label>
-                  <span className="glider" ref={gliderRef}></span>
-                </div>
-              </div>
-            </div>
-
-            {/* Campos do Termo */}
-            <div className="space-y-2">
-              {tipoModelo === "em_breve" ? (
-                <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-                  <div className="flex items-start gap-3">
-                    <FileText className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-                        Aguardando atualização
-                      </p>
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        Estamos aguardando a qualidade informar os novos modelos de termos.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-              <div className="grid grid-cols-1 gap-2">
-                {tipoModelo === "computadores" ? (
-                  <>
-                    <div>
-                      <Label htmlFor="equipamento" className="text-sm">Equipamento *</Label>
-                      <Input
-                        id="equipamento"
-                        value={termoData.equipamento}
-                        onChange={(e) =>
-                          handleInputChange("equipamento", e.target.value)
-                        }
-                        placeholder="Ex: Notebook, Desktop, etc."
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="marca" className="text-sm">Marca *</Label>
-                      <Input
-                        id="marca"
-                        value={termoData.marca}
-                        onChange={(e) => handleInputChange("marca", e.target.value)}
-                        placeholder="Ex: ACER, Dell, HP, etc."
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="modelo" className="text-sm">Modelo *</Label>
-                      <Input
-                        id="modelo"
-                        value={termoData.modelo}
-                        onChange={(e) => handleInputChange("modelo", e.target.value)}
-                        placeholder="Ex: Aspire A515-57"
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="numeroSerie" className="text-sm">Número de Série *</Label>
-                      <Input
-                        id="numeroSerie"
-                        value={termoData.numeroSerie}
-                        onChange={(e) =>
-                          handleInputChange("numeroSerie", e.target.value)
-                        }
-                        placeholder="Número de série"
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="valorMercado" className="text-sm">Valor Atual de Mercado *</Label>
-                      <div className="relative">
-                        <Input
-                          id="valorMercado"
-                          value={termoData.valorMercado}
-                          onChange={(e) =>
-                            handleInputChange("valorMercado", e.target.value)
-                          }
-                          placeholder="Ex: R$2.989,10"
-                          disabled={camposNA.valorMercado || false}
-                          className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                        />
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                          <NACheckbox
-                            id="valorMercado-na"
-                            checked={camposNA.valorMercado || false}
-                            onCheckedChange={(checked) =>
-                              handleToggleNA("valorMercado", checked)
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Campos específicos para celulares - Grid de 2 colunas */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="col-span-1 sm:col-span-2">
-                        <Label htmlFor="aparelho" className="text-sm">Aparelho *</Label>
-                        <Input
-                          id="aparelho"
-                          value={termoData.aparelho || ""}
-                          onChange={(e) =>
-                            handleInputChange("aparelho", e.target.value)
-                          }
-                          placeholder="Ex: iPhone 14, Samsung Galaxy S23"
-                          className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="numero" className="text-sm">Número</Label>
-                        <div className="relative">
-                          <Input
-                            id="numero"
-                            value={termoData.numero || ""}
-                            onChange={(e) =>
-                              handleInputChange("numero", e.target.value)
-                            }
-                            placeholder="Número"
-                            disabled={camposNA.numero || false}
-                            className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="numero-na"
-                              checked={camposNA.numero || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("numero", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="chip" className="text-sm">Chip</Label>
-                        <div className="relative">
-                          <Input
-                            id="chip"
-                            value={termoData.chip || ""}
-                            onChange={(e) =>
-                              handleInputChange("chip", e.target.value)
-                            }
-                            placeholder="Número do chip"
-                            disabled={camposNA.chip || false}
-                            className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="chip-na"
-                              checked={camposNA.chip || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("chip", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <Label htmlFor="numeroSerie" className="text-sm">Número de Série *</Label>
-                        <Input
-                          id="numeroSerie"
-                          value={termoData.numeroSerie}
-                          onChange={(e) =>
-                            handleInputChange("numeroSerie", e.target.value)
-                          }
-                          placeholder="Número de série"
-                          className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label htmlFor="imei" className="text-sm">IMEI * <span className="text-xs text-muted-foreground"></span></Label>
-                        <div className="relative">
-                          <Input
-                            id="imei"
-                            value={termoData.imei || ""}
-                            onChange={(e) =>
-                              handleInputChange("imei", e.target.value)
-                            }
-                            placeholder='IMEI ou "N/A"'
-                            disabled={camposNA.imei || false}
-                            className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="imei-na"
-                              checked={camposNA.imei || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("imei", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <Label htmlFor="acessorio" className="text-sm">Acessório</Label>
-                        <div className="relative">
-                          <Input
-                            id="acessorio"
-                            value={termoData.acessorio || ""}
-                            onChange={(e) =>
-                              handleInputChange("acessorio", e.target.value)
-                            }
-                            placeholder="Ex: Capa, Carregador"
-                            disabled={camposNA.acessorio || false}
-                            className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="acessorio-na"
-                              checked={camposNA.acessorio || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("acessorio", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="valorAparelho" className="text-sm">Valor do Aparelho *</Label>
-                        <div className="relative">
-                          <Input
-                            id="valorAparelho"
-                            value={termoData.valorAparelho || ""}
-                            onChange={(e) =>
-                              handleInputChange("valorAparelho", e.target.value)
-                            }
-                            placeholder="Ex: R$2.989,10"
-                            disabled={camposNA.valorAparelho || false}
-                            className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="valorAparelho-na"
-                              checked={camposNA.valorAparelho || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("valorAparelho", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="valorChip" className="text-sm">
-                          Valor do Chip {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="valorChip"
-                            value={termoData.valorChip || ""}
-                            onChange={(e) =>
-                              handleInputChange("valorChip", e.target.value)
-                            }
-                            placeholder="Ex: R$50,00"
-                            disabled={camposNA.valorChip || false}
-                            className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="valorChip-na"
-                              checked={camposNA.valorChip || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("valorChip", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="minutagem" className="text-sm">
-                          Minutagem {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="minutagem"
-                            value={termoData.minutagem || ""}
-                            onChange={(e) =>
-                              handleInputChange("minutagem", e.target.value)
-                            }
-                            placeholder="Minutagem"
-                            disabled={camposNA.minutagem || false}
-                            className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="minutagem-na"
-                              checked={camposNA.minutagem || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("minutagem", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="dadosMoveis" className="text-sm">
-                          Dados Móveis {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="dadosMoveis"
-                            value={termoData.dadosMoveis || ""}
-                            onChange={(e) =>
-                              handleInputChange("dadosMoveis", e.target.value)
-                            }
-                            placeholder="Dados móveis"
-                            disabled={camposNA.dadosMoveis || false}
-                            className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
-                          />
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                            <NACheckbox
-                              id="dadosMoveis-na"
-                              checked={camposNA.dadosMoveis || false}
-                              onCheckedChange={(checked) =>
-                                handleToggleNA("dadosMoveis", checked)
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-                {/* Data - Dia, Mês e Ano */}
-                <div>
-                  <Label className="text-sm">Data <span className="text-xs text-muted-foreground"></span></Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* Dia */}
-                    <div>
-                      <Input
-                        id="dia"
-                        value={termoData.dia}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, "").slice(0, 2);
-                          handleInputChange("dia", value);
-                        }}
-                        placeholder="Dia"
-                        maxLength={2}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    {/* Mês */}
-                    <div>
-                      <Input
-                        id="mes"
-                        value={termoData.mes}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, "").slice(0, 2);
-                          handleInputChange("mes", value);
-                        }}
-                        placeholder="Mês"
-                        maxLength={2}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    {/* Ano */}
-                    <div>
-                      <Input
-                        id="ano"
-                        value={termoData.ano}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, "").slice(0, 4);
-                          handleInputChange("ano", value);
-                        }}
-                        placeholder="Ano *"
-                        maxLength={4}
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              )}
-            </div>
-
-            {/* Botões de Ação */}
-            <div className="space-y-2 pt-3 border-t">
-              <Button
-                onClick={handleReset}
-                variant="outline"
-                className="w-full h-8 text-sm"
+    <div className={`grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-4 ${isMobile ? "" : "flex-1 min-h-0"}`}>
+    {/* Formulário */}
+    <Card className={`shadow-lg border-border/50 ${isMobile ? "" : "lg:col-span-3"} flex flex-col`}>
+      <CardContent className={`space-y-2 md:space-y-3 ${isMobile ? "" : "flex-1 overflow-y-auto"} pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4`}>
+        {/* Seletor de Modelo */}
+        <div>
+          <Label htmlFor="tipoModelo" className="text-sm mb-2 block">Tipo de Termo</Label>
+          <div className="tabs-container" ref={tabsContainerRef}>
+            <div className="tabs">
+              <input 
+                type="radio" 
+                id="radio-1" 
+                name="tabs" 
+                checked={tipoModelo === "computadores"}
+                onChange={() => setTipoModelo("computadores")}
+              />
+              <label 
+                className="tab" 
+                htmlFor="radio-1"
+                ref={tab1Ref}
+                onMouseEnter={() => setHoveredTab(0)}
+                onMouseLeave={() => setHoveredTab(null)}
               >
-                <RefreshCw className="w-3 h-3 mr-1.5" />
-                Limpar
-              </Button>
-              <Button
-                onClick={handleDownload}
-                className="w-full h-8 text-sm"
-                disabled={!pdfBytes || tipoModelo === "em_breve"}
+                Computadores
+              </label>
+              <input 
+                type="radio" 
+                id="radio-2" 
+                name="tabs"
+                checked={tipoModelo === "celulares"}
+                onChange={() => setTipoModelo("celulares")}
+              />
+              <label 
+                className="tab" 
+                htmlFor="radio-2"
+                ref={tab2Ref}
+                onMouseEnter={() => setHoveredTab(1)}
+                onMouseLeave={() => setHoveredTab(null)}
               >
-                <Download className="w-3 h-3 mr-1.5" />
-                Baixar PDF
-              </Button>
-              <Button
-                onClick={handlePrint}
-                variant="outline"
-                className="w-full h-8 text-sm border-[#d64d4d] text-[#d64d4d] hover:bg-[#d64d4d] hover:text-white"
-                disabled={!pdfBytes || tipoModelo === "em_breve"}
+                Celulares
+              </label>
+              <input 
+                type="radio" 
+                id="radio-3" 
+                name="tabs"
+                checked={tipoModelo === "em_breve"}
+                onChange={() => setTipoModelo("em_breve")}
+              />
+              <label 
+                className="tab" 
+                htmlFor="radio-3"
+                ref={tab3Ref}
+                onMouseEnter={() => setHoveredTab(2)}
+                onMouseLeave={() => setHoveredTab(null)}
               >
-                <Printer className="w-3 h-3 mr-1.5" />
-                Imprimir
-              </Button>
+                Em breve
+              </label>
+              <span className="glider" ref={gliderRef}></span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Preview */}
-        {!isMobile && (
-        <Card className="shadow-lg border-border/50 lg:col-span-6 flex flex-col">
-          <style>{`
-            .hand-container {
-              --skin-color: #E4C560;
-              --tap-speed: 0.6s;
-              --tap-stagger: 0.1s;
-              position: relative;
-              width: 80px;
-              height: 60px;
-              margin: 0 auto;
-            }
-
-            .hand-container:before {
-              content: '';
-              display: block;
-              width: 180%;
-              height: 75%;
-              position: absolute;
-              top: 70%;
-              right: 20%;
-              background-color: black;
-              border-radius: 40px 10px;
-              filter: blur(10px);
-              opacity: 0.3;
-            }
-
-            .palm {
-              display: block;
-              width: 100%;
-              height: 100%;
-              position: absolute;
-              top: 0;
-              left: 0;
-              background-color: var(--skin-color);
-              border-radius: 10px 40px;
-            }
-
-            .thumb {
-              position: absolute;
-              width: 120%;
-              height: 38px;
-              background-color: var(--skin-color);
-              bottom: -18%;
-              right: 1%;
-              transform-origin: calc(100% - 20px) 20px;
-              transform: rotate(-20deg);
-              border-radius: 30px 20px 20px 10px;
-              border-bottom: 2px solid rgba(0, 0, 0, 0.1);
-              border-left: 2px solid rgba(0, 0, 0, 0.1);
-            }
-
-            .thumb:after {
-              width: 20%;
-              height: 60%;
-              content: '';
-              background-color: rgba(255, 255, 255, 0.3);
-              position: absolute;
-              bottom: -8%;
-              left: 5px;
-              border-radius: 60% 10% 10% 30%;
-              border-right: 2px solid rgba(0, 0, 0, 0.05);
-            }
-
-            .finger {
-              position: absolute;
-              width: 80%;
-              height: 35px;
-              background-color: var(--skin-color);
-              bottom: 32%;
-              right: 64%;
-              transform-origin: 100% 20px;
-              animation-duration: calc(var(--tap-speed) * 2);
-              animation-timing-function: ease-in-out;
-              animation-iteration-count: infinite;
-              transform: rotate(10deg);
-            }
-
-            .finger:before {
-              content: '';
-              position: absolute;
-              width: 140%;
-              height: 30px;
-              background-color: var(--skin-color);
-              bottom: 8%;
-              right: 65%;
-              transform-origin: calc(100% - 20px) 20px;
-              transform: rotate(-60deg);
-              border-radius: 20px;
-            }
-
-            .finger:nth-child(1) {
-              animation-delay: 0;
-              filter: brightness(70%);
-              animation-name: tap-upper-1;
-            }
-
-            .finger:nth-child(2) {
-              animation-delay: var(--tap-stagger);
-              filter: brightness(80%);
-              animation-name: tap-upper-2;
-            }
-
-            .finger:nth-child(3) {
-              animation-delay: calc(var(--tap-stagger) * 2);
-              filter: brightness(90%);
-              animation-name: tap-upper-3;
-            }
-
-            .finger:nth-child(4) {
-              animation-delay: calc(var(--tap-stagger) * 3);
-              filter: brightness(100%);
-              animation-name: tap-upper-4;
-            }
-
-            @keyframes tap-upper-1 {
-              0%, 50%, 100% {
-                transform: rotate(10deg) scale(0.4);
-              }
-              40% {
-                transform: rotate(50deg) scale(0.4);
-              }
-            }
-
-            @keyframes tap-upper-2 {
-              0%, 50%, 100% {
-                transform: rotate(10deg) scale(0.6);
-              }
-              40% {
-                transform: rotate(50deg) scale(0.6);
-              }
-            }
-
-            @keyframes tap-upper-3 {
-              0%, 50%, 100% {
-                transform: rotate(10deg) scale(0.8);
-              }
-              40% {
-                transform: rotate(50deg) scale(0.8);
-              }
-            }
-
-            @keyframes tap-upper-4 {
-              0%, 50%, 100% {
-                transform: rotate(10deg) scale(1);
-              }
-              40% {
-                transform: rotate(50deg) scale(1);
-              }
-            }
-          `}</style>
-          <CardContent className="flex-1 min-h-0 flex flex-col pt-6">
-            {tipoModelo === "em_breve" ? (
-              <div className="flex items-center justify-center flex-1 border rounded-lg bg-muted/30">
-                <div className="text-center space-y-10 max-w-md p-10">
-                  <div className="hand-container">
-                    <div className="finger"></div>
-                    <div className="finger"></div>
-                    <div className="finger"></div>
-                    <div className="finger"></div>
-                    <div className="palm"></div>
-                    <div className="thumb"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-semibold text-foreground">
-                      Modelos em breve
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Estamos aguardando a qualidade informar os novos modelos de termos.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : previewPdfUrl ? (
-              <div className="border rounded-lg overflow-hidden bg-white flex-1 flex flex-col min-h-[400px] md:min-h-[600px]">
-                <iframe
-                  key={pdfVersion}
-                  src={`${previewPdfUrl}#page=2&toolbar=0&t=${pdfVersion}`}
-                  className="w-full flex-1 border-0 min-h-[400px] md:min-h-[600px]"
-                  title="Preview do Termo - Página 2"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center flex-1 border rounded-lg bg-muted/30">
-                <div className="text-center space-y-2">
-                  <Eye className="w-12 h-12 mx-auto text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    {pdfBytes 
-                      ? 'Carregando preview...'
-                      : 'Carregando template do termo...'}
+        {/* Campos do Termo */}
+        <div className="space-y-2">
+          {tipoModelo === "em_breve" ? (
+            <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+              <div className="flex items-start gap-3">
+                <FileText className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                    Aguardando atualização
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Estamos aguardando a qualidade informar os novos modelos de termos.
                   </p>
                 </div>
               </div>
+            </div>
+          ) : (
+          <div className="grid grid-cols-1 gap-2">
+            {tipoModelo === "computadores" ? (
+              <>
+                <div>
+                  <Label htmlFor="equipamento" className="text-sm">Equipamento *</Label>
+                  <Input
+                    id="equipamento"
+                    value={termoData.equipamento}
+                    onChange={(e) =>
+                      handleInputChange("equipamento", e.target.value)
+                    }
+                    placeholder="Ex: Notebook, Desktop, etc."
+                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="marca" className="text-sm">Marca *</Label>
+                  <Input
+                    id="marca"
+                    value={termoData.marca}
+                    onChange={(e) => handleInputChange("marca", e.target.value)}
+                    placeholder="Ex: ACER, Dell, HP, etc."
+                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="modelo" className="text-sm">Modelo *</Label>
+                  <Input
+                    id="modelo"
+                    value={termoData.modelo}
+                    onChange={(e) => handleInputChange("modelo", e.target.value)}
+                    placeholder="Ex: Aspire A515-57"
+                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="numeroSerie" className="text-sm">Número de Série *</Label>
+                  <Input
+                    id="numeroSerie"
+                    value={termoData.numeroSerie}
+                    onChange={(e) =>
+                      handleInputChange("numeroSerie", e.target.value)
+                    }
+                    placeholder="Número de série"
+                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="valorMercado" className="text-sm">Valor Atual de Mercado *</Label>
+                  <div className="relative">
+                    <Input
+                      id="valorMercado"
+                      value={termoData.valorMercado}
+                      onChange={(e) =>
+                        handleInputChange("valorMercado", e.target.value)
+                      }
+                      placeholder="Ex: R$2.989,10"
+                      disabled={camposNA.valorMercado || false}
+                      className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                      <NACheckbox
+                        id="valorMercado-na"
+                        checked={camposNA.valorMercado || false}
+                        onCheckedChange={(checked) =>
+                          handleToggleNA("valorMercado", checked)
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Campos específicos para celulares - Grid de 2 colunas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="col-span-1 sm:col-span-2">
+                    <Label htmlFor="aparelho" className="text-sm">Aparelho *</Label>
+                    <Input
+                      id="aparelho"
+                      value={termoData.aparelho || ""}
+                      onChange={(e) =>
+                        handleInputChange("aparelho", e.target.value)
+                      }
+                      placeholder="Ex: iPhone 14, Samsung Galaxy S23"
+                      className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="numero" className="text-sm">Número</Label>
+                    <div className="relative">
+                      <Input
+                        id="numero"
+                        value={termoData.numero || ""}
+                        onChange={(e) =>
+                          handleInputChange("numero", e.target.value)
+                        }
+                        placeholder="Número"
+                        disabled={camposNA.numero || false}
+                        className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="numero-na"
+                          checked={camposNA.numero || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("numero", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="chip" className="text-sm">Chip</Label>
+                    <div className="relative">
+                      <Input
+                        id="chip"
+                        value={termoData.chip || ""}
+                        onChange={(e) =>
+                          handleInputChange("chip", e.target.value)
+                        }
+                        placeholder="Número do chip"
+                        disabled={camposNA.chip || false}
+                        className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="chip-na"
+                          checked={camposNA.chip || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("chip", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="numeroSerie" className="text-sm">Número de Série *</Label>
+                    <Input
+                      id="numeroSerie"
+                      value={termoData.numeroSerie}
+                      onChange={(e) =>
+                        handleInputChange("numeroSerie", e.target.value)
+                      }
+                      placeholder="Número de série"
+                      className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="imei" className="text-sm">IMEI * <span className="text-xs text-muted-foreground"></span></Label>
+                    <div className="relative">
+                      <Input
+                        id="imei"
+                        value={termoData.imei || ""}
+                        onChange={(e) =>
+                          handleInputChange("imei", e.target.value)
+                        }
+                        placeholder='IMEI ou "N/A"'
+                        disabled={camposNA.imei || false}
+                        className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="imei-na"
+                          checked={camposNA.imei || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("imei", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <Label htmlFor="acessorio" className="text-sm">Acessório</Label>
+                    <div className="relative">
+                      <Input
+                        id="acessorio"
+                        value={termoData.acessorio || ""}
+                        onChange={(e) =>
+                          handleInputChange("acessorio", e.target.value)
+                        }
+                        placeholder="Ex: Capa, Carregador"
+                        disabled={camposNA.acessorio || false}
+                        className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="acessorio-na"
+                          checked={camposNA.acessorio || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("acessorio", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="valorAparelho" className="text-sm">Valor do Aparelho *</Label>
+                    <div className="relative">
+                      <Input
+                        id="valorAparelho"
+                        value={termoData.valorAparelho || ""}
+                        onChange={(e) =>
+                          handleInputChange("valorAparelho", e.target.value)
+                        }
+                        placeholder="Ex: R$2.989,10"
+                        disabled={camposNA.valorAparelho || false}
+                        className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="valorAparelho-na"
+                          checked={camposNA.valorAparelho || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("valorAparelho", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="valorChip" className="text-sm">
+                      Valor do Chip {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="valorChip"
+                        value={termoData.valorChip || ""}
+                        onChange={(e) =>
+                          handleInputChange("valorChip", e.target.value)
+                        }
+                        placeholder="Ex: R$50,00"
+                        disabled={camposNA.valorChip || false}
+                        className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="valorChip-na"
+                          checked={camposNA.valorChip || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("valorChip", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="minutagem" className="text-sm">
+                      Minutagem {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="minutagem"
+                        value={termoData.minutagem || ""}
+                        onChange={(e) =>
+                          handleInputChange("minutagem", e.target.value)
+                        }
+                        placeholder="Minutagem"
+                        disabled={camposNA.minutagem || false}
+                        className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="minutagem-na"
+                          checked={camposNA.minutagem || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("minutagem", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="dadosMoveis" className="text-sm">
+                      Dados Móveis {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="dadosMoveis"
+                        value={termoData.dadosMoveis || ""}
+                        onChange={(e) =>
+                          handleInputChange("dadosMoveis", e.target.value)
+                        }
+                        placeholder="Dados móveis"
+                        disabled={camposNA.dadosMoveis || false}
+                        className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
+                      />
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                        <NACheckbox
+                          id="dadosMoveis-na"
+                          checked={camposNA.dadosMoveis || false}
+                          onCheckedChange={(checked) =>
+                            handleToggleNA("dadosMoveis", checked)
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
-          </CardContent>
-        </Card>
-        )}
-
-        {/* Card de Ações Rápidas */}
-        {!isMobile && (
-        <Card className="shadow-lg border-border/50 lg:col-span-3 flex flex-col">
-          <CardHeader className="flex-shrink-0">
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="w-5 h-5" />
-              Ações Rápidas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 flex-1 overflow-y-auto">
-            {/* Botões de Acesso Rápido */}
-            <div className="space-y-3">
-
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="h-auto p-3 flex flex-col items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-green-300 hover:border-green-400 bg-gradient-to-br from-green-50 to-green-100/50 hover:from-green-100 hover:to-green-200 dark:from-green-950/30 dark:to-green-900/20 dark:border-green-800 dark:hover:border-green-700"
-                >
-                  <a
-                    href={linkModeloPC}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-center"
-                  >
-                    <Laptop className="w-5 h-5 text-green-600 dark:text-green-400" />
-                    <span className="font-semibold text-xs text-green-700 dark:text-green-300">
-                    <b> Modelo</b> 
-                    <br />Computadores
-                    <br />e Periféricos
-                    </span>
-                  </a>
-                </Button>
-
-                <Button
-                  asChild
-                  variant="outline"
-                  className="h-auto p-3 flex flex-col items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-purple-300 hover:border-purple-400 bg-gradient-to-br from-purple-50 to-purple-100/50 hover:from-purple-100 hover:to-purple-200 dark:from-purple-950/30 dark:to-purple-900/20 dark:border-purple-800 dark:hover:border-purple-700"
-                >
-                  <a
-                    href={linkModeloCelular}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-center"
-                  >
-                    <Smartphone className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                    <span className="font-semibold text-xs text-purple-700 dark:text-purple-300">
-                    <b> Modelo</b> 
-                    <br />Smartphone e Tablet
-                    </span>
-                  </a>
-                </Button>
+            {/* Data - Dia, Mês e Ano */}
+            <div>
+              <Label className="text-sm">Data <span className="text-xs text-muted-foreground"></span></Label>
+              <div className="grid grid-cols-3 gap-2">
+                {/* Dia */}
+                <div>
+                  <Input
+                    id="dia"
+                    value={termoData.dia}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 2);
+                      handleInputChange("dia", value);
+                    }}
+                    placeholder="Dia"
+                    maxLength={2}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                {/* Mês */}
+                <div>
+                  <Input
+                    id="mes"
+                    value={termoData.mes}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 2);
+                      handleInputChange("mes", value);
+                    }}
+                    placeholder="Mês"
+                    maxLength={2}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                {/* Ano */}
+                <div>
+                  <Input
+                    id="ano"
+                    value={termoData.ano}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      handleInputChange("ano", value);
+                    }}
+                    placeholder="Ano *"
+                    maxLength={4}
+                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                  />
+                </div>
               </div>
+            </div>
+          </div>
+          )}
+        </div>
 
+        {/* Botões de Ação */}
+        <div className="space-y-2 pt-3 border-t">
+          <Button
+            onClick={handleReset}
+            variant="outline"
+            className="w-full h-8 text-sm"
+          >
+            <RefreshCw className="w-3 h-3 mr-1.5" />
+            Limpar
+          </Button>
+          <Button
+            onClick={handleDownload}
+            className="w-full h-8 text-sm"
+            disabled={!pdfBytes || tipoModelo === "em_breve"}
+          >
+            <Download className="w-3 h-3 mr-1.5" />
+            Baixar PDF
+          </Button>
+          <Button
+            onClick={handlePrint}
+            variant="outline"
+            className="w-full h-8 text-sm border-[#d64d4d] text-[#d64d4d] hover:bg-[#d64d4d] hover:text-white"
+            disabled={!pdfBytes || tipoModelo === "em_breve"}
+          >
+            <Printer className="w-3 h-3 mr-1.5" />
+            Imprimir
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+
+    {/* Preview */}
+    {!isMobile && (
+    <Card className="shadow-lg border-border/50 lg:col-span-6 flex flex-col">
+      <style>{`
+        .hand-container {
+          --skin-color: #E4C560;
+          --tap-speed: 0.6s;
+          --tap-stagger: 0.1s;
+          position: relative;
+          width: 80px;
+          height: 60px;
+          margin: 0 auto;
+        }
+
+        .hand-container:before {
+          content: '';
+          display: block;
+          width: 180%;
+          height: 75%;
+          position: absolute;
+          top: 70%;
+          right: 20%;
+          background-color: black;
+          border-radius: 40px 10px;
+          filter: blur(10px);
+          opacity: 0.3;
+        }
+
+        .palm {
+          display: block;
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          top: 0;
+          left: 0;
+          background-color: var(--skin-color);
+          border-radius: 10px 40px;
+        }
+
+        .thumb {
+          position: absolute;
+          width: 120%;
+          height: 38px;
+          background-color: var(--skin-color);
+          bottom: -18%;
+          right: 1%;
+          transform-origin: calc(100% - 20px) 20px;
+          transform: rotate(-20deg);
+          border-radius: 30px 20px 20px 10px;
+          border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+          border-left: 2px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .thumb:after {
+          width: 20%;
+          height: 60%;
+          content: '';
+          background-color: rgba(255, 255, 255, 0.3);
+          position: absolute;
+          bottom: -8%;
+          left: 5px;
+          border-radius: 60% 10% 10% 30%;
+          border-right: 2px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .finger {
+          position: absolute;
+          width: 80%;
+          height: 35px;
+          background-color: var(--skin-color);
+          bottom: 32%;
+          right: 64%;
+          transform-origin: 100% 20px;
+          animation-duration: calc(var(--tap-speed) * 2);
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+          transform: rotate(10deg);
+        }
+
+        .finger:before {
+          content: '';
+          position: absolute;
+          width: 140%;
+          height: 30px;
+          background-color: var(--skin-color);
+          bottom: 8%;
+          right: 65%;
+          transform-origin: calc(100% - 20px) 20px;
+          transform: rotate(-60deg);
+          border-radius: 20px;
+        }
+
+        .finger:nth-child(1) {
+          animation-delay: 0;
+          filter: brightness(70%);
+          animation-name: tap-upper-1;
+        }
+
+        .finger:nth-child(2) {
+          animation-delay: var(--tap-stagger);
+          filter: brightness(80%);
+          animation-name: tap-upper-2;
+        }
+
+        .finger:nth-child(3) {
+          animation-delay: calc(var(--tap-stagger) * 2);
+          filter: brightness(90%);
+          animation-name: tap-upper-3;
+        }
+
+        .finger:nth-child(4) {
+          animation-delay: calc(var(--tap-stagger) * 3);
+          filter: brightness(100%);
+          animation-name: tap-upper-4;
+        }
+
+        @keyframes tap-upper-1 {
+          0%, 50%, 100% {
+            transform: rotate(10deg) scale(0.4);
+          }
+          40% {
+            transform: rotate(50deg) scale(0.4);
+          }
+        }
+
+        @keyframes tap-upper-2 {
+          0%, 50%, 100% {
+            transform: rotate(10deg) scale(0.6);
+          }
+          40% {
+            transform: rotate(50deg) scale(0.6);
+          }
+        }
+
+        @keyframes tap-upper-3 {
+          0%, 50%, 100% {
+            transform: rotate(10deg) scale(0.8);
+          }
+          40% {
+            transform: rotate(50deg) scale(0.8);
+          }
+        }
+
+        @keyframes tap-upper-4 {
+          0%, 50%, 100% {
+            transform: rotate(10deg) scale(1);
+          }
+          40% {
+            transform: rotate(50deg) scale(1);
+          }
+        }
+      `}</style>
+      <CardContent className="flex-1 min-h-0 flex flex-col pt-6">
+        {tipoModelo === "em_breve" ? (
+          <div className="flex items-center justify-center flex-1 border rounded-lg bg-muted/30">
+            <div className="text-center space-y-10 max-w-md p-10">
+              <div className="hand-container">
+                <div className="finger"></div>
+                <div className="finger"></div>
+                <div className="finger"></div>
+                <div className="finger"></div>
+                <div className="palm"></div>
+                <div className="thumb"></div>
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-foreground">
+                  Modelos em breve
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Estamos aguardando a qualidade informar os novos modelos de termos.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : previewPdfUrl ? (
+          <div className="border rounded-lg overflow-hidden bg-white flex-1 flex flex-col min-h-[400px] md:min-h-[600px]">
+            <iframe
+              key={pdfVersion}
+              src={`${previewPdfUrl}#page=2&toolbar=0&t=${pdfVersion}`}
+              className="w-full flex-1 border-0 min-h-[400px] md:min-h-[600px]"
+              title="Preview do Termo - Página 2"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center justify-center flex-1 border rounded-lg bg-muted/30">
+            <div className="text-center space-y-2">
+              <Eye className="w-12 h-12 mx-auto text-muted-foreground" />
+              <p className="text-muted-foreground">
+                {pdfBytes 
+                  ? 'Carregando preview...'
+                  : 'Carregando template do termo...'}
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+    )}
+
+    {/* Card de Ações Rápidas */}
+    {!isMobile && (
+    <Card className="shadow-lg border-border/50 lg:col-span-3 flex flex-col">
+      <CardHeader className="flex-shrink-0">
+        <CardTitle className="flex items-center gap-2">
+          <Zap className="w-5 h-5" />
+          Ações Rápidas
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 flex-1 overflow-y-auto">
+        {/* Botões de Acesso Rápido */}
+        <div className="space-y-3">
+
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="h-auto p-3 flex flex-col items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-green-300 hover:border-green-400 bg-gradient-to-br from-green-50 to-green-100/50 hover:from-green-100 hover:to-green-200 dark:from-green-950/30 dark:to-green-900/20 dark:border-green-800 dark:hover:border-green-700"
+            >
+              <a
+                href={linkModeloPC}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-center"
+              >
+                <Laptop className="w-5 h-5 text-green-600 dark:text-green-400" />
+                <span className="font-semibold text-xs text-green-700 dark:text-green-300">
+                <b> Modelo</b> 
+                <br />Computadores
+                <br />e Periféricos
+                </span>
+              </a>
+            </Button>
+
+            <Button
+              asChild
+              variant="outline"
+              className="h-auto p-3 flex flex-col items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-purple-300 hover:border-purple-400 bg-gradient-to-br from-purple-50 to-purple-100/50 hover:from-purple-100 hover:to-purple-200 dark:from-purple-950/30 dark:to-purple-900/20 dark:border-purple-800 dark:hover:border-purple-700"
+            >
+              <a
+                href={linkModeloCelular}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-center"
+              >
+                <Smartphone className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <span className="font-semibold text-xs text-purple-700 dark:text-purple-300">
+                <b> Modelo</b> 
+                <br />Smartphone e Tablet
+                </span>
+              </a>
+            </Button>
+          </div>
+
+          <Button
+            asChild
+            variant="outline"
+            className="w-full h-auto p-4 flex flex-col items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 border-blue-300 hover:border-blue-400 bg-gradient-to-br from-blue-50 to-blue-100/50 hover:from-blue-100 hover:to-blue-200 dark:from-blue-950/30 dark:to-blue-900/20 dark:border-blue-800 dark:hover:border-blue-700"
+          >
+            <a
+              href={linkPastaDrive}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-center"
+            >
+              <Cloud className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-1" />
+              <span className="font-semibold text-sm text-blue-700 dark:text-blue-300">
+                <b> Pastas</b> 
+                <br />Google Drive
+              </span>
+              <span className="text-xs text-blue-600/70 dark:text-blue-400/70 block mt-1">
+              4.Termos de Responsabilidade
+              </span>
+            </a>
+          </Button>
+
+          <div className="space-y-2 pt-2 border-t">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Pastas do Drive
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 asChild
                 variant="outline"
-                className="w-full h-auto p-4 flex flex-col items-center justify-center gap-2 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 border-blue-300 hover:border-blue-400 bg-gradient-to-br from-blue-50 to-blue-100/50 hover:from-blue-100 hover:to-blue-200 dark:from-blue-950/30 dark:to-blue-900/20 dark:border-blue-800 dark:hover:border-blue-700"
+                size="sm"
+                className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
               >
                 <a
-                  href={linkPastaDrive}
+                  href={linkDriveComputador}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-center"
                 >
-                  <Cloud className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-1" />
-                  <span className="font-semibold text-sm text-blue-700 dark:text-blue-300">
-                    <b> Pastas</b> 
-                    <br />Google Drive
-                  </span>
-                  <span className="text-xs text-blue-600/70 dark:text-blue-400/70 block mt-1">
-                  4.Termos de Responsabilidade
-                  </span>
+                  <Laptop className="w-4 h-4" />
+                  <span className="text-xs font-medium"><b>1.Notebooks</b> </span>
                 </a>
               </Button>
 
-              <div className="space-y-2 pt-2 border-t">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Pastas do Drive
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-                  >
-                    <a
-                      href={linkDriveComputador}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-center"
-                    >
-                      <Laptop className="w-4 h-4" />
-                      <span className="text-xs font-medium"><b>1.Notebooks</b> </span>
-                    </a>
-                  </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+              >
+                <a
+                  href={linkDriveSmartphone}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-center"
+                >
+                  <Smartphone className="w-4 h-4" />
+                  <span className="text-xs font-medium"><b>2.Telefonia Móvel</b> </span>
+                </a>
+              </Button>
 
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-                  >
-                    <a
-                      href={linkDriveSmartphone}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-center"
-                    >
-                      <Smartphone className="w-4 h-4" />
-                      <span className="text-xs font-medium"><b>2.Telefonia Móvel</b> </span>
-                    </a>
-                  </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+              >
+                <a
+                  href={linkDriveTablets}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-center"
+                >
+                  <Tablet className="w-4 h-4" />
+                  <span className="text-xs font-medium"><b>3.Tablets</b> </span>
+                </a>
+              </Button>
 
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-                  >
-                    <a
-                      href={linkDriveTablets}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-center"
-                    >
-                      <Tablet className="w-4 h-4" />
-                      <span className="text-xs font-medium"><b>3.Tablets</b> </span>
-                    </a>
-                  </Button>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+              >
+                <a
+                  href={linkDriveMonitores}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-center"
+                >
+                  <Monitor className="w-4 h-4" />
+                  <span className="text-xs font-medium"><b>6.Monitores</b> </span>
+                </a>
+              </Button>
 
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
-                  >
-                    <a
-                      href={linkDriveMonitores}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-center"
-                    >
-                      <Monitor className="w-4 h-4" />
-                      <span className="text-xs font-medium"><b>6.Monitores</b> </span>
-                    </a>
-                  </Button>
-
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 col-span-2"
-                  >
-                    <a
-                      href={linkDriveBastaoRonda}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-center"
-                    >
-                      <Radio className="w-4 h-4" />
-                      <span className="text-xs font-medium"><b>4.Bastão de Ronda</b> </span>
-                    </a>
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-2 border-t">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Políticas
-                </h3>
-                <div className="grid grid-cols-1 gap-2">
-                  
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-3 flex items-center justify-start gap-2 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-amber-300 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-100 hover:to-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800 dark:hover:border-amber-700"
-                  >
-                    <a
-                      href={linkPoliticaComputadores}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                        Política de Computadores
-                      </span>
-                      <ExternalLink className="w-3 h-3 ml-auto text-amber-600/70 dark:text-amber-400/70" />
-                    </a>
-                  </Button>
-
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-3 flex items-center justify-start gap-2 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-amber-300 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-100 hover:to-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800 dark:hover:border-amber-700"
-                  >
-                    <a
-                      href={linkPoliticaSmartphones}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                        Política de Smartphones
-                      </span>
-                      <ExternalLink className="w-3 h-3 ml-auto text-amber-600/70 dark:text-amber-400/70" />
-                    </a>
-                  </Button>
-
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="h-auto p-3 flex items-center justify-start gap-2 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-amber-300 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-100 hover:to-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800 dark:hover:border-amber-700"
-                  >
-                    <a
-                      href={linkPoliticaGerais}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 w-full"
-                    >
-                      <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                        Política Gerais
-                      </span>
-                      <ExternalLink className="w-3 h-3 ml-auto text-amber-600/70 dark:text-amber-400/70" />
-                    </a>
-                  </Button>
-
-                </div>
-              </div>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-2.5 flex flex-col items-center justify-center gap-1 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 col-span-2"
+              >
+                <a
+                  href={linkDriveBastaoRonda}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-center"
+                >
+                  <Radio className="w-4 h-4" />
+                  <span className="text-xs font-medium"><b>4.Bastão de Ronda</b> </span>
+                </a>
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-        )}
+          </div>
 
+          <div className="space-y-2 pt-2 border-t">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Políticas
+            </h3>
+            <div className="grid grid-cols-1 gap-2">
+              
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-3 flex items-center justify-start gap-2 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-amber-300 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-100 hover:to-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800 dark:hover:border-amber-700"
+              >
+                <a
+                  href={linkPoliticaComputadores}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 w-full"
+                >
+                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Política de Computadores
+                  </span>
+                  <ExternalLink className="w-3 h-3 ml-auto text-amber-600/70 dark:text-amber-400/70" />
+                </a>
+              </Button>
+
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-3 flex items-center justify-start gap-2 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-amber-300 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-100 hover:to-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800 dark:hover:border-amber-700"
+              >
+                <a
+                  href={linkPoliticaSmartphones}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 w-full"
+                >
+                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Política de Smartphones
+                  </span>
+                  <ExternalLink className="w-3 h-3 ml-auto text-amber-600/70 dark:text-amber-400/70" />
+                </a>
+              </Button>
+
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-auto p-3 flex items-center justify-start gap-2 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 border-amber-300 hover:border-amber-400 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-100 hover:to-amber-200 dark:from-amber-950/30 dark:to-amber-900/20 dark:border-amber-800 dark:hover:border-amber-700"
+              >
+                <a
+                  href={linkPoliticaGerais}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 w-full"
+                >
+                  <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Política Gerais
+                  </span>
+                  <ExternalLink className="w-3 h-3 ml-auto text-amber-600/70 dark:text-amber-400/70" />
+                </a>
+              </Button>
+
+            </div>
+          </div>
         </div>
-      </div>
+      </CardContent>
+    </Card>
+    )}
+
     </div>
   );
 }

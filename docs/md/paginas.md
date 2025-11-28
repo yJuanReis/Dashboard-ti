@@ -23,6 +23,8 @@ Cada página mora em `src/pages` e é carregada dentro do `Layout` protegido por
 | Servidores            | `/servidores`      | PagePermissionGuard        | Em desenvolvimento      |
 | Gestão de Rede        | `/gestaorede`      | PagePermissionGuard        | Em desenvolvimento      |
 | Chamados              | `/chamados`        | PagePermissionGuard        | Em desenvolvimento      |
+| Impressoras           | `/impressoras`     | PagePermissionGuard        | Em produção             |
+| Ramais                | `/ramais`          | PagePermissionGuard        | Em produção             |
 | Configurações         | `/configuracoes`   | AdminOnlyRoute             | Em produção             |
 | Audit Logs            | `/audit-logs`      | AdminOnlyRoute             | Em produção             |
 | Security Test         | `/security-test`   | PagePermissionGuard (+flag)| Em produção             |
@@ -132,9 +134,36 @@ Cada página mora em `src/pages` e é carregada dentro do `Layout` protegido por
 - **Arquivo**: `src/pages/Chamados.tsx`
 - **Status**: protótipo com `mockChamados`.
 - **Funcionalidades prontas**:
-  - Headline “Site em desenvolvimento” com badge.
+  - Headline "Site em desenvolvimento" com badge.
   - Cards de estatísticas e filtro por status (Todos/Abertos/Em andamento/Resolvidos).
-  - Lista detalha cada chamado com prioridade, solicitante e botão “Ver Detalhes”.
+  - Lista detalha cada chamado com prioridade, solicitante e botão "Ver Detalhes".
+
+## Impressoras (`/impressoras`)
+- **Arquivo**: `src/pages/Impressoras.tsx`
+- **Responsabilidade**: gerenciamento completo de impressoras (inventário, modelo, série, IP, marina, local).
+- **Principais recursos**:
+  - Consumo de `fetchImpressoras`, `createImpressora`, `updateImpressora`, `deleteImpressora` (`src/lib/impressorasService`).
+  - Busca textual e filtro por marina (dropdown com opções pré-definidas).
+  - Ordenação clicável em todas as colunas (marina, local, modelo, número de série, IP).
+  - Badges coloridos por modelo de impressora (ECOSYS, EPSON, SHARP, etc.).
+  - Tabela responsiva com informações completas (marina, local, modelo, série, IP, observação).
+  - CRUD completo via dialogs modais com validações.
+  - Todas as operações registradas em `audit_logs`.
+- **Documentação detalhada**: ver [`docs/md/paginas/impressoras.md`](./paginas/impressoras.md).
+
+## Ramais (`/ramais`)
+- **Arquivo**: `src/pages/Ramais.tsx`
+- **Responsabilidade**: gerenciamento de ramais telefônicos (nome/local e números de ramais).
+- **Principais recursos**:
+  - Consumo de `fetchRamais`, `createRamal`, `updateRamal`, `deleteRamal` (`src/lib/ramaisService`).
+  - Busca textual por nome/local ou números de ramais.
+  - Ordenação clicável por nome/local ou ramais.
+  - Suporte a múltiplos ramais por registro (ex: "200/225/227", "246 / 244").
+  - Tabela simplificada com duas colunas principais (Nome/Local e Ramais).
+  - CRUD completo via dialogs modais.
+  - Todas as operações registradas em `audit_logs`.
+- **⚠️ Nota importante**: A estrutura da tabela `ramais` será modificada futuramente. Ver documentação detalhada para mais informações.
+- **Documentação detalhada**: ver [`docs/md/paginas/ramais.md`](./paginas/ramais.md).
 
 ## Configurações (`/configuracoes`)
 - **Arquivo**: `src/pages/Configuracoes.tsx`

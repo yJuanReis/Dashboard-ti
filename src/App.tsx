@@ -24,6 +24,8 @@ import EvolucaoHDs from "./pages/ControleHD";
 import Servidores from "./pages/Servidores";
 import Senhas from "./pages/Senhas";
 import GestaoRede from "./pages/GestaoRede";
+import Impressoras from "./pages/Impressoras";
+import Ramais from "./pages/Ramais";
 import TesteTermos from "./pages/Termos";
 import SecurityTest from "./pages/SecurityTest";
 import NotFound from "./pages/NotFound";
@@ -68,6 +70,8 @@ const App = () => (
                               <Route path="/servidores" element={<PagePermissionGuard><Servidores /></PagePermissionGuard>} />
                               <Route path="/senhas" element={<PagePermissionGuard><Senhas /></PagePermissionGuard>} />
                               <Route path="/gestaorede" element={<PagePermissionGuard><GestaoRede /></PagePermissionGuard>} />
+                              <Route path="/impressoras" element={<PagePermissionGuard><Impressoras /></PagePermissionGuard>} />
+                              <Route path="/ramais" element={<PagePermissionGuard><Ramais /></PagePermissionGuard>} />
                               <Route path="/termos" element={<PagePermissionGuard><TesteTermos /></PagePermissionGuard>} />
                               <Route path="/security-test" element={<PagePermissionGuard><SecurityTest /></PagePermissionGuard>} />
                               <Route path="/audit-logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />

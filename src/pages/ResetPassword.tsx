@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { PasswordChangeModal } from "@/components/PasswordChangeModal";
 import { logger } from "@/lib/logger";
+import { logCreate, logUpdate } from "@/lib/auditService";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -190,18 +191,30 @@ export default function ResetPassword() {
 
       // Se o perfil não existir, criar (não deve acontecer, mas por segurança)
       if (!userProfile) {
-        const { error: createError } = await supabase
+        const newProfileData = {
+          user_id: user.id,
+          email: user.email || "",
+          nome: null,
+          role: "user",
+          password_temporary: true,
+        };
+
+        const { data: createdProfile, error: createError } = await supabase
           .from("user_profiles")
-          .insert({
-            user_id: user.id,
-            email: user.email || "",
-            nome: null,
-            role: "user",
-            password_temporary: true,
-          });
+          .insert(newProfileData)
+          .select()
+          .single();
         
         if (createError) {
           logger.warn("Erro ao criar perfil:", createError);
+        } else if (createdProfile) {
+          // Registra log de auditoria
+          await logCreate(
+            'user_profiles',
+            user.id,
+            createdProfile as Record<string, any>,
+            `Criou perfil de usuário durante reset de senha: ${user.email}`
+          ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
         }
       }
 
@@ -223,17 +236,38 @@ export default function ResetPassword() {
       // A página ResetPassword é usada apenas para recuperação de senha
       // Sempre marcar password_temporary como true para que o modal apareça no próximo login
       // Isso garante que o usuário altere a senha novamente após recuperá-la
-      const { error: updateProfileError } = await supabase
+      
+      // Busca dados antigos antes de atualizar (para o log de auditoria)
+      const { data: oldProfileData } = await supabase
         .from("user_profiles")
-        .update({
-          nome: nome.trim(),
-          password_temporary: true, // Sempre marcar como temporária após recuperação
-        })
-        .eq("user_id", user.id);
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      const updateData = {
+        nome: nome.trim(),
+        password_temporary: true, // Sempre marcar como temporária após recuperação
+      };
+
+      const { data: updatedProfile, error: updateProfileError } = await supabase
+        .from("user_profiles")
+        .update(updateData)
+        .eq("user_id", user.id)
+        .select()
+        .single();
 
       if (updateProfileError) {
         logger.warn("Erro ao atualizar perfil (não crítico):", updateProfileError);
         // Não bloquear se falhar, pois a senha já foi atualizada
+      } else if (oldProfileData && updatedProfile) {
+        // Registra log de auditoria
+        await logUpdate(
+          'user_profiles',
+          user.id,
+          oldProfileData as Record<string, any>,
+          updatedProfile as Record<string, any>,
+          `Resetou senha e atualizou nome: ${user.email}`
+        ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
       }
 
       // Recarregar a sessão para atualizar os metadados do usuário no AuthContext

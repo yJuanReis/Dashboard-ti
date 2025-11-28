@@ -58,17 +58,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Usuário não existe na tabela, tentar criar automaticamente
         if (userEmail) {
           try {
-            const { error: insertError } = await supabase
-              .from("user_profiles")
-              .insert({
-                user_id: userId,
-                email: userEmail,
-                nome: userEmail.split('@')[0], // Usar parte antes do @ como nome padrão
-                role: "user",
-              });
+            const newProfileData = {
+              user_id: userId,
+              email: userEmail,
+              nome: userEmail.split('@')[0], // Usar parte antes do @ como nome padrão
+              role: "user",
+            };
 
-            if (!insertError) {
-              // Perfil criado com sucesso
+            const { data: createdProfile, error: insertError } = await supabase
+              .from("user_profiles")
+              .insert(newProfileData)
+              .select()
+              .single();
+
+            if (!insertError && createdProfile) {
+              // Perfil criado com sucesso - registrar log de auditoria
+              const { logCreate } = await import('@/lib/auditService');
+              await logCreate(
+                'user_profiles',
+                userId,
+                createdProfile as Record<string, any>,
+                `Criou perfil automaticamente durante login: ${userEmail}`
+              ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+              
               return true;
             } else {
               // Se falhar ao criar (pode ser RLS), retornar true mesmo assim

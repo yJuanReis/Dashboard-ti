@@ -162,7 +162,7 @@ export default function EvolucaoHDs() {
     loadHDPrice();
   }, []);
 
-  // Integração com campo de busca no header (mobile)
+  // Integração com campo de busca no header (mobile) e export do header
   useEffect(() => {
     const handleSearchFromHeader = (event: Event) => {
       const custom = event as CustomEvent<string>;
@@ -170,11 +170,65 @@ export default function EvolucaoHDs() {
       setSearchTerm(value);
     };
 
+    const handleExportFromHeader = () => {
+      // Verificar se XLSX está disponível
+      if (typeof window === "undefined" || !(window as any).XLSX) {
+        toast.error(
+          "Biblioteca XLSX não encontrada. Por favor, recarregue a página."
+        );
+        return;
+      }
+
+      const XLSX = (window as any).XLSX;
+
+      const dataToExport = nvrs.flatMap((nvr) =>
+        (nvr.slots || [])
+          .map((slot, index) => {
+            const isEmpty = slot.status === "empty";
+            const isUndersized =
+              slot.status !== "inactive" &&
+              !isEmpty &&
+              slot.hdSize > 0 &&
+              slot.hdSize < 12;
+
+            if (!isEmpty && !isUndersized) return null;
+
+            return {
+              Responsável: nvr.owner,
+              "Marina / Numeração": `${nvr.marina} / ${nvr.name}`,
+              Modelo: nvr.model,
+              Slot: index + 1,
+              "Status Atual": isEmpty ? "Vazio" : `${slot.hdSize} TB`,
+              Ação: isEmpty ? "Comprar" : "Substituir",
+              Comprado: slot.purchased ? "Sim" : "Não",
+            };
+          })
+          .filter((item) => item !== null)
+      );
+
+      if (dataToExport.length === 0) {
+        toast.info("Nenhum slot para exportar.");
+        return;
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "EvolucaoHDs");
+      XLSX.writeFile(
+        workbook,
+        `relatorio_evolucao_hds_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+
+      toast.success("Relatório exportado com sucesso!");
+    };
+
     window.addEventListener("hd:setSearch", handleSearchFromHeader);
+    window.addEventListener("hd:export", handleExportFromHeader);
     return () => {
       window.removeEventListener("hd:setSearch", handleSearchFromHeader);
+      window.removeEventListener("hd:export", handleExportFromHeader);
     };
-  }, []);
+  }, [nvrs]);
 
   // Filtrar NVRs que precisam de ação (slots vazios ou undersized)
   const nvrsNeedingAction = nvrs.filter((nvr) =>
@@ -503,37 +557,6 @@ export default function EvolucaoHDs() {
           </div>
         </div>
       )}
-      {/* Header Fixo - Oculto em mobile */}
-      {!isMobile && (
-        <div className="flex-shrink-0 border-b bg-background/95 backdrop-blur-sm px-3 md:px-4 py-1 md:py-1.5">
-          <div className="flex flex-row justify-between items-center gap-4">
-            <div>
-              <h1 className="text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
-                <HardDrive className="hidden sm:inline-block w-5 h-5 md:w-6 md:h-6 text-primary" />
-                Evolução de HDs
-              </h1>
-              <p className="text-xs md:text-sm text-muted-foreground">Acompanhe e planeje substituições de discos</p>
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <Button 
-                onClick={handleExport} 
-                className="gap-2 bg-slate-500 hover:bg-slate-600 text-white border-slate-600" 
-                size="sm"
-                variant="outline"
-              >
-                <Download className="w-4 h-4" />
-                Exportar (XLSX)
-              </Button>
-              <Link to="/controle-nvr">
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Video className="w-4 h-4" />
-                  NVRs
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cabeçalho Unificado com KPIs e Controles - Fixo - Oculto em mobile */}
       {!isMobile && (
@@ -561,34 +584,54 @@ export default function EvolucaoHDs() {
                 </CardContent>
               </Card>
 
-              {/* Informações de Slots */}
-              <Card className="flex-1 min-w-[100px] sm:min-w-[120px]">
-                <CardContent className="px-2 py-2 md:py-3">
-                  <div className="flex flex-col gap-1 md:gap-1.5 h-full items-center justify-center">
-                    <div className="text-xs md:text-sm lg:text-xl font-semibold text-muted-foreground text-center">
-                      Informações de Slots {/* (Titulo do card) */}
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-2 md:gap-x-4 lg:gap-x-8 gap-y-1 md:gap-y-1.5">
-                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
-                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Vazios:</span>
-                        <span className="text-lg md:text-xl lg:text-2xl font-bold">{kpis.emptySlotsCount}</span>
-                      </div>
-                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
-                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Maior que 12TB:</span>
-                        <span className="text-lg md:text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400">{kpis.slotsWithHD12Plus}</span>
-                      </div>
-                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
-                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Total a comprar:</span>
-                        <span className="text-lg md:text-xl lg:text-2xl font-bold">{kpis.totalSlots} {/* (conteudo do card 2) */}</span>
-                      </div>
-                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 md:gap-2 lg:gap-4">
-                        <span className="text-xs md:text-sm lg:text-lg text-muted-foreground">Menor que 12TB:</span>
-                        <span className="text-lg md:text-xl lg:text-2xl font-bold text-red-600 dark:text-red-400">{kpis.slotsWithHDLessThan12}</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Card className="flex-1 min-w-[150px]">
+  <CardContent className="px-3 py-3">
+    <div className="flex flex-col items-center gap-3">
+
+      {/* Título */}
+      <h3 className="text-sm md:text-base lg:text-lg font-semibold text-muted-foreground text-center">
+        Informações de Slots
+      </h3>
+
+      {/* Grid dos itens */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-3 w-full">
+
+        {/* Vazios */}
+        <div className="flex flex-col items-center">
+          <span className="text-xs md:text-sm text-muted-foreground">Vazios</span>
+          <span className="text-xl md:text-2xl font-bold">
+            {kpis.emptySlotsCount}
+          </span>
+        </div>
+
+        {/* Maior que 12TB */}
+        <div className="flex flex-col items-center">
+          <span className="text-xs md:text-sm text-muted-foreground">Maior que 12TB</span>
+          <span className="text-xl md:text-2xl font-bold text-green-500">
+            {kpis.slotsWithHD12Plus}
+          </span>
+        </div>
+
+        {/* Total a comprar */}
+        <div className="flex flex-col items-center">
+          <span className="text-xs md:text-sm text-muted-foreground">Total a comprar</span>
+          <span className="text-xl md:text-2xl font-bold">
+            {kpis.totalSlots}
+          </span>
+        </div>
+
+        {/* Menor que 12TB */}
+        <div className="flex flex-col items-center">
+          <span className="text-xs md:text-sm text-muted-foreground">Menor que 12TB</span>
+          <span className="text-xl md:text-2xl font-bold text-red-500">
+            {kpis.slotsWithHDLessThan12}
+          </span>
+        </div>
+
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
               {/* Custo Estimado */}
               <Card className="flex-1 min-w-[100px] sm:min-w-[120px]">

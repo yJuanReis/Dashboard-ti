@@ -82,13 +82,24 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/assinaturas', nome: 'Assinaturas', icon: '✉️' },
   { path: '/controle-nvr', nome: 'Controle NVR', icon: '📹' },
   { path: '/controle-hds', nome: 'Controle de HDs', icon: '💾' }, // Nota: case-sensitive
+  { path: '/impressoras', nome: 'Impressoras', icon: '🖨️' },
+  { path: '/ramais', nome: 'Ramais', icon: '📞' },
   { path: '/termos', nome: 'Termo de Responsabilidade', icon: '📄' },
   { path: '/gestaorede', nome: 'Gestão de Rede', icon: '🌐' },
   { path: '/servidores', nome: 'Servidores', icon: '🖥️' },
   { path: '/chamados', nome: 'Chamados', icon: '🔧' },
   { path: '/security-test', nome: 'Security Test', icon: '🔒' },
-  // Nota: /configuracoes não está aqui pois só admins podem acessar
+  { path: '/configuracoes', nome: 'Configurações', icon: '⚙️' },
+  { path: '/audit-logs', nome: 'Audit Logs', icon: '📋' },
 ];
+
+// Páginas que são exclusivas para administradores (não aparecem nas permissões de usuários normais)
+const PAGINAS_ADMIN_ONLY = ['/configuracoes', '/audit-logs'];
+
+// Função auxiliar para obter páginas disponíveis para usuários não-admin (exclui páginas admin-only)
+const getPaginasParaUsuarios = () => {
+  return PAGINAS_DISPONIVEIS.filter(p => !PAGINAS_ADMIN_ONLY.includes(p.path));
+};
 
 // Páginas que devem estar ocultas por padrão são gerenciadas em src/config/pagesMaintenance.ts
 // Use getPagesHiddenByDefault() para obter a lista atualizada automaticamente
@@ -933,10 +944,19 @@ export default function Configuracoes() {
       // Atualizar também na tabela user_profiles se existir
       if (tabelaProfilesExiste !== false) {
         try {
-          const { error: updateError } = await supabase
+          // Busca dados antigos antes de atualizar (para o log de auditoria)
+          const { data: oldProfileData } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
+
+          const { data: updatedProfileData, error: updateError } = await supabase
             .from("user_profiles")
             .update({ nome: sanitizeText(nomeExibicao.trim()) })
-            .eq("user_id", user.id);
+            .eq("user_id", user.id)
+            .select()
+            .single();
 
           if (updateError) {
             const errorDetails = updateError as any;
@@ -953,6 +973,19 @@ export default function Configuracoes() {
               updateError.message?.toLowerCase().includes('not found') ||
               updateError.message?.toLowerCase().includes('doesn\'t exist') ||
               updateError.message?.toLowerCase().includes('schema cache');
+            
+            if (isTableNotFound) {
+              // Não registrar log se a tabela não existir
+            } else if (oldProfileData && updatedProfileData) {
+              // Registra log de auditoria
+              await logUpdate(
+                'user_profiles',
+                user.id,
+                oldProfileData as Record<string, any>,
+                updatedProfileData as Record<string, any>,
+                `Atualizou nome de exibição: ${nomeExibicao.trim()}`
+              ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+            }
             
             if (isTableNotFound) {
               setTabelaProfilesExiste(false);
@@ -1140,17 +1173,35 @@ export default function Configuracoes() {
         }
 
         // Atualizar perfil: role e password_temporary
-        const { error: updateProfileError } = await supabase
+        // Busca dados antigos antes de atualizar (para o log de auditoria)
+        const { data: oldProfileData } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("user_id", userId)
+          .single();
+
+        const { data: updatedProfileData, error: updateProfileError } = await supabase
           .from("user_profiles")
           .update({
             role: novoUsuario.role,
             password_temporary: true, // Marcar como senha temporária
           })
-          .eq("user_id", userId);
+          .eq("user_id", userId)
+          .select()
+          .single();
 
         if (updateProfileError) {
           logger.warn("Erro ao atualizar perfil:", updateProfileError);
           // Não bloquear se falhar, pois a senha já foi atualizada
+        } else if (oldProfileData && updatedProfileData) {
+          // Registra log de auditoria
+          await logUpdate(
+            'user_profiles',
+            userId,
+            oldProfileData as Record<string, any>,
+            updatedProfileData as Record<string, any>,
+            `Atualizou perfil do usuário: ${emailLower} (role: ${novoUsuario.role})`
+          ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
         }
       }
 
@@ -1165,7 +1216,8 @@ export default function Configuracoes() {
           permissoesFinais = null;
         } else {
           // Se algumas páginas estão marcadas (ocultas), calcular as visíveis (todas menos as ocultas)
-          const paginasVisiveis = PAGINAS_DISPONIVEIS
+          // Excluir páginas admin-only das permissões de usuários normais
+          const paginasVisiveis = getPaginasParaUsuarios()
             .map(p => p.path)
             .filter(path => !permissoesPaginasNovoUsuario.includes(path));
           permissoesFinais = paginasVisiveis;
@@ -1186,29 +1238,114 @@ export default function Configuracoes() {
         if (rpcError) {
           // Se RPC falhar, tentar update direto
           logger.warn("RPC não disponível, usando update direto:", rpcError);
-          const { error: directUpdateError } = await supabase
+          
+          // Busca dados antigos antes de atualizar (para o log de auditoria)
+          const { data: oldPermData } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("user_id", userId)
+            .single();
+
+          const { data: updatedPermData, error: directUpdateError } = await supabase
             .from("user_profiles")
             .update({ page_permissions: permissoesParaSalvar })
-            .eq("user_id", userId);
+            .eq("user_id", userId)
+            .select()
+            .single();
 
           if (directUpdateError) {
             logger.error("Erro ao salvar permissões:", directUpdateError);
             // Não bloquear se falhar, apenas avisar
             toast.warning("Permissões podem não ter sido salvas corretamente. Tente novamente.");
+          } else if (oldPermData && updatedPermData) {
+            // Registra log de auditoria
+            await logUpdate(
+              'user_profiles',
+              userId,
+              oldPermData as Record<string, any>,
+              updatedPermData as Record<string, any>,
+              `Atualizou permissões de páginas do usuário: ${emailLower}`
+            ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+          }
+        } else {
+          // RPC foi bem-sucedido - buscar dados atualizados para log
+          const { data: updatedPermData } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("user_id", userId)
+            .single();
+          
+          if (updatedPermData) {
+            // Buscar dados antigos para comparação
+            const { data: oldPermData } = await supabase
+              .from("user_profiles")
+              .select("*")
+              .eq("user_id", userId)
+              .single();
+            
+            // Registra log de auditoria (mesmo que via RPC, registramos a mudança)
+            if (oldPermData) {
+              await logUpdate(
+                'user_profiles',
+                userId,
+                oldPermData as Record<string, any>,
+                updatedPermData as Record<string, any>,
+                `Atualizou permissões de páginas do usuário via RPC: ${emailLower}`
+              ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+            }
           }
         }
       } else {
         // Se for admin, garantir que não tenha permissões (null)
+        // Busca dados antigos antes de atualizar (para o log de auditoria)
+        const { data: oldAdminPermData } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("user_id", userId)
+          .single();
+
         const { error: adminPermError } = await supabase.rpc('update_user_page_permissions', {
           target_user_id: userId,
           new_permissions: []
         });
+        
         if (adminPermError) {
           // Se RPC falhar, tentar update direto
-          await supabase
+          const { data: updatedAdminPermData } = await supabase
             .from("user_profiles")
             .update({ page_permissions: [] })
-            .eq("user_id", userId);
+            .eq("user_id", userId)
+            .select()
+            .single();
+          
+          if (oldAdminPermData && updatedAdminPermData) {
+            // Registra log de auditoria
+            await logUpdate(
+              'user_profiles',
+              userId,
+              oldAdminPermData as Record<string, any>,
+              updatedAdminPermData as Record<string, any>,
+              `Removeu permissões de páginas do admin: ${emailLower}`
+            ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+          }
+        } else if (oldAdminPermData) {
+          // RPC foi bem-sucedido - buscar dados atualizados para log
+          const { data: updatedAdminPermData } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("user_id", userId)
+            .single();
+          
+          if (updatedAdminPermData) {
+            // Registra log de auditoria
+            await logUpdate(
+              'user_profiles',
+              userId,
+              oldAdminPermData as Record<string, any>,
+              updatedAdminPermData as Record<string, any>,
+              `Removeu permissões de páginas do admin via RPC: ${emailLower}`
+            ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+          }
         }
       }
 
@@ -1443,13 +1580,15 @@ export default function Configuracoes() {
     // Por padrão, apenas páginas em desenvolvimento/avaliação ficam ocultas
     // Se page_permissions for null/undefined, usar páginas ocultas por padrão
     // Se tiver valores (páginas visíveis), calcular quais estão ocultas (todas menos as visíveis)
+    // Para usuários não-admin, excluir páginas admin-only das permissões
+    const paginasParaUsuarios = usuario.role === "admin" ? PAGINAS_DISPONIVEIS : getPaginasParaUsuarios();
     let paginasOcultas: string[] = [];
     if (usuario.page_permissions && Array.isArray(usuario.page_permissions)) {
       // Páginas ocultas = todas as páginas menos as que estão em page_permissions (visíveis)
       const normalizedPermissions = new Set(
         usuario.page_permissions.map(normalizeRoutePath)
       );
-      paginasOcultas = PAGINAS_DISPONIVEIS
+      paginasOcultas = paginasParaUsuarios
         .map(p => p.path)
         .filter(path => !normalizedPermissions.has(normalizeRoutePath(path)));
     } else {
@@ -1457,7 +1596,7 @@ export default function Configuracoes() {
       // A lista é gerenciada automaticamente no banco de dados
       const hiddenPages = await getPagesHiddenByDefaultService();
       const normalizedHiddenPages = new Set(hiddenPages.map(normalizeRoutePath));
-      paginasOcultas = PAGINAS_DISPONIVEIS
+      paginasOcultas = paginasParaUsuarios
         .map(p => p.path)
         .filter(path => normalizedHiddenPages.has(normalizeRoutePath(path)));
     }
@@ -1490,7 +1629,8 @@ export default function Configuracoes() {
         permissoesFinais = null;
       } else {
         // Se algumas páginas estão marcadas (ocultas), calcular as visíveis (todas menos as ocultas)
-        const paginasVisiveis = PAGINAS_DISPONIVEIS
+        // Excluir páginas admin-only das permissões de usuários normais
+        const paginasVisiveis = getPaginasParaUsuarios()
           .map(p => p.path)
           .filter(path => !permissoesPaginas.includes(path));
         permissoesFinais = paginasVisiveis;
@@ -1556,15 +1696,52 @@ export default function Configuracoes() {
       if (rpcError) {
         // Se RPC falhar, tentar update direto
         logger.warn("RPC não disponível, usando update direto:", rpcError);
-        const { error: directUpdateError } = await supabase
+        
+        // Busca dados antigos antes de atualizar (para o log de auditoria)
+        const { data: oldPermDataModal } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("user_id", usuarioEditando.user_id)
+          .single();
+
+        const { data: updatedPermDataModal, error: directUpdateError } = await supabase
           .from("user_profiles")
           .update({ page_permissions: permissoesParaSalvar })
-          .eq("user_id", usuarioEditando.user_id);
+          .eq("user_id", usuarioEditando.user_id)
+          .select()
+          .single();
         
         if (directUpdateError) {
           logger.error("Erro ao atualizar permissões:", directUpdateError);
           // Não bloquear se falhar, apenas avisar
           toast.warning("Permissões podem não ter sido salvas corretamente. Tente novamente.");
+        } else if (oldPermDataModal && updatedPermDataModal) {
+          // Registra log de auditoria
+          await logUpdate(
+            'user_profiles',
+            usuarioEditando.user_id,
+            oldPermDataModal as Record<string, any>,
+            updatedPermDataModal as Record<string, any>,
+            `Atualizou permissões de páginas do usuário (modal edição): ${editarEmail}`
+          ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
+        }
+      } else {
+        // RPC foi bem-sucedido - buscar dados atualizados para log
+        const { data: updatedPermDataModal } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("user_id", usuarioEditando.user_id)
+          .single();
+        
+        if (oldUserData && updatedPermDataModal) {
+          // Registra log de auditoria (mesmo que via RPC, registramos a mudança)
+          await logUpdate(
+            'user_profiles',
+            usuarioEditando.user_id,
+            oldUserData as Record<string, any>,
+            updatedPermDataModal as Record<string, any>,
+            `Atualizou permissões de páginas do usuário via RPC (modal edição): ${editarEmail}`
+          ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
         }
       }
       
@@ -1621,7 +1798,7 @@ export default function Configuracoes() {
 
       // Registra log de auditoria
       if (oldUserData && newUserData) {
-        logUpdate(
+        await logUpdate(
           'user_profiles',
           usuarioEditando.user_id,
           oldUserData as Record<string, any>,
@@ -1676,46 +1853,592 @@ export default function Configuracoes() {
 
 
   return (
-    <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="page-header flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
-          <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
-              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">Configurações</h1>
-          </div>
-        </div>
 
-        <div className="grid lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
-          {/* Main Column */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Card único com Perfil e Alterar Senha */}
+      <div className="grid lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
+        {/* Main Column */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Card único com Perfil e Alterar Senha */}
+          <Card className="hover:shadow-md transition-shadow duration-200">
+            <CardHeader className="border-b">
+              <div 
+                className="flex items-center justify-between cursor-pointer"
+                onClick={() => setPerfilExpanded(!perfilExpanded)}
+              >
+                <div className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-muted-foreground" />
+                  <CardTitle>Perfil</CardTitle>
+                  <Badge className={realRole === 'admin' ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-success/10 text-success border-success/30"}>
+                    {realRole === 'admin' ? 'Administrador' : 'Ativo'}
+                  </Badge>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPerfilExpanded(!perfilExpanded);
+                  }}
+                >
+                  {perfilExpanded ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5" />
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            {perfilExpanded && (
+            <CardContent className="space-y-8">
+              {/* Seção Perfil */}
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white text-lg sm:text-2xl font-bold shadow-lg ring-4 ring-background flex-shrink-0">
+                    {currentUser.nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-lg sm:text-xl text-foreground truncate">{currentUser.nome}</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{currentUser.email}</p>
+                    </div>
+                    {!editingNome ? (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingNome(true)}
+                          className="w-full sm:w-auto"
+                        >
+                          <Edit className="w-4 h-4 mr-2" />
+                          <span className="hidden sm:inline">Mudar Nome</span>
+                          <span className="sm:hidden">Editar</span>
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                        <Input
+                          type="text"
+                          placeholder="O seu nome completo"
+                          value={nomeExibicao}
+                          onChange={(e) => setNomeExibicao(e.target.value)}
+                          disabled={loadingNome}
+                          autoComplete="off"
+                          className="w-full sm:w-48"
+                        />
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={async () => {
+                              await handleSalvarNome();
+                              setEditingNome(false);
+                            }}
+                            disabled={loadingNome || !nomeExibicao.trim()}
+                            size="sm"
+                            className="flex-1 sm:flex-initial"
+                          >
+                            {loadingNome ? "A guardar..." : "Guardar"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditingNome(false);
+                              setNomeExibicao(currentUser.nome);
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Seção Alterar Senha */}
+                <div className="space-y-6 pt-4 border-t">
+                  <div className="flex items-center gap-2 pb-4 border-b">
+                    <Lock className="w-5 h-5 text-muted-foreground" />
+                    <h4 className="font-semibold text-lg">Alterar Senha</h4>
+                  </div>
+                  <div className="space-y-4">
+                    {/* Campo Senha Atual */}
+                    <div>
+                      <Label htmlFor="senhaAtual" className="text-sm font-medium mb-2">
+                        Senha Atual
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="senhaAtual"
+                          type={showSenhaAtual ? "text" : "password"}
+                          placeholder="Digite a sua senha atual"
+                          value={senhaAtual}
+                          onChange={(e) => setSenhaAtual(e.target.value)}
+                          disabled={loading || estaBloqueado}
+                          className="pr-10"
+                          autoComplete="current-password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowSenhaAtual(!showSenhaAtual)}
+                          disabled={loading || estaBloqueado}
+                        >
+                          {showSenhaAtual ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    {/* Campo Nova Senha */}
+                    <div>
+                      <Label htmlFor="novaSenha" className="text-sm font-medium mb-2">
+                        Nova Senha
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="novaSenha"
+                          type={showNovaSenha ? "text" : "password"}
+                          placeholder="Digite a sua nova senha"
+                          value={novaSenha}
+                          onChange={(e) => setNovaSenha(e.target.value)}
+                          disabled={loading || estaBloqueado}
+                          className="pr-10"
+                          autoComplete="new-password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowNovaSenha(!showNovaSenha)}
+                          disabled={loading || estaBloqueado}
+                        >
+                          {showNovaSenha ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {/* Medidor de força da senha */}
+                      {novaSenha && (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className={forcaSenha.color || "text-muted-foreground"}>
+                              {forcaSenha.label || "Digite uma senha"}
+                            </span>
+                            {forcaSenha.score > 0 && (
+                              <span className={forcaSenha.color}>
+                                {forcaSenha.score}/4
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                forcaSenha.bgColor || "bg-muted"
+                              }`}
+                              style={{
+                                width: `${((forcaSenha.score + 1) / 5) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Campo Confirmar Senha */}
+                    <div>
+                      <Label htmlFor="confirmarSenha" className="text-sm font-medium mb-2">
+                        Confirmar Nova Senha
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="confirmarSenha"
+                          type={showConfirmarSenha ? "text" : "password"}
+                          placeholder="Confirme a sua nova senha"
+                          value={confirmarSenha}
+                          onChange={(e) => setConfirmarSenha(e.target.value)}
+                          disabled={loading || estaBloqueado}
+                          className="pr-10"
+                          autoComplete="new-password"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                          onClick={() => setShowConfirmarSenha(!showConfirmarSenha)}
+                          disabled={loading || estaBloqueado}
+                        >
+                          {showConfirmarSenha ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {confirmarSenha && novaSenha && (
+                        <p className={`text-xs mt-1 ${confirmarSenha === novaSenha ? "text-success" : "text-destructive"}`}>
+                          {confirmarSenha === novaSenha ? "✓ Senhas coincidem" : "✗ Senhas não coincidem"}
+                        </p>
+                      )}
+                    </div>
+                    {estaBloqueado && (
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-destructive mt-0.5" />
+                        <p className="text-sm text-destructive">
+                          Muitas tentativas incorretas. Aguarde <span className="font-semibold">{tempoRestante}</span> segundos.
+                        </p>
+                      </div>
+                    )}
+                    {mensagemSucesso && (
+                      <div className="p-3 bg-success/10 border border-success/20 rounded-md flex items-start gap-2">
+                        <ShieldCheck className="w-4 h-4 text-success mt-0.5" />
+                        <p className="text-sm text-success">{mensagemSucesso}</p>
+                      </div>
+                    )}
+                    <Button
+                      onClick={handleAlterarSenha}
+                      disabled={loading || estaBloqueado || forcaSenha.score < 2 || novaSenha !== confirmarSenha}
+                      className="w-full"
+                    >
+                      {loading ? "A alterar..." : "Alterar Senha"}
+                    </Button>
+                  </div>
+                  <div className="border-t pt-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Ou redefinir por email</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Enviaremos um link para: <span className="font-semibold">{currentUser?.email}</span>
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setModalConfirmacaoEmail(true)}
+                        disabled={loadingEmail}
+                        className="w-full"
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        {loadingEmail ? "A enviar..." : "Enviar Email de Redefinição"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            )}
+          </Card>
+
+          {/* User Management Card (Only for Admin) */}
+          {realRole === 'admin' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5" />
+                  Controle de Usuários
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 pt-6">
+                <div>
+                  <h4 className="font-semibold text-foreground mb-4">Criar ou Atualizar Usuário</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Adicione um novo usuário ou atualize a senha temporária de um usuário existente. <br /><br />Uma senha aleatória e segura será gerada automaticamente. <br />O usuário deve fazer login e o modal de troca de senha aparecerá automaticamente na Home.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                    <Input
+                      type="email"
+                      placeholder="E-mail do utilizador"
+                      value={novoUsuario.email}
+                      onChange={(e) => setNovoUsuario({...novoUsuario, email: e.target.value})}
+                      autoComplete="off"
+                      disabled={loadingUsuarios}
+                      className="md:col-span-1"
+                    />
+                    <Select
+                      value={novoUsuario.role}
+                      onValueChange={(value: "admin" | "user") => {
+                        setNovoUsuario({...novoUsuario, role: value});
+                        // Limpar permissões se mudar para admin
+                        if (value === "admin") {
+                          setPermissoesPaginasNovoUsuario([]);
+                        }
+                      }}
+                      disabled={loadingUsuarios}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Tipo de utilizador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">Usuário</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button 
+                      onClick={handleEnviarResetPassword}
+                      className="md:col-span-1"
+                      disabled={loadingUsuarios}
+                    >
+                      {loadingUsuarios ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          <span className="hidden sm:inline">Enviando...</span>
+                          <span className="sm:hidden">...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          <span className="hidden sm:inline">{novoUsuario.email ? "Criar/Atualizar Usuário" : "Criar Usuário"}</span>
+                          <span className="sm:hidden">Criar</span>
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Seleção de Páginas (apenas para usuários não-admin) */}
+                  {novoUsuario.role === "user" && (
+                    <div className="border-t pt-4 mt-4">
+                      <Label className="text-base font-semibold mb-3 block">
+                        Páginas que o usuário poderá ver
+                      </Label>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Por padrão, todas as páginas estarão visíveis. Clique nas páginas para ocultá-las.
+                      </p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
+                        {getPaginasParaUsuarios().map((pagina) => {
+                          const estaOculta = permissoesPaginasNovoUsuario.includes(pagina.path);
+                          
+                          return (
+                            <div
+                              key={pagina.path}
+                              className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                                estaOculta
+                                  ? "border-red-500 bg-red-50 hover:border-red-600 hover:bg-red-100"
+                                  : "border-green-500 bg-green-50 hover:border-green-600 hover:bg-green-100"
+                              }`}
+                              onClick={() => {
+                                setPermissoesPaginasNovoUsuario(prev => {
+                                  if (prev.includes(pagina.path)) {
+                                    return prev.filter(p => p !== pagina.path);
+                                  } else {
+                                    return [...prev, pagina.path];
+                                  }
+                                });
+                              }}
+                              title={estaOculta ? "Clique para tornar esta página visível" : "Clique para ocultar esta página"}
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="text-lg">{pagina.icon}</span>
+                                <span className={`font-medium ${
+                                  estaOculta ? "text-red-700" : "text-green-700"
+                                }`}>
+                                  {pagina.nome}
+                                </span>
+                              </div>
+                              <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                estaOculta
+                                  ? "border-red-500 bg-red-500"
+                                  : "border-green-500 bg-green-500"
+                              }`}>
+                                {estaOculta ? (
+                                  <X className="w-3 h-3 text-white" />
+                                ) : (
+                                  <Check className="w-3 h-3 text-white" />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {permissoesPaginasNovoUsuario.length} página{permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''} oculta{permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''} • {getPaginasParaUsuarios().length - permissoesPaginasNovoUsuario.length} visível{getPaginasParaUsuarios().length - permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const totalPaginas = getPaginasParaUsuarios().length;
+                            if (permissoesPaginasNovoUsuario.length === totalPaginas) {
+                              // Todas estão ocultas, tornar todas visíveis
+                              setPermissoesPaginasNovoUsuario([]);
+                            } else {
+                              // Algumas ou nenhuma está oculta, ocultar todas (apenas páginas para usuários)
+                              setPermissoesPaginasNovoUsuario(getPaginasParaUsuarios().map(p => p.path));
+                            }
+                          }}
+                          type="button"
+                        >
+                          {permissoesPaginasNovoUsuario.length === getPaginasParaUsuarios().length ? "Tornar Todas Visíveis" : "Ocultar Todas"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {statusMessage && (
+                    <p className={`text-sm mt-2 ${statusMessage.includes("Erro") || statusMessage.includes("não encontrado") ? "text-red-600" : "text-green-600"}`}>
+                      {statusMessage}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-foreground">Utilizadores Registados</h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={carregarUsuarios}
+                      disabled={loadingUsuarios}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${loadingUsuarios ? 'animate-spin' : ''}`} />
+                      Atualizar
+                    </Button>
+                  </div>
+                  {loadingUsuarios ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Carregando usuários...
+                    </div>
+                  ) : usuarios.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Nenhum usuário encontrado.
+                    </div>
+                  ) : (
+                    // Modificação solicitada: Substituição do ScrollArea por div nativa e ajuste no header
+                    <div className="max-h-[500px] w-full overflow-y-auto border rounded-md">
+                      {/* Desktop Table */}
+                      <div className="hidden md:block">
+                        <Table>
+                          <TableHeader className="sticky top-0 z-10 bg-background">
+                            <TableRow>
+                              <TableHead className="bg-background">Nome</TableHead>
+                              <TableHead className="bg-background">Email</TableHead>
+                              <TableHead className="bg-background">Role</TableHead>
+                              <TableHead className="text-right bg-background">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {usuarios.map((usuario) => (
+                              <TableRow key={usuario.id}>
+                                <TableCell className="font-medium">
+                                  {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
+                                </TableCell>
+                                <TableCell>{usuario.email}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">
+                                    {usuario.role === 'admin' ? 'Admin' : 'User'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {usuario.user_id !== user?.id && (
+                                    <div className="flex justify-end gap-1">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => abrirModalEditarUsuario(usuario)}
+                                        title="Editar Usuário"
+                                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => abrirModalSenha(usuario)}
+                                        title="Alterar Senha"
+                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                      >
+                                        <Lock className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      {/* Mobile Cards */}
+                      <div className="md:hidden space-y-3 p-3">
+                        {usuarios.map((usuario) => (
+                          <Card key={usuario.id} className="p-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">
+                                    {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">{usuario.email}</p>
+                                </div>
+                                <Badge variant="outline" className="ml-2 flex-shrink-0">
+                                  {usuario.role === 'admin' ? 'Admin' : 'User'}
+                                </Badge>
+                              </div>
+                              {usuario.user_id !== user?.id && (
+                                <div className="flex gap-2 pt-2 border-t">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => abrirModalEditarUsuario(usuario)}
+                                    className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Editar
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => abrirModalSenha(usuario)}
+                                    className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  >
+                                    <Lock className="w-4 h-4 mr-2" />
+                                    Senha
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pages Maintenance Card */}
+          {realRole === 'admin' && (
             <Card className="hover:shadow-md transition-shadow duration-200">
               <CardHeader className="border-b">
                 <div 
                   className="flex items-center justify-between cursor-pointer"
-                  onClick={() => setPerfilExpanded(!perfilExpanded)}
+                  onClick={() => setPagesMaintenanceExpanded(!pagesMaintenanceExpanded)}
                 >
-                  <div className="flex items-center gap-2">
-                    <User className="w-5 h-5 text-muted-foreground" />
-                    <CardTitle>Perfil</CardTitle>
-                    <Badge className={realRole === 'admin' ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" : "bg-success/10 text-success border-success/30"}>
-                      {realRole === 'admin' ? 'Administrador' : 'Ativo'}
-                    </Badge>
+                  <div className="flex-1">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-muted-foreground" />
+                      Gerenciar Páginas em Manutenção
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Controle quais páginas aparecem com badge "Avaliar" na sidebar.
+                    </p>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="ml-4"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setPerfilExpanded(!perfilExpanded);
+                      setPagesMaintenanceExpanded(!pagesMaintenanceExpanded);
                     }}
                   >
-                    {perfilExpanded ? (
+                    {pagesMaintenanceExpanded ? (
                       <ChevronUp className="w-5 h-5" />
                     ) : (
                       <ChevronDown className="w-5 h-5" />
@@ -1723,801 +2446,232 @@ export default function Configuracoes() {
                   </Button>
                 </div>
               </CardHeader>
-              {perfilExpanded && (
-              <CardContent className="space-y-8">
-                {/* Seção Perfil */}
-                <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white text-lg sm:text-2xl font-bold shadow-lg ring-4 ring-background flex-shrink-0">
-                      {currentUser.nome.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-lg sm:text-xl text-foreground truncate">{currentUser.nome}</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{currentUser.email}</p>
-                      </div>
-                      {!editingNome ? (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditingNome(true)}
-                            className="w-full sm:w-auto"
-                          >
-                            <Edit className="w-4 h-4 mr-2" />
-                            <span className="hidden sm:inline">Mudar Nome</span>
-                            <span className="sm:hidden">Editar</span>
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                          <Input
-                            type="text"
-                            placeholder="O seu nome completo"
-                            value={nomeExibicao}
-                            onChange={(e) => setNomeExibicao(e.target.value)}
-                            disabled={loadingNome}
-                            autoComplete="off"
-                            className="w-full sm:w-48"
-                          />
-                          <div className="flex gap-2">
-                            <Button 
-                              onClick={async () => {
-                                await handleSalvarNome();
-                                setEditingNome(false);
-                              }}
-                              disabled={loadingNome || !nomeExibicao.trim()}
-                              size="sm"
-                              className="flex-1 sm:flex-initial"
-                            >
-                              {loadingNome ? "A guardar..." : "Guardar"}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setEditingNome(false);
-                                setNomeExibicao(currentUser.nome);
-                              }}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+              {pagesMaintenanceExpanded && (
+              <CardContent className="space-y-4 pt-6">
+                {loadingPagesMaintenance ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    <p className="text-sm">Carregando páginas...</p>
                   </div>
-
-                  {/* Seção Alterar Senha */}
-                  <div className="space-y-6 pt-4 border-t">
-                    <div className="flex items-center gap-2 pb-4 border-b">
-                      <Lock className="w-5 h-5 text-muted-foreground" />
-                      <h4 className="font-semibold text-lg">Alterar Senha</h4>
-                    </div>
-                    <div className="space-y-4">
-                      {/* Campo Senha Atual */}
-                      <div>
-                        <Label htmlFor="senhaAtual" className="text-sm font-medium mb-2">
-                          Senha Atual
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="senhaAtual"
-                            type={showSenhaAtual ? "text" : "password"}
-                            placeholder="Digite a sua senha atual"
-                            value={senhaAtual}
-                            onChange={(e) => setSenhaAtual(e.target.value)}
-                            disabled={loading || estaBloqueado}
-                            className="pr-10"
-                            autoComplete="current-password"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            onClick={() => setShowSenhaAtual(!showSenhaAtual)}
-                            disabled={loading || estaBloqueado}
-                          >
-                            {showSenhaAtual ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      {/* Campo Nova Senha */}
-                      <div>
-                        <Label htmlFor="novaSenha" className="text-sm font-medium mb-2">
-                          Nova Senha
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="novaSenha"
-                            type={showNovaSenha ? "text" : "password"}
-                            placeholder="Digite a sua nova senha"
-                            value={novaSenha}
-                            onChange={(e) => setNovaSenha(e.target.value)}
-                            disabled={loading || estaBloqueado}
-                            className="pr-10"
-                            autoComplete="new-password"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            onClick={() => setShowNovaSenha(!showNovaSenha)}
-                            disabled={loading || estaBloqueado}
-                          >
-                            {showNovaSenha ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                        
-                        {/* Medidor de força da senha */}
-                        {novaSenha && (
-                          <div className="mt-2 space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className={forcaSenha.color || "text-muted-foreground"}>
-                                {forcaSenha.label || "Digite uma senha"}
-                              </span>
-                              {forcaSenha.score > 0 && (
-                                <span className={forcaSenha.color}>
-                                  {forcaSenha.score}/4
-                                </span>
-                              )}
-                            </div>
-                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                              <div
-                                className={`h-full transition-all duration-300 ${
-                                  forcaSenha.bgColor || "bg-muted"
-                                }`}
-                                style={{
-                                  width: `${((forcaSenha.score + 1) / 5) * 100}%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {/* Campo Confirmar Senha */}
-                      <div>
-                        <Label htmlFor="confirmarSenha" className="text-sm font-medium mb-2">
-                          Confirmar Nova Senha
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id="confirmarSenha"
-                            type={showConfirmarSenha ? "text" : "password"}
-                            placeholder="Confirme a sua nova senha"
-                            value={confirmarSenha}
-                            onChange={(e) => setConfirmarSenha(e.target.value)}
-                            disabled={loading || estaBloqueado}
-                            className="pr-10"
-                            autoComplete="new-password"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                            onClick={() => setShowConfirmarSenha(!showConfirmarSenha)}
-                            disabled={loading || estaBloqueado}
-                          >
-                            {showConfirmarSenha ? (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </Button>
-                        </div>
-                        
-                        {confirmarSenha && novaSenha && (
-                          <p className={`text-xs mt-1 ${confirmarSenha === novaSenha ? "text-success" : "text-destructive"}`}>
-                            {confirmarSenha === novaSenha ? "✓ Senhas coincidem" : "✗ Senhas não coincidem"}
-                          </p>
-                        )}
-                      </div>
-                      {estaBloqueado && (
-                        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-destructive mt-0.5" />
-                          <p className="text-sm text-destructive">
-                            Muitas tentativas incorretas. Aguarde <span className="font-semibold">{tempoRestante}</span> segundos.
-                          </p>
-                        </div>
-                      )}
-                      {mensagemSucesso && (
-                        <div className="p-3 bg-success/10 border border-success/20 rounded-md flex items-start gap-2">
-                          <ShieldCheck className="w-4 h-4 text-success mt-0.5" />
-                          <p className="text-sm text-success">{mensagemSucesso}</p>
-                        </div>
-                      )}
-                      <Button
-                        onClick={handleAlterarSenha}
-                        disabled={loading || estaBloqueado || forcaSenha.score < 2 || novaSenha !== confirmarSenha}
-                        className="w-full"
-                      >
-                        {loading ? "A alterar..." : "Alterar Senha"}
-                      </Button>
-                    </div>
-                    <div className="border-t pt-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Ou redefinir por email</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Enviaremos um link para: <span className="font-semibold">{currentUser?.email}</span>
-                        </p>
-                        <Button
-                          variant="outline"
-                          onClick={() => setModalConfirmacaoEmail(true)}
-                          disabled={loadingEmail}
-                          className="w-full"
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {PAGINAS_DISPONIVEIS.map((pagina) => {
+                      // Normalizar paths para comparação (case-insensitive)
+                      const normalizedPaginaPath = pagina.path.toLowerCase().trim();
+                      const maintenanceConfig = pagesMaintenance.find(p => {
+                        const normalizedDbPath = p.page_path.toLowerCase().trim();
+                        return normalizedDbPath === normalizedPaginaPath;
+                      });
+                      const isInMaintenance = maintenanceConfig?.is_active ?? false;
+                      
+                      // Log para debug
+                      if (maintenanceConfig) {
+                        logger.log(`[Configuracoes] Página ${pagina.path} encontrada no banco:`, {
+                          path: maintenanceConfig.page_path,
+                          is_active: maintenanceConfig.is_active,
+                          badge_text: maintenanceConfig.badge_text
+                        });
+                      }
+                      
+                      return (
+                        <div
+                          key={pagina.path}
+                          className={`group flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
+                            isInMaintenance
+                              ? "bg-yellow-50/50 border-yellow-200 hover:border-yellow-300 hover:bg-yellow-50"
+                              : "bg-muted border-border hover:border-primary/30 hover:bg-accent"
+                          }`}
                         >
-                          <Mail className="w-4 h-4 mr-2" />
-                          {loadingEmail ? "A enviar..." : "Enviar Email de Redefinição"}
-                        </Button>
-                      </div>
-                    </div>
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-2xl transition-all ${
+                              isInMaintenance
+                                ? "bg-warning/20"
+                                : "bg-muted"
+                            }`}>
+                              {pagina.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className={`font-semibold text-sm ${
+                                  isInMaintenance ? "text-warning-foreground" : "text-foreground"
+                                }`}>
+                                  {pagina.nome}
+                                </h4>
+                                {isInMaintenance && (
+                                  <Badge 
+                                    variant="outline" 
+                                    className="text-[10px] px-2 py-0.5 h-5 bg-yellow-100 text-yellow-700 border-yellow-300 font-medium"
+                                  >
+                                    {maintenanceConfig?.badge_text || "Avaliar"}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground font-mono">{pagina.path}</p>
+                            </div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer" 
+                              checked={isInMaintenance}
+                              onChange={() => handleTogglePageMaintenance(pagina.path, isInMaintenance)}
+                              disabled={loadingPagesMaintenance}
+                            />
+                            <div className={`w-12 h-6 rounded-full peer transition-all duration-300 ${
+                              isInMaintenance 
+                                ? "bg-warning shadow-md shadow-warning/30" 
+                                : "bg-muted border border-border"
+                            } peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-warning peer-checked:after:translate-x-full peer-checked:after:border-warning-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-warning-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm`}></div>
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
+                
+
+                
               </CardContent>
               )}
             </Card>
+          )}
 
-            {/* User Management Card (Only for Admin) */}
-            {realRole === 'admin' && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ShieldAlert className="w-5 h-5" />
-                    Controle de Usuários
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-6">
-                  <div>
-                    <h4 className="font-semibold text-foreground mb-4">Criar ou Atualizar Usuário</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Adicione um novo usuário ou atualize a senha temporária de um usuário existente. <br /><br />Uma senha aleatória e segura será gerada automaticamente. <br />O usuário deve fazer login e o modal de troca de senha aparecerá automaticamente na Home.
-                    </p>
+          {/* Password Card */}
+        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-                      <Input
-                        type="email"
-                        placeholder="E-mail do utilizador"
-                        value={novoUsuario.email}
-                        onChange={(e) => setNovoUsuario({...novoUsuario, email: e.target.value})}
-                        autoComplete="off"
-                        disabled={loadingUsuarios}
-                        className="md:col-span-1"
-                      />
-                      <Select
-                        value={novoUsuario.role}
-                        onValueChange={(value: "admin" | "user") => {
-                          setNovoUsuario({...novoUsuario, role: value});
-                          // Limpar permissões se mudar para admin
-                          if (value === "admin") {
-                            setPermissoesPaginasNovoUsuario([]);
-                          }
-                        }}
-                        disabled={loadingUsuarios}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Tipo de utilizador" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">Usuário</SelectItem>
-                          <SelectItem value="admin">Administrador</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button 
-                        onClick={handleEnviarResetPassword}
-                        className="md:col-span-1"
-                        disabled={loadingUsuarios}
-                      >
-                        {loadingUsuarios ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            <span className="hidden sm:inline">Enviando...</span>
-                            <span className="sm:hidden">...</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-4 h-4 mr-2" />
-                            <span className="hidden sm:inline">{novoUsuario.email ? "Criar/Atualizar Usuário" : "Criar Usuário"}</span>
-                            <span className="sm:hidden">Criar</span>
-                          </>
-                        )}
-                      </Button>
-                    </div>
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* System Info Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Informações do Sistema</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Versão:</span>
+                <span className="font-semibold text-foreground font-mono text-xs">{getInternalVersionString()}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Commits:</span>
+                <span className="font-mono">{getVersionInfo().commitCount}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Build:</span>
+                <span className="font-mono text-xs">{new Date(getVersionInfo().buildDate).toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
+                  onClick={handleTerminarSessao}
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Terminar Sessão
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-                    {/* Seleção de Páginas (apenas para usuários não-admin) */}
-                    {novoUsuario.role === "user" && (
-                      <div className="border-t pt-4 mt-4">
-                        <Label className="text-base font-semibold mb-3 block">
-                          Páginas que o usuário poderá ver
-                        </Label>
-                        <p className="text-xs text-muted-foreground mb-4">
-                          Por padrão, todas as páginas estarão visíveis. Clique nas páginas para ocultá-las.
-                        </p>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
-                          {PAGINAS_DISPONIVEIS.map((pagina) => {
-                            const estaOculta = permissoesPaginasNovoUsuario.includes(pagina.path);
-                            
-                            return (
-                              <div
-                                key={pagina.path}
-                                className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                  estaOculta
-                                    ? "border-red-500 bg-red-50 hover:border-red-600 hover:bg-red-100"
-                                    : "border-green-500 bg-green-50 hover:border-green-600 hover:bg-green-100"
-                                }`}
-                                onClick={() => {
-                                  setPermissoesPaginasNovoUsuario(prev => {
-                                    if (prev.includes(pagina.path)) {
-                                      return prev.filter(p => p !== pagina.path);
-                                    } else {
-                                      return [...prev, pagina.path];
-                                    }
-                                  });
-                                }}
-                                title={estaOculta ? "Clique para tornar esta página visível" : "Clique para ocultar esta página"}
-                              >
-                                <div className="flex items-center gap-2 flex-1">
-                                  <span className="text-lg">{pagina.icon}</span>
-                                  <span className={`font-medium ${
-                                    estaOculta ? "text-red-700" : "text-green-700"
-                                  }`}>
-                                    {pagina.nome}
-                                  </span>
-                                </div>
-                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                                  estaOculta
-                                    ? "border-red-500 bg-red-500"
-                                    : "border-green-500 bg-green-500"
-                                }`}>
-                                  {estaOculta ? (
-                                    <X className="w-3 h-3 text-white" />
-                                  ) : (
-                                    <Check className="w-3 h-3 text-white" />
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+          {/* Notifications Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Bell className="w-4 h-4" />
+                Notificações
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-foreground text-sm">Notificações por E-mail</h4>
+                  <p className="text-xs text-muted-foreground">Receba atualizações importantes por e-mail</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-2">
+                  <input type="checkbox" className="sr-only peer" defaultChecked />
+                  <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
 
-                        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                          <span>
-                            {permissoesPaginasNovoUsuario.length} página{permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''} oculta{permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''} • {PAGINAS_DISPONIVEIS.length - permissoesPaginasNovoUsuario.length} visível{PAGINAS_DISPONIVEIS.length - permissoesPaginasNovoUsuario.length !== 1 ? 's' : ''}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (permissoesPaginasNovoUsuario.length === PAGINAS_DISPONIVEIS.length) {
-                                // Todas estão ocultas, tornar todas visíveis
-                                setPermissoesPaginasNovoUsuario([]);
-                              } else {
-                                // Algumas ou nenhuma está oculta, ocultar todas
-                                setPermissoesPaginasNovoUsuario(PAGINAS_DISPONIVEIS.map(p => p.path));
-                              }
-                            }}
-                            type="button"
-                          >
-                            {permissoesPaginasNovoUsuario.length === PAGINAS_DISPONIVEIS.length ? "Tornar Todas Visíveis" : "Ocultar Todas"}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {statusMessage && (
-                      <p className={`text-sm mt-2 ${statusMessage.includes("Erro") || statusMessage.includes("não encontrado") ? "text-red-600" : "text-green-600"}`}>
-                        {statusMessage}
-                      </p>
-                    )}
-                  </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-foreground text-sm">Alertas do Sistema</h4>
+                  <p className="text-xs text-muted-foreground">Notificações sobre atualizações e manutenções</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer ml-2">
+                  <input type="checkbox" className="sr-only peer" defaultChecked />
+                  <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-semibold text-foreground">Utilizadores Registados</h4>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={carregarUsuarios}
-                        disabled={loadingUsuarios}
-                      >
-                        <RefreshCw className={`w-4 h-4 mr-2 ${loadingUsuarios ? 'animate-spin' : ''}`} />
-                        Atualizar
-                      </Button>
-                    </div>
-                    {loadingUsuarios ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Carregando usuários...
-                      </div>
-                    ) : usuarios.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Nenhum usuário encontrado.
-                      </div>
-                    ) : (
-                      // Modificação solicitada: Substituição do ScrollArea por div nativa e ajuste no header
-                      <div className="max-h-[500px] w-full overflow-y-auto border rounded-md">
-                        {/* Desktop Table */}
-                        <div className="hidden md:block">
-                          <Table>
-                            <TableHeader className="sticky top-0 z-10 bg-background">
-                              <TableRow>
-                                <TableHead className="bg-background">Nome</TableHead>
-                                <TableHead className="bg-background">Email</TableHead>
-                                <TableHead className="bg-background">Role</TableHead>
-                                <TableHead className="text-right bg-background">Ações</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {usuarios.map((usuario) => (
-                                <TableRow key={usuario.id}>
-                                  <TableCell className="font-medium">
-                                    {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
-                                  </TableCell>
-                                  <TableCell>{usuario.email}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline">
-                                      {usuario.role === 'admin' ? 'Admin' : 'User'}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {usuario.user_id !== user?.id && (
-                                      <div className="flex justify-end gap-1">
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => abrirModalEditarUsuario(usuario)}
-                                          title="Editar Usuário"
-                                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                        >
-                                          <Edit className="w-4 h-4" />
-                                        </Button>
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => abrirModalSenha(usuario)}
-                                          title="Alterar Senha"
-                                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                        >
-                                          <Lock className="w-4 h-4" />
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                        {/* Mobile Cards */}
-                        <div className="md:hidden space-y-3 p-3">
-                          {usuarios.map((usuario) => (
-                            <Card key={usuario.id} className="p-4">
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm truncate">
-                                      {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground truncate">{usuario.email}</p>
-                                  </div>
-                                  <Badge variant="outline" className="ml-2 flex-shrink-0">
-                                    {usuario.role === 'admin' ? 'Admin' : 'User'}
-                                  </Badge>
-                                </div>
-                                {usuario.user_id !== user?.id && (
-                                  <div className="flex gap-2 pt-2 border-t">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      onClick={() => abrirModalEditarUsuario(usuario)}
-                                      className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                    >
-                                      <Edit className="w-4 h-4 mr-2" />
-                                      Editar
-                                    </Button>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      onClick={() => abrirModalSenha(usuario)}
-                                      className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                    >
-                                      <Lock className="w-4 h-4 mr-2" />
-                                      Senha
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+              <div className="pt-2 border-t">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start text-sm"
+                  onClick={handleRecarregarPagina}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Recarregar página
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Pages Maintenance Card */}
-            {realRole === 'admin' && (
-              <Card className="hover:shadow-md transition-shadow duration-200">
-                <CardHeader className="border-b">
-                  <div 
-                    className="flex items-center justify-between cursor-pointer"
-                    onClick={() => setPagesMaintenanceExpanded(!pagesMaintenanceExpanded)}
-                  >
-                    <div className="flex-1">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Settings className="w-5 h-5 text-muted-foreground" />
-                        Gerenciar Páginas em Manutenção
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Controle quais páginas aparecem com badge "Avaliar" na sidebar.
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-4"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPagesMaintenanceExpanded(!pagesMaintenanceExpanded);
-                      }}
-                    >
-                      {pagesMaintenanceExpanded ? (
-                        <ChevronUp className="w-5 h-5" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5" />
-                      )}
-                    </Button>
-                  </div>
-                </CardHeader>
-                {pagesMaintenanceExpanded && (
-                <CardContent className="space-y-4 pt-6">
-                  {loadingPagesMaintenance ? (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                      <p className="text-sm">Carregando páginas...</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {PAGINAS_DISPONIVEIS.map((pagina) => {
-                        // Normalizar paths para comparação (case-insensitive)
-                        const normalizedPaginaPath = pagina.path.toLowerCase().trim();
-                        const maintenanceConfig = pagesMaintenance.find(p => {
-                          const normalizedDbPath = p.page_path.toLowerCase().trim();
-                          return normalizedDbPath === normalizedPaginaPath;
-                        });
-                        const isInMaintenance = maintenanceConfig?.is_active ?? false;
-                        
-                        // Log para debug
-                        if (maintenanceConfig) {
-                          logger.log(`[Configuracoes] Página ${pagina.path} encontrada no banco:`, {
-                            path: maintenanceConfig.page_path,
-                            is_active: maintenanceConfig.is_active,
-                            badge_text: maintenanceConfig.badge_text
-                          });
-                        }
-                        
-                        return (
-                          <div
-                            key={pagina.path}
-                            className={`group flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
-                              isInMaintenance
-                                ? "bg-yellow-50/50 border-yellow-200 hover:border-yellow-300 hover:bg-yellow-50"
-                                : "bg-muted border-border hover:border-primary/30 hover:bg-accent"
-                            }`}
-                          >
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-2xl transition-all ${
-                                isInMaintenance
-                                  ? "bg-warning/20"
-                                  : "bg-muted"
-                              }`}>
-                                {pagina.icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h4 className={`font-semibold text-sm ${
-                                    isInMaintenance ? "text-warning-foreground" : "text-foreground"
-                                  }`}>
-                                    {pagina.nome}
-                                  </h4>
-                                  {isInMaintenance && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className="text-[10px] px-2 py-0.5 h-5 bg-yellow-100 text-yellow-700 border-yellow-300 font-medium"
-                                    >
-                                      {maintenanceConfig?.badge_text || "Avaliar"}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground font-mono">{pagina.path}</p>
-                              </div>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
-                              <input 
-                                type="checkbox" 
-                                className="sr-only peer" 
-                                checked={isInMaintenance}
-                                onChange={() => handleTogglePageMaintenance(pagina.path, isInMaintenance)}
-                                disabled={loadingPagesMaintenance}
-                              />
-                              <div className={`w-12 h-6 rounded-full peer transition-all duration-300 ${
-                                isInMaintenance 
-                                  ? "bg-warning shadow-md shadow-warning/30" 
-                                  : "bg-muted border border-border"
-                              } peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-warning peer-checked:after:translate-x-full peer-checked:after:border-warning-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-warning-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm`}></div>
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  
-                  <div className="pt-4 mt-6 border-t space-y-2">
-                    <div className="flex items-start gap-2">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500 mt-1.5 flex-shrink-0"></div>
-                      <p className="text-xs text-muted-foreground">
-                        <strong className="text-foreground">OFF:</strong> Badge "Avaliar" aparece na sidebar para admins.
-                      </p>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-2 h-2 rounded-full bg-muted-foreground mt-1.5 flex-shrink-0"></div>
-                      <p className="text-xs text-muted-foreground">
-                        <strong className="text-foreground">ON:</strong> Badge é removido da sidebar.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-                )}
-              </Card>
-            )}
-
-            {/* Password Card */}
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* System Info Card */}
-            <Card>
+          {/* Security Test & Logs Card */}
+          {realRole === 'admin' && (
+            <Card className="hover:shadow-md transition-shadow duration-200">
               <CardHeader>
-                <CardTitle className="text-sm">Informações do Sistema</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Versão:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{getInternalVersionString()}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Commits:</span>
-                  <span className="font-mono">{getVersionInfo().commitCount}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Build:</span>
-                  <span className="font-mono text-xs">{new Date(getVersionInfo().buildDate).toLocaleDateString('pt-BR')}</span>
-                </div>
-                <div className="pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
-                    onClick={handleTerminarSessao}
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Terminar Sessão
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Notifications Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Bell className="w-4 h-4" />
-                  Notificações
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-muted-foreground" />
+                  Testes de Segurança
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-foreground text-sm">Notificações por E-mail</h4>
-                    <p className="text-xs text-muted-foreground">Receba atualizações importantes por e-mail</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer ml-2">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-foreground text-sm">Alertas do Sistema</h4>
-                    <p className="text-xs text-muted-foreground">Notificações sobre atualizações e manutenções</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer ml-2">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-muted border border-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-primary-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-primary-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                  </label>
-                </div>
-
-                <div className="pt-2 border-t">
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start text-sm"
-                    onClick={handleRecarregarPagina}
+                <div>
+                  <Button
+                    onClick={() => {
+                      sessionStorage.setItem('securityTestFromConfig', 'true');
+                      navigate('/security-test');
+                    }}
+                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
                   >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Recarregar página
+                    <Shield className="w-4 h-4 mr-2" />
+                    Ir para Testes de Segurança
+                  </Button>
+                </div>
+                <div className="pt-4 border-t">
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-muted-foreground" />
+                    Logs do Sistema
+                  </CardTitle>
+                </div>
+                <div className="pt-2 border-t">
+                  <Button
+                    onClick={() => navigate('/audit-logs')}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                  >
+                    <Database className="w-4 h-4 mr-2" />
+                    Ver Logs do Sistema
                   </Button>
                 </div>
               </CardContent>
             </Card>
+          )}
 
-            {/* Security Test & Logs Card */}
-            {realRole === 'admin' && (
-              <Card className="hover:shadow-md transition-shadow duration-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-muted-foreground" />
-                    Testes de Segurança
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Button
-                      onClick={() => {
-                        sessionStorage.setItem('securityTestFromConfig', 'true');
-                        navigate('/security-test');
-                      }}
-                      className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
-                    >
-                      <Shield className="w-4 h-4 mr-2" />
-                      Ir para Testes de Segurança
-                    </Button>
-                  </div>
-                  <div className="pt-4 border-t">
-                    <CardTitle className="flex items-center gap-2">
-                      <Database className="w-5 h-5 text-muted-foreground" />
-                      Logs do Sistema
-                    </CardTitle>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <Button
-                      onClick={() => navigate('/audit-logs')}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                    >
-                      <Database className="w-4 h-4 mr-2" />
-                      Ver Logs do Sistema
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Help Card */}
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="pt-6">
-                <h4 className="font-semibold text-primary mb-2">Precisa de ajuda?</h4>
-                <p className="text-sm text-primary/80 mb-4">
-                  Entre em contato com o suporte técnico para assistência
-                </p>
-                <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
-                  Contactar Suporte
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Help Card */}
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="pt-6">
+              <h4 className="font-semibold text-primary mb-2">Precisa de ajuda?</h4>
+              <p className="text-sm text-primary/80 mb-4">
+                Entre em contato com o suporte técnico para assistência
+              </p>
+              <Button variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10">
+                Contactar Suporte
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
+
 
       {/* MODAL DE EDIÇÃO DE USUÁRIO (ADMIN) */}
       {modalEditarUsuarioOpen && usuarioEditando && (
@@ -2580,7 +2734,7 @@ export default function Configuracoes() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
-                    {PAGINAS_DISPONIVEIS.map((pagina) => {
+                    {getPaginasParaUsuarios().map((pagina) => {
                       const estaOculta = permissoesPaginas.includes(pagina.path);
                       
                       return (
@@ -2621,23 +2775,24 @@ export default function Configuracoes() {
 
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <span>
-                    {permissoesPaginas.length} página{permissoesPaginas.length !== 1 ? 's' : ''} oculta{permissoesPaginas.length !== 1 ? 's' : ''} • {PAGINAS_DISPONIVEIS.length - permissoesPaginas.length} visível{PAGINAS_DISPONIVEIS.length - permissoesPaginas.length !== 1 ? 's' : ''}
+                    {permissoesPaginas.length} página{permissoesPaginas.length !== 1 ? 's' : ''} oculta{permissoesPaginas.length !== 1 ? 's' : ''} • {getPaginasParaUsuarios().length - permissoesPaginas.length} visível{getPaginasParaUsuarios().length - permissoesPaginas.length !== 1 ? 's' : ''}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => {
-                      if (permissoesPaginas.length === PAGINAS_DISPONIVEIS.length) {
+                      const totalPaginas = getPaginasParaUsuarios().length;
+                      if (permissoesPaginas.length === totalPaginas) {
                         // Todas estão ocultas, tornar todas visíveis
                         setPermissoesPaginas([]);
                       } else {
-                        // Algumas ou nenhuma está oculta, ocultar todas
-                        setPermissoesPaginas(PAGINAS_DISPONIVEIS.map(p => p.path));
+                        // Algumas ou nenhuma está oculta, ocultar todas (apenas páginas para usuários)
+                        setPermissoesPaginas(getPaginasParaUsuarios().map(p => p.path));
                       }
                     }}
                     disabled={editarRole === "admin"}
                   >
-                    {permissoesPaginas.length === PAGINAS_DISPONIVEIS.length ? "Tornar Todas Visíveis" : "Ocultar Todas"}
+                    {permissoesPaginas.length === getPaginasParaUsuarios().length ? "Tornar Todas Visíveis" : "Ocultar Todas"}
                   </Button>
                 </div>
               </div>
@@ -2833,11 +2988,12 @@ export default function Configuracoes() {
                 <Label className="text-sm font-semibold">Permissões de Páginas</Label>
                 <div className="p-3 bg-muted rounded-md space-y-2">
                   {(() => {
-                    const paginasVisiveis = PAGINAS_DISPONIVEIS.filter(
+                    const paginasParaUsuarios = getPaginasParaUsuarios();
+                    const paginasVisiveis = paginasParaUsuarios.filter(
                       p => !permissoesPaginasNovoUsuario.includes(p.path)
                     );
                     const paginasOcultas = permissoesPaginasNovoUsuario.map(
-                      path => PAGINAS_DISPONIVEIS.find(p => p.path === path)
+                      path => paginasParaUsuarios.find(p => p.path === path)
                     ).filter(Boolean);
 
                     return (
