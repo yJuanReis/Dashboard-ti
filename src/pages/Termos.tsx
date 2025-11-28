@@ -9,6 +9,7 @@ import { FileText, Download, Eye, RefreshCw, Laptop, Smartphone, Tablet, Monitor
 import { toast } from "sonner";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { logger } from "@/lib/logger";
 
 interface TermoData {
   dia: string;
@@ -182,9 +183,9 @@ export default function TesteTermos() {
     const pdfFileName = encodeURIComponent(config.fileName);
     const pdfUrl = `/termos/${config.folder}/${pdfFileName}${cacheBuster}`;
     
-    console.log("🔄 Carregando PDF:", pdfUrl);
-    console.log("📅 Timestamp:", timestamp);
-    console.log("📋 Tipo:", tipo);
+    logger.log("🔄 Carregando PDF:", pdfUrl);
+    logger.log("📅 Timestamp:", timestamp);
+    logger.log("📋 Tipo:", tipo);
     
     // Criar uma nova requisição com cache completamente desabilitado
     const controller = new AbortController();
@@ -202,7 +203,7 @@ export default function TesteTermos() {
       }
     })
       .then((response) => {
-        console.log("✅ Resposta do servidor:", response.status, response.statusText);
+        logger.log("✅ Resposta do servidor:", response.status, response.statusText);
         if (!response.ok) {
           throw new Error(`Erro ao carregar PDF: ${response.status}`);
         }
@@ -210,7 +211,7 @@ export default function TesteTermos() {
       })
       .then((arrayBuffer) => {
         const newPdfBytes = new Uint8Array(arrayBuffer);
-        console.log("📄 PDF carregado, tamanho:", newPdfBytes.length, "bytes");
+        logger.log("📄 PDF carregado, tamanho:", newPdfBytes.length, "bytes");
         setPdfBytes(newPdfBytes);
         setPdfVersion(timestamp);
         if (showToast) {
@@ -219,7 +220,7 @@ export default function TesteTermos() {
       })
       .catch((error) => {
         if (error.name !== 'AbortError') {
-          console.error("❌ Erro ao carregar PDF:", error);
+          logger.error("❌ Erro ao carregar PDF:", error);
           toast.error(`Erro ao carregar o template do termo: ${error.message}`);
         }
       });
@@ -292,7 +293,7 @@ export default function TesteTermos() {
     
     // Verificar se existe página 2 (índice 1)
     if (pages.length < 2) {
-      console.warn("PDF não tem página 2, os campos serão preenchidos na página 1");
+      logger.warn("PDF não tem página 2, os campos serão preenchidos na página 1");
     }
     
     // Usar página 2 (índice 1) ou página 1 se não existir página 2
@@ -616,7 +617,7 @@ export default function TesteTermos() {
       const url = URL.createObjectURL(blob);
       setPreviewPdfUrl(url);
     } catch (error) {
-      console.error("Erro ao atualizar preview do PDF:", error);
+      logger.error("Erro ao atualizar preview do PDF:", error);
     }
   };
 
@@ -729,7 +730,7 @@ export default function TesteTermos() {
       
       toast.success("PDF baixado com sucesso!");
     } catch (error) {
-      console.error("Erro ao gerar PDF:", error);
+      logger.error("Erro ao gerar PDF:", error);
       toast.error("Erro ao gerar PDF. Tente novamente.");
     }
   };
@@ -850,7 +851,7 @@ export default function TesteTermos() {
       
       toast.success("Abrindo impressão...");
     } catch (error) {
-      console.error("Erro ao gerar PDF para impressão:", error);
+      logger.error("Erro ao gerar PDF para impressão:", error);
       toast.error("Erro ao gerar PDF. Tente novamente.");
     }
   };

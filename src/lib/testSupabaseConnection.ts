@@ -1,73 +1,56 @@
 // Script de teste para verificar a conexão com o Supabase
 // Use isso no console do navegador para testar sua tabela
 
-import { supabase } from './supabaseClient';
-import { PASSWORDS_CONFIG } from './passwordsConfig';
+import { logger } from './logger';
+import { fetchPasswords } from './passwordsApiService';
 
 /**
- * Testa a conexão com o Supabase e verifica se a tabela existe
+ * Testa a conexão com o Supabase usando as funções RPC
  * Execute isso no console do navegador: window.testSupabase()
  */
 export async function testSupabaseConnection() {
-  console.log('🔍 Testando conexão com o Supabase...\n');
-  console.log(`📋 Tabela configurada: "${PASSWORDS_CONFIG.tableName}"\n`);
+  logger.log('🔍 Testando conexão com o Supabase via RPC...\n');
 
   try {
-    // Tenta buscar dados da tabela
-    const { data, error } = await supabase
-      .from(PASSWORDS_CONFIG.tableName)
-      .select('*')
-      .limit(1);
+    // Tenta buscar dados usando a função RPC
+    const data = await fetchPasswords();
 
-    if (error) {
-      console.error('❌ Erro ao acessar a tabela:', error);
-      console.log('\n💡 Possíveis soluções:');
-      console.log('1. Verifique o nome da tabela em src/lib/passwordsConfig.ts');
-      console.log('2. Verifique se a tabela existe no Supabase Dashboard');
-      console.log('3. Verifique as políticas RLS (Row Level Security) no Supabase');
+    if (!data) {
+      logger.error('❌ Erro ao acessar as senhas via RPC');
+      logger.log('\n💡 Possíveis soluções:');
+      logger.log('1. Verifique se as funções RPC foram criadas no Supabase');
+      logger.log('2. Execute o script docs/sql/passwords_rpc_functions.sql');
+      logger.log('3. Verifique as permissões das funções RPC no Supabase');
+      logger.log('4. Verifique as políticas RLS (Row Level Security) no Supabase');
       return false;
     }
 
-    console.log('✅ Tabela encontrada!');
+    logger.log('✅ Funções RPC configuradas corretamente!');
     
-    if (data && data.length > 0) {
-      console.log('\n📊 Estrutura da primeira linha:');
-      console.log(JSON.stringify(data[0], null, 2));
-      
-      console.log('\n📋 Colunas encontradas:');
-      Object.keys(data[0]).forEach(col => {
-        console.log(`  - ${col}: ${typeof data[0][col]}`);
-      });
-      
-      console.log('\n🔍 Verificando mapeamento de campos...');
-      const mapping = PASSWORDS_CONFIG.fieldMapping;
-      const row = data[0];
-      
-      const requiredFields = ['id', 'service', 'category'];
-      const missingFields: string[] = [];
-      
-      requiredFields.forEach(field => {
-        const mappedField = mapping[field as keyof typeof mapping];
-        if (!row[mappedField]) {
-          missingFields.push(`${field} (mapeado para "${mappedField}")`);
-        }
-      });
-      
-      if (missingFields.length > 0) {
-        console.warn('⚠️ Campos obrigatórios não encontrados:');
-        missingFields.forEach(field => console.warn(`  - ${field}`));
-        console.log('\n💡 Ajuste o mapeamento em src/lib/passwordsConfig.ts');
-      } else {
-        console.log('✅ Todos os campos obrigatórios estão mapeados corretamente!');
-      }
+    if (data.length > 0) {
+      logger.log(`\n📊 ${data.length} senha(s) encontrada(s)`);
+      logger.log('\n📋 Estrutura do primeiro registro:');
+      const firstItem = data[0];
+      logger.log(`  - ID: ${firstItem.id}`);
+      logger.log(`  - Serviço: ${firstItem.service}`);
+      logger.log(`  - Categoria: ${firstItem.category}`);
+      logger.log(`  - Username: ${firstItem.username ? '***' : '(vazio)'}`);
+      logger.log(`  - Password: ${firstItem.password ? '***' : '(vazio)'}`);
+      logger.log('✅ Estrutura dos dados está correta!');
     } else {
-      console.log('⚠️ Tabela existe mas está vazia');
-      console.log('💡 Adicione alguns dados no Supabase Dashboard');
+      logger.log('⚠️ Nenhuma senha encontrada');
+      logger.log('💡 Adicione alguns dados na tabela passwords no Supabase Dashboard');
     }
 
     return true;
-  } catch (error) {
-    console.error('❌ Erro ao testar conexão:', error);
+  } catch (error: any) {
+    logger.error('❌ Erro ao testar conexão via RPC:', error);
+    
+    if (error?.message?.includes('function') || error?.message?.includes('does not exist')) {
+      logger.log('\n💡 A função RPC não foi encontrada!');
+      logger.log('Execute o script: docs/sql/passwords_rpc_functions.sql');
+    }
+    
     return false;
   }
 }

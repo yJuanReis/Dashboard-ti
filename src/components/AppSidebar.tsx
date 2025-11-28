@@ -35,6 +35,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import zxcvbn from "zxcvbn";
 import { getPagesInMaintenance } from "@/lib/pagesMaintenanceService";
+import { logger } from "@/lib/logger";
 import {
   Dialog,
   DialogContent,
@@ -265,7 +266,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
         }
 
         const pages = await getPagesInMaintenance();
-        console.log('[AppSidebar] Páginas em manutenção carregadas:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
+        logger.log('[AppSidebar] Páginas em manutenção carregadas:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
         // Criar objeto apenas com páginas ativas
         const maintenanceObj: Record<string, { badgeText: string; badgeVariant: "blue" | "gray" | "yellow" }> = {};
         pages.forEach(page => {
@@ -277,10 +278,10 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
             };
           }
         });
-        console.log('[AppSidebar] Objeto atualizado com', Object.keys(maintenanceObj).length, 'páginas:', Object.keys(maintenanceObj));
+        logger.log('[AppSidebar] Objeto atualizado com', Object.keys(maintenanceObj).length, 'páginas:', Object.keys(maintenanceObj));
         setPagesMaintenance(maintenanceObj);
       } catch (error) {
-        console.error("Erro ao carregar páginas em manutenção:", error);
+        logger.error("Erro ao carregar páginas em manutenção:", error);
       }
     };
 
@@ -302,7 +303,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
     // Listener para mudanças imediatas
     const handleMaintenanceChange = async (event: any) => {
-      console.log('[AppSidebar] Evento pagesMaintenanceChanged recebido:', event.detail);
+      logger.log('[AppSidebar] Evento pagesMaintenanceChanged recebido:', event.detail);
       // Pequeno delay para garantir que o banco foi atualizado
       await new Promise(resolve => setTimeout(resolve, 200));
       await loadPagesMaintenance();
@@ -312,7 +313,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
     window.addEventListener('pagesMaintenanceChanged', handleMaintenanceChange);
 
     const handleVisibilityChange = () => {
-      console.log("[AppSidebar] visibilitychange:", document.visibilityState);
+      logger.log("[AppSidebar] visibilitychange:", document.visibilityState);
       setupInterval();
     };
 
@@ -334,7 +335,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
   // Adiciona badges dinamicamente baseado na configuração de manutenção do banco
   const navigationItems: NavigationItem[] = useMemo(() => {
     const maintenanceKeys = Object.keys(pagesMaintenance);
-    console.log('[AppSidebar] Recalculando navigationItems, páginas em manutenção:', maintenanceKeys);
+    logger.log('[AppSidebar] Recalculando navigationItems, páginas em manutenção:', maintenanceKeys);
     return NAVIGATION_CONFIG.map(item => {
       // Normalizar path para comparação
       const normalizedItemUrl = item.url.toLowerCase().trim();
@@ -343,7 +344,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
       })?.[1];
       
       if (maintenanceConfig) {
-        console.log(`[AppSidebar] Adicionando badge para ${item.url}:`, maintenanceConfig);
+        logger.log(`[AppSidebar] Adicionando badge para ${item.url}:`, maintenanceConfig);
         return {
           ...item,
           badge: {
@@ -359,7 +360,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
   // Filtrar itens de navegação baseado em permissões
   const filteredNavigationItems: NavigationItem[] = useMemo(() => {
-    console.log('[AppSidebar] Recalculando filteredNavigationItems, trigger:', maintenanceUpdateTrigger);
+    logger.log('[AppSidebar] Recalculando filteredNavigationItems, trigger:', maintenanceUpdateTrigger);
     return navigationItems.filter((item) => {
       // Versão reduzida para mobile: oculta itens marcados como mobileHidden
       if (isMobile && item.mobileHidden) {
@@ -372,7 +373,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
       // Respeitar roles configuradas (se houver)
       if (item.roles && item.roles.length > 0 && !item.roles.includes(role as any)) {
-        console.log(`[AppSidebar] Página ${item.url} oculta por role`, {
+        logger.log(`[AppSidebar] Página ${item.url} oculta por role`, {
           requiredRoles: item.roles,
           role,
           userEmail: user?.email,
@@ -383,7 +384,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
       // Verificar permissão
       const hasAccess = hasPermission(item.url);
       if (!hasAccess) {
-        console.log(`[AppSidebar] Página ${item.url} filtrada (sem permissão)`, {
+        logger.log(`[AppSidebar] Página ${item.url} filtrada (sem permissão)`, {
           hasPermission: hasAccess,
           role,
           url: item.url
@@ -466,12 +467,12 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
           
           // Se não for erro de tabela não encontrada, logar
           if (!isTableNotFound) {
-            console.warn("Erro ao atualizar perfil:", profileError);
+            logger.warn("Erro ao atualizar perfil:", profileError);
           }
         }
       } catch (profileErr) {
         // Ignorar erros de tabela não encontrada
-        console.warn("Erro ao atualizar perfil:", profileErr);
+        logger.warn("Erro ao atualizar perfil:", profileErr);
       }
 
       // Recarregar a sessão para atualizar o user no AuthContext
@@ -484,7 +485,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
       toast.success("Nome atualizado com sucesso!");
     } catch (error: any) {
-      console.error("Erro ao salvar nome:", error);
+      logger.error("Erro ao salvar nome:", error);
       toast.error("Não foi possível salvar o nome. Tente novamente.");
     } finally {
       setLoadingNome(false);
@@ -553,7 +554,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
       });
 
       if (updateError) {
-        console.error("Erro ao alterar senha:", updateError);
+        logger.error("Erro ao alterar senha:", updateError);
         toast.error("Não foi possível alterar a senha. Tente novamente.");
         setLoading(false);
         return;
@@ -570,7 +571,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
       // Limpar mensagem após 5 segundos
       setTimeout(() => setMensagemSucesso(""), 5000);
     } catch (error) {
-      console.error("Erro ao alterar senha:", error);
+      logger.error("Erro ao alterar senha:", error);
       toast.error("Erro ao alterar senha. Tente novamente.");
     } finally {
       setLoading(false);
@@ -613,7 +614,7 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
 
       toast.success("Cache limpo com sucesso!");
     } catch (error) {
-      console.error("Erro ao limpar cache:", error);
+      logger.error("Erro ao limpar cache:", error);
       toast.error("Erro ao limpar cache. Tente novamente.");
     }
   }, []);
@@ -1069,14 +1070,14 @@ export function AppSidebar({ sidebarTriggerRef }: AppSidebarProps) {
                         });
                         
                         if (error) {
-                          console.error("Erro ao enviar email de reset de senha:", error);
+                          logger.error("Erro ao enviar email de reset de senha:", error);
                           toast.error("Não foi possível enviar o email de redefinição. Tente novamente mais tarde.");
                           return;
                         }
                         
                         toast.success("Email de redefinição de senha enviado com sucesso!");
                       } catch (error: any) {
-                        console.error("Erro inesperado ao enviar email de reset de senha:", error);
+                        logger.error("Erro inesperado ao enviar email de reset de senha:", error);
                         toast.error("Não foi possível enviar o email de redefinição. Tente novamente mais tarde.");
                       }
                     }}

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface AdminOnlyRouteProps {
   children: ReactNode;
@@ -31,7 +32,7 @@ export function AdminOnlyRoute({ children }: AdminOnlyRouteProps) {
           .single();
 
         if (error) {
-          console.error("Erro ao verificar admin:", error);
+          logger.error("Erro ao verificar admin:", error);
           setIsAdmin(false);
           setLoading(false);
           return;
@@ -39,7 +40,7 @@ export function AdminOnlyRoute({ children }: AdminOnlyRouteProps) {
 
         setIsAdmin(data?.role === "admin");
       } catch (error) {
-        console.error("Erro ao verificar admin:", error);
+        logger.error("Erro ao verificar admin:", error);
         setIsAdmin(false);
       } finally {
         setLoading(false);

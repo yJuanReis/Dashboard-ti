@@ -44,6 +44,7 @@ import { Link } from "react-router-dom";
 import { useNVR, NVR_MODELS, MARINA_OPTIONS, OWNER_OPTIONS, type NVR, type Slot } from "@/contexts/NVRContext";
 import { useSidebar } from "@/components/ui/sidebar";
 import { fetchHDPrice, saveHDPrice } from "@/lib/nvrConfigService";
+import { logger } from "@/lib/logger";
 
 type SortField = "marina" | "name" | "model" | "owner";
 type SortDirection = "asc" | "desc";
@@ -154,7 +155,7 @@ export default function EvolucaoHDs() {
         const price = await fetchHDPrice();
         setHdPrice(price);
       } catch (error) {
-        console.error('Erro ao carregar preço do HD:', error);
+        logger.error('Erro ao carregar preço do HD:', error);
         // Mantém o valor padrão se houver erro
       }
     };
@@ -298,7 +299,7 @@ export default function EvolucaoHDs() {
       toast.success("Status do slot atualizado");
     } catch (error) {
       // Erro já foi tratado no contexto
-      console.error('Erro ao atualizar slot:', error);
+      logger.error('Erro ao atualizar slot:', error);
     }
   };
 
@@ -315,7 +316,7 @@ export default function EvolucaoHDs() {
         await saveHDPrice(price);
         toast.success("Preço do HD salvo!");
       } catch (error) {
-        console.error('❌ Erro ao salvar preço do HD:', error);
+        logger.error('❌ Erro ao salvar preço do HD:', error);
         toast.error('Erro ao salvar preço do HD');
       }
     }, 1000);

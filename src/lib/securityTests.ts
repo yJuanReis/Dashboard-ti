@@ -12,7 +12,7 @@ export interface SecurityTestResult {
 export async function runSecurityTests(): Promise<SecurityTestResult[]> {
   const results: SecurityTestResult[] = [];
 
-  console.log('🔍 Iniciando varredura de segurança completa...');
+  logger.log('🔍 Iniciando varredura de segurança completa...');
 
   // ===== CATEGORIA: AUTENTICAÇÃO E AUTORIZAÇÃO =====
   results.push(await testAuthentication());
@@ -69,7 +69,7 @@ export async function runSecurityTests(): Promise<SecurityTestResult[]> {
   results.push(testSourceMaps());
   results.push(await testBackupFiles());
 
-  console.log(`✅ Varredura concluída: ${results.length} testes executados`);
+  logger.log(`✅ Varredura concluída: ${results.length} testes executados`);
   
   return results;
 }
@@ -1697,6 +1697,7 @@ async function testSubresourceIntegrity(): Promise<SecurityTestResult> {
 }
 
 // Importar testes estendidos
+import { logger } from './logger';
 import {
   testAPIEndpointSecurity,
   testRouteProtection,

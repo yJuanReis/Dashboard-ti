@@ -54,6 +54,7 @@ import {
 import { useNVR, NVR_MODELS, MARINA_OPTIONS, OWNER_OPTIONS, type NVR, type Slot } from "@/contexts/NVRContext";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useIsLandscapeMobile } from "@/hooks/use-mobile";
+import { logger } from "@/lib/logger";
 
 // Funções auxiliares
 function getHDSizeClass(size: number): string {
@@ -348,7 +349,7 @@ export default function ControleNVR() {
       setShowDialog(false);
     } catch (error) {
       // Erro já foi tratado no contexto
-      console.error('Erro ao salvar NVR:', error);
+      logger.error('Erro ao salvar NVR:', error);
     }
   };
 
@@ -365,7 +366,7 @@ export default function ControleNVR() {
         setNvrToDelete(null);
       } catch (error) {
         // Erro já foi tratado no contexto
-        console.error('Erro ao deletar NVR:', error);
+        logger.error('Erro ao deletar NVR:', error);
       }
     }
   };
@@ -390,7 +391,7 @@ export default function ControleNVR() {
       toast.success("Slot atualizado");
     } catch (error) {
       // Erro já foi tratado no contexto
-      console.error('Erro ao atualizar slot:', error);
+      logger.error('Erro ao atualizar slot:', error);
     }
   };
 
@@ -434,7 +435,7 @@ export default function ControleNVR() {
         toast.info("Não foram encontrados slots para atualizar.");
       }
     } catch (error) {
-      console.error('Erro ao atualizar todos os slots:', error);
+      logger.error('Erro ao atualizar todos os slots:', error);
       toast.error('Erro ao atualizar alguns slots');
     }
   };

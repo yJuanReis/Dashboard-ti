@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { logger } from "@/lib/logger";
 
 export type MaintenanceStatus = "avaliar" | "dev" | "manutencao";
 export type BadgeVariant = "yellow" | "gray" | "blue";
@@ -26,13 +27,13 @@ export async function getPagesInMaintenance(): Promise<PageMaintenanceConfig[]> 
       .order("page_path", { ascending: true });
 
     if (error) {
-      console.error("Erro ao buscar páginas em manutenção:", error);
+      logger.error("Erro ao buscar páginas em manutenção:", error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error("Erro ao buscar páginas em manutenção:", error);
+    logger.error("Erro ao buscar páginas em manutenção:", error);
     return [];
   }
 }
@@ -48,13 +49,13 @@ export async function getAllPagesMaintenance(): Promise<PageMaintenanceConfig[]>
       .order("page_path", { ascending: true });
 
     if (error) {
-      console.error("Erro ao buscar todas as páginas:", error);
+      logger.error("Erro ao buscar todas as páginas:", error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error("Erro ao buscar todas as páginas:", error);
+    logger.error("Erro ao buscar todas as páginas:", error);
     return [];
   }
 }
@@ -115,7 +116,7 @@ export async function updatePageMaintenance(
         .eq("page_path", pagePath);
 
       if (error) {
-        console.error("Erro ao atualizar página:", error);
+        logger.error("Erro ao atualizar página:", error);
         return { success: false, error: error.message };
       }
     } else if (isActive) {
@@ -131,14 +132,14 @@ export async function updatePageMaintenance(
         });
 
       if (error) {
-        console.error("Erro ao criar página:", error);
+        logger.error("Erro ao criar página:", error);
         return { success: false, error: error.message };
       }
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error("Erro ao atualizar página em manutenção:", error);
+    logger.error("Erro ao atualizar página em manutenção:", error);
     return { success: false, error: error.message || "Erro desconhecido" };
   }
 }

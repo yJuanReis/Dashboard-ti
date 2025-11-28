@@ -6,6 +6,9 @@
  * vazamento de informações sensíveis.
  */
 
+/* eslint-disable no-console */
+// Este arquivo é o sistema de logging e precisa usar console internamente
+
 import { supabase } from './supabaseClient';
 
 // Cache do role do usuário para evitar múltiplas consultas

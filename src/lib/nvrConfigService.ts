@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { logger } from "@/lib/logger";
 
 /**
  * Busca o preço do HD do Supabase
@@ -12,7 +13,7 @@ export async function fetchHDPrice(): Promise<number> {
       .single();
 
     if (error) {
-      console.error('Erro ao buscar preço do HD:', error);
+      logger.error('Erro ao buscar preço do HD:', error);
       // Retorna valor padrão se houver erro
       return 100.0;
     }
@@ -28,7 +29,7 @@ export async function fetchHDPrice(): Promise<number> {
 
     return 100.0;
   } catch (error) {
-    console.error('Erro ao buscar preço do HD:', error);
+    logger.error('Erro ao buscar preço do HD:', error);
     return 100.0;
   }
 }
@@ -48,11 +49,11 @@ export async function saveHDPrice(price: number): Promise<void> {
       });
 
     if (error) {
-      console.error('Erro ao salvar preço do HD:', error);
+      logger.error('Erro ao salvar preço do HD:', error);
       throw error;
     }
   } catch (error) {
-    console.error('Erro ao salvar preço do HD:', error);
+    logger.error('Erro ao salvar preço do HD:', error);
     throw error;
   }
 }

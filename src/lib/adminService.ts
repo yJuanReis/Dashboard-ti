@@ -10,6 +10,7 @@
 
 import { supabase } from './supabaseClient';
 import { logUpdate, logDelete } from './auditService';
+import { logger } from "@/lib/logger";
 
 /**
  * Atualiza a senha de um usuário (via RPC seguro)
@@ -36,7 +37,7 @@ export async function updateUserPasswordByAdmin(
       }
     } catch (err) {
       // Se não conseguir buscar, continua mesmo assim
-      console.warn('Não foi possível buscar dados do usuário para log:', err);
+      logger.warn('Não foi possível buscar dados do usuário para log:', err);
     }
 
     // Validar e executar via RPC (função do servidor faz tudo)
@@ -60,9 +61,9 @@ export async function updateUserPasswordByAdmin(
       oldUserData || { user_id: targetUserId },
       { ...oldUserData, password: '***REDACTED***' } as Record<string, any>,
       `Alterou senha do usuário "${email}"`
-    ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+    ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
   } catch (error: any) {
-    console.error('Erro ao atualizar senha:', error);
+    logger.error('Erro ao atualizar senha:', error);
     throw error;
   }
 }
@@ -91,7 +92,7 @@ export async function deleteUserByAdmin(
       }
     } catch (err) {
       // Se não conseguir buscar, continua mesmo assim
-      console.warn('Não foi possível buscar dados do usuário para log:', err);
+      logger.warn('Não foi possível buscar dados do usuário para log:', err);
     }
 
     // Validar e executar via RPC (função do servidor faz tudo)
@@ -110,9 +111,9 @@ export async function deleteUserByAdmin(
       targetUserId,
       oldUserData || { user_id: targetUserId, email },
       `Excluiu usuário "${email}"`
-    ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+    ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
   } catch (error: any) {
-    console.error('Erro ao excluir usuário:', error);
+    logger.error('Erro ao excluir usuário:', error);
     throw error;
   }
 }

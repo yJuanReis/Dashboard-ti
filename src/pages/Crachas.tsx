@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 export default function Crachas() {
   const [layout, setLayout] = useState("padrao");
@@ -62,7 +63,7 @@ export default function Crachas() {
     // Aguarda um pouco para garantir que o DOM está pronto
     const timeoutId = setTimeout(() => {
       if (!imageRef.current) {
-        console.log("Elemento de imagem não encontrado");
+        logger.log("Elemento de imagem não encontrado");
         return;
       }
 
@@ -74,7 +75,7 @@ export default function Crachas() {
 
       try {
         const isBrigadista = layout === "brigadista";
-        console.log("Inicializando cropper...", { isBrigadista, layout });
+        logger.log("Inicializando cropper...", { isBrigadista, layout });
         
         const cropper = new Cropper(imageRef.current, {
           aspectRatio: isBrigadista ? 1 / 1 : 3 / 4,
@@ -92,14 +93,14 @@ export default function Crachas() {
           minCropBoxWidth: 100,
           minCropBoxHeight: 100,
           ready() {
-            console.log("✅ Cropper pronto e funcionando!");
+            logger.log("✅ Cropper pronto e funcionando!");
           },
         });
         
         cropperRef.current = cropper;
-        console.log("Cropper inicializado com sucesso");
+        logger.log("Cropper inicializado com sucesso");
       } catch (error) {
-        console.error("❌ Erro ao inicializar o cropper:", error);
+        logger.error("❌ Erro ao inicializar o cropper:", error);
       }
     }, 200);
 
@@ -154,7 +155,7 @@ export default function Crachas() {
         });
       }
     } catch (error) {
-      console.error("Erro ao processar a imagem:", error);
+      logger.error("Erro ao processar a imagem:", error);
       toast({
         title: "Erro",
         description: "Ocorreu um erro ao processar a imagem. Tente novamente.",
@@ -201,7 +202,7 @@ export default function Crachas() {
           });
         })
         .catch((err) => {
-          console.error("Erro no html2canvas:", err);
+          logger.error("Erro no html2canvas:", err);
           toast({
             title: "Erro na Geração",
             description: "Ocorreu um problema ao gerar a imagem do crachá.",
@@ -489,11 +490,11 @@ export default function Crachas() {
                   alt="Recortar"
                   style={{ display: imageLoaded ? 'block' : 'none', maxWidth: '100%' }}
                   onLoad={() => {
-                    console.log("📸 Imagem carregada!");
+                    logger.log("📸 Imagem carregada!");
                     setImageLoaded(true);
                   }}
                   onError={(e) => {
-                    console.error("❌ Erro ao carregar imagem:", e);
+                    logger.error("❌ Erro ao carregar imagem:", e);
                   }}
                 />
               </div>
@@ -504,9 +505,9 @@ export default function Crachas() {
                   onClick={() => {
                     if (cropperRef.current) {
                       cropperRef.current.zoom(-0.1);
-                      console.log("🔍 Zoom out");
+                      logger.log("🔍 Zoom out");
                     } else {
-                      console.log("⚠️ Cropper não está pronto");
+                      logger.log("⚠️ Cropper não está pronto");
                     }
                   }}
                   title="Diminuir zoom"
@@ -520,9 +521,9 @@ export default function Crachas() {
                   onClick={() => {
                     if (cropperRef.current) {
                       cropperRef.current.zoom(0.1);
-                      console.log("🔍 Zoom in");
+                      logger.log("🔍 Zoom in");
                     } else {
-                      console.log("⚠️ Cropper não está pronto");
+                      logger.log("⚠️ Cropper não está pronto");
                     }
                   }}
                   title="Aumentar zoom"

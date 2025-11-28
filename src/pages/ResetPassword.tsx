@@ -10,6 +10,7 @@ import { Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { PasswordChangeModal } from "@/components/PasswordChangeModal";
+import { logger } from "@/lib/logger";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -51,7 +52,7 @@ export default function ResetPassword() {
       // Se chegou aqui, o usuário existe e está logado
       setNeedsLogin(false);
     } catch (err) {
-      console.error("Erro ao verificar usuário:", err);
+      logger.error("Erro ao verificar usuário:", err);
       await logout();
     }
   };
@@ -86,7 +87,7 @@ export default function ResetPassword() {
   // Mostrar modal se senha for temporária
   useEffect(() => {
     if (passwordTemporary === true && user && !authLoading && !needsLogin) {
-      console.log("ResetPassword: Mostrando modal de senha temporária");
+      logger.log("ResetPassword: Mostrando modal de senha temporária");
       setShowPasswordModal(true);
     } else {
       setShowPasswordModal(false);
@@ -184,7 +185,7 @@ export default function ResetPassword() {
 
       if (checkProfileError && checkProfileError.code !== 'PGRST116') {
         // Erro diferente de "não encontrado"
-        console.warn("Erro ao verificar perfil:", checkProfileError);
+        logger.warn("Erro ao verificar perfil:", checkProfileError);
       }
 
       // Se o perfil não existir, criar (não deve acontecer, mas por segurança)
@@ -200,7 +201,7 @@ export default function ResetPassword() {
           });
         
         if (createError) {
-          console.warn("Erro ao criar perfil:", createError);
+          logger.warn("Erro ao criar perfil:", createError);
         }
       }
 
@@ -231,7 +232,7 @@ export default function ResetPassword() {
         .eq("user_id", user.id);
 
       if (updateProfileError) {
-        console.warn("Erro ao atualizar perfil (não crítico):", updateProfileError);
+        logger.warn("Erro ao atualizar perfil (não crítico):", updateProfileError);
         // Não bloquear se falhar, pois a senha já foi atualizada
       }
 
@@ -246,7 +247,7 @@ export default function ResetPassword() {
       // Recarregar para atualizar o estado de password_temporary
       window.location.href = "/home";
     } catch (error: any) {
-      console.error("Erro ao redefinir senha:", error);
+      logger.error("Erro ao redefinir senha:", error);
       setError("Não foi possível redefinir a senha. Tente novamente.");
     } finally {
       setIsLoading(false);

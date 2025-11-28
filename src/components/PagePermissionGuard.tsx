@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldAlert } from "lucide-react";
 import { normalizeRoutePath } from "@/lib/pathUtils";
+import { logger } from "@/lib/logger";
 
 interface PagePermissionGuardProps {
   children: ReactNode;
@@ -34,7 +35,7 @@ export function PagePermissionGuard({ children }: PagePermissionGuardProps) {
         .single();
 
       if (error) {
-        console.error("Erro ao verificar permissões:", error);
+        logger.error("Erro ao verificar permissões:", error);
         // Se não encontrar perfil, permitir acesso (fail-open para não bloquear usuários legítimos)
         setHasPermission(true);
         setLoading(false);
@@ -69,7 +70,7 @@ export function PagePermissionGuard({ children }: PagePermissionGuardProps) {
       
       setHasPermission(hasAccess);
     } catch (error) {
-      console.error("Erro ao verificar permissões:", error);
+      logger.error("Erro ao verificar permissões:", error);
       // Em caso de erro, permitir acesso (fail-open para não bloquear usuários legítimos)
       setHasPermission(true);
     } finally {

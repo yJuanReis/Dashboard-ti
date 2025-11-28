@@ -17,6 +17,7 @@ import Home from "./pages/Home";
 import Assinaturas from "./pages/Assinaturas";
 import Chamados from "./pages/Chamados";
 import Configuracoes from "./pages/Configuracoes";
+import AuditLogs from "./pages/AuditLogs";
 import ControleNVR from "./pages/ControleNVR";
 import Crachas from "./pages/Crachas";
 import EvolucaoHDs from "./pages/ControleHD";
@@ -25,7 +26,6 @@ import Senhas from "./pages/Senhas";
 import GestaoRede from "./pages/GestaoRede";
 import TesteTermos from "./pages/Termos";
 import SecurityTest from "./pages/SecurityTest";
-import AuditLogs from "./pages/AuditLogs";
 import NotFound from "./pages/NotFound";
 import { NavigationHistoryProvider } from "@/contexts/NavigationHistoryContext";
 
@@ -61,6 +61,7 @@ const App = () => (
                               <Route path="/assinaturas" element={<PagePermissionGuard><Assinaturas /></PagePermissionGuard>} />
                               <Route path="/chamados" element={<PagePermissionGuard><Chamados /></PagePermissionGuard>} />
                               <Route path="/configuracoes" element={<AdminOnlyRoute><Configuracoes /></AdminOnlyRoute>} />
+                              <Route path="/audit-logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />
                               <Route path="/controle-nvr" element={<PagePermissionGuard><ControleNVR /></PagePermissionGuard>} />
                               <Route path="/crachas" element={<PagePermissionGuard><Crachas /></PagePermissionGuard>} />
                               <Route path="/controle-hds" element={<PagePermissionGuard><EvolucaoHDs /></PagePermissionGuard>} />

@@ -21,6 +21,7 @@ import { createPageUrl } from "@/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 export default function Assinaturas() {
   const [layout, setLayout] = useState("default");
@@ -79,7 +80,7 @@ export default function Assinaturas() {
         }
       })
       .catch((err) => {
-        console.error("Erro no html2canvas:", err);
+        logger.error("Erro no html2canvas:", err);
         toast.error("Ocorreu um problema ao gerar a imagem.");
         // Restaura o fundo original em caso de erro
         if (previewRef.current) {

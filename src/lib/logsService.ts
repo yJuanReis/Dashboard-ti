@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { logger } from "@/lib/logger";
 
 // Interface para os logs
 export interface LogEntry {
@@ -39,15 +40,15 @@ export async function saveLog(entry: LogEntry): Promise<void> {
 
     if (error) {
       // Se falhar, apenas loga no console (não quebra a aplicação)
-      console.warn('⚠️ [LOGS] Erro ao salvar log no Supabase:', error.message);
+      logger.warn('⚠️ [LOGS] Erro ao salvar log no Supabase:', error.message);
       // Ainda mostra o log no console
-      console.log(`[${entry.modulo}] ${entry.mensagem}`, entry.dados);
+      logger.log(`[${entry.modulo}] ${entry.mensagem}`, entry.dados);
     }
   } catch (error) {
     // Se houver qualquer erro, apenas loga no console
-    console.warn('⚠️ [LOGS] Erro ao salvar log:', error);
+    logger.warn('⚠️ [LOGS] Erro ao salvar log:', error);
     // Ainda mostra o log no console
-    console.log(`[${entry.modulo}] ${entry.mensagem}`, entry.dados);
+    logger.log(`[${entry.modulo}] ${entry.mensagem}`, entry.dados);
   }
 }
 
@@ -63,7 +64,7 @@ export const logger = {
       dados,
       timestamp: new Date().toISOString(),
     };
-    console.log(`ℹ️ [${modulo}] ${mensagem}`, dados);
+    logger.log(`ℹ️ [${modulo}] ${mensagem}`, dados);
     saveLog(entry);
   },
 
@@ -75,7 +76,7 @@ export const logger = {
       dados,
       timestamp: new Date().toISOString(),
     };
-    console.log(`✅ [${modulo}] ${mensagem}`, dados);
+    logger.log(`✅ [${modulo}] ${mensagem}`, dados);
     saveLog(entry);
   },
 
@@ -87,7 +88,7 @@ export const logger = {
       dados,
       timestamp: new Date().toISOString(),
     };
-    console.warn(`⚠️ [${modulo}] ${mensagem}`, dados);
+    logger.warn(`⚠️ [${modulo}] ${mensagem}`, dados);
     saveLog(entry);
   },
 
@@ -100,7 +101,7 @@ export const logger = {
       stack,
       timestamp: new Date().toISOString(),
     };
-    console.error(`❌ [${modulo}] ${mensagem}`, dados);
+    logger.error(`❌ [${modulo}] ${mensagem}`, dados);
     saveLog(entry);
   },
 };
@@ -141,7 +142,7 @@ export async function fetchLogs(options?: {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Erro ao buscar logs:', error);
+      logger.error('Erro ao buscar logs:', error);
       return [];
     }
 
@@ -157,7 +158,7 @@ export async function fetchLogs(options?: {
       stack: log.stack,
     }));
   } catch (error) {
-    console.error('Erro ao buscar logs:', error);
+    logger.error('Erro ao buscar logs:', error);
     return [];
   }
 }

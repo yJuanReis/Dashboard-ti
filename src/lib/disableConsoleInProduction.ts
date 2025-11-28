@@ -8,6 +8,9 @@
  * Apenas admins podem ver logs após verificação.
  */
 
+/* eslint-disable no-console */
+// Este arquivo gerencia o console e precisa usar console internamente
+
 import { supabase } from './supabaseClient';
 
 // Verifica se estamos em produção

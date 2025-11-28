@@ -2,13 +2,14 @@
 // Execute isso no console do navegador para testar sua tabela
 
 import { supabase } from './supabaseClient';
+import { logger } from './logger';
 
 /**
  * Testa a conexão com o Supabase e verifica se a tabela NVR existe
  * Execute isso no console do navegador: window.testNVRConnection()
  */
 export async function testNVRConnection() {
-  console.log('🔍 Testando conexão com a tabela NVR no Supabase...\n');
+  logger.log('🔍 Testando conexão com a tabela NVR no Supabase...\n');
 
   try {
     // Tenta buscar dados da tabela
@@ -18,39 +19,39 @@ export async function testNVRConnection() {
       .limit(5);
 
     if (error) {
-      console.error('❌ Erro ao acessar a tabela NVRs:', error);
-      console.log('\n💡 Possíveis soluções:');
-      console.log('1. Verifique se a tabela "nvrs" existe no Supabase Dashboard');
-      console.log('2. Verifique as políticas RLS (Row Level Security) no Supabase');
-      console.log('3. Verifique se você está autenticado (se RLS estiver habilitado)');
-      console.log('4. Verifique a estrutura da tabela (deve ter: id, marina, name, model, owner, cameras, notes, slots)');
+      logger.error('❌ Erro ao acessar a tabela NVRs:', error);
+      logger.log('\n💡 Possíveis soluções:');
+      logger.log('1. Verifique se a tabela "nvrs" existe no Supabase Dashboard');
+      logger.log('2. Verifique as políticas RLS (Row Level Security) no Supabase');
+      logger.log('3. Verifique se você está autenticado (se RLS estiver habilitado)');
+      logger.log('4. Verifique a estrutura da tabela (deve ter: id, marina, name, model, owner, cameras, notes, slots)');
       return false;
     }
 
-    console.log('✅ Tabela NVR encontrada!');
-    console.log(`📊 Total de registros encontrados: ${data?.length || 0}\n`);
+    logger.log('✅ Tabela NVR encontrada!');
+    logger.log(`📊 Total de registros encontrados: ${data?.length || 0}\n`);
     
     if (data && data.length > 0) {
-      console.log('📋 Estrutura do primeiro registro:');
-      console.log(JSON.stringify(data[0], null, 2));
-      console.log('\n📝 Campos esperados:');
-      console.log('- id (UUID ou string)');
-      console.log('- marina (string)');
-      console.log('- name (string)');
-      console.log('- model (string)');
-      console.log('- owner (string)');
-      console.log('- cameras (number)');
-      console.log('- notes (string ou null)');
-      console.log('- slots (JSONB/array de objetos)');
-      console.log('\n✅ Dados parecem estar corretos!');
+      logger.log('📋 Estrutura do primeiro registro:');
+      logger.log(JSON.stringify(data[0], null, 2));
+      logger.log('\n📝 Campos esperados:');
+      logger.log('- id (UUID ou string)');
+      logger.log('- marina (string)');
+      logger.log('- name (string)');
+      logger.log('- model (string)');
+      logger.log('- owner (string)');
+      logger.log('- cameras (number)');
+      logger.log('- notes (string ou null)');
+      logger.log('- slots (JSONB/array de objetos)');
+      logger.log('\n✅ Dados parecem estar corretos!');
     } else {
-      console.log('⚠️ Tabela existe mas está vazia');
-      console.log('💡 Adicione alguns NVRs através da interface ou diretamente no Supabase');
+      logger.log('⚠️ Tabela existe mas está vazia');
+      logger.log('💡 Adicione alguns NVRs através da interface ou diretamente no Supabase');
     }
     
     return true;
   } catch (error) {
-    console.error('❌ Erro ao testar conexão:', error);
+    logger.error('❌ Erro ao testar conexão:', error);
     return false;
   }
 }

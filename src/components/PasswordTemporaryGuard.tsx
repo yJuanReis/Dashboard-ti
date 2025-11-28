@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PasswordChangeModal } from "./PasswordChangeModal";
+import { logger } from "@/lib/logger";
 
 interface PasswordTemporaryGuardProps {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ export function PasswordTemporaryGuard({ children }: PasswordTemporaryGuardProps
 
       // Verificar apenas uma vez por usuário, ou quando passwordTemporary for null (ainda não verificado)
       if (!hasCheckedRef.current || passwordTemporary === null) {
-        console.log("PasswordTemporaryGuard: Verificando senha temporária para usuário:", user.id);
+        logger.log("PasswordTemporaryGuard: Verificando senha temporária para usuário:", user.id);
         checkPasswordTemporary();
         hasCheckedRef.current = true;
       }
@@ -44,14 +45,14 @@ export function PasswordTemporaryGuard({ children }: PasswordTemporaryGuardProps
     if (passwordTemporary === true && user && !loading) {
       // Só mostrar se ainda não foi fechado antes (evitar reabrir)
       if (!passwordWasTemporaryRef.current || !showModal) {
-        console.log("PasswordTemporaryGuard: Mostrando modal de troca de senha");
+        logger.log("PasswordTemporaryGuard: Mostrando modal de troca de senha");
         setShowModal(true);
         passwordWasTemporaryRef.current = true;
       }
     } else if (passwordTemporary === false) {
       // Se a senha não é mais temporária, fechar o modal e marcar como resolvido
       if (showModal) {
-        console.log("PasswordTemporaryGuard: Senha não é mais temporária, fechando modal");
+        logger.log("PasswordTemporaryGuard: Senha não é mais temporária, fechando modal");
         setShowModal(false);
         passwordWasTemporaryRef.current = false;
       }

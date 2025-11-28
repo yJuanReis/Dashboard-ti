@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, CheckCircle2, XCircle, AlertTriangle, Loader2, Download, ArrowLeft } from "lucide-react";
 import { runSecurityTests, SecurityTestResult, downloadSecurityReport } from "@/lib/securityTests";
 import { useNavigate } from "react-router-dom";
+import { logger } from "@/lib/logger";
 
 export default function SecurityTest() {
   const navigate = useNavigate();
@@ -32,7 +33,7 @@ export default function SecurityTest() {
       setResults(testResults);
       setHasRun(true);
     } catch (error) {
-      console.error("Erro ao executar testes:", error);
+      logger.error("Erro ao executar testes:", error);
     } finally {
       setIsRunning(false);
     }

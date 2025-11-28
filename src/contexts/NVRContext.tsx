@@ -8,6 +8,7 @@ import {
   subscribeToNVRs 
 } from "@/lib/nvrService";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 // Interfaces
 export interface Slot {
@@ -137,16 +138,16 @@ export function NVRProvider({ children }: { children: ReactNode }) {
   const loadNVRs = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Carregando NVRs do Supabase...');
+      logger.log('🔄 Carregando NVRs do Supabase...');
       const data = await fetchNVRs();
-      console.log(`✅ ${data.length} NVRs carregados:`, data);
+      logger.log(`✅ ${data.length} NVRs carregados:`, data);
       setNvrs(data);
       if (data.length === 0) {
-        console.warn('⚠️ Nenhum NVR encontrado no banco de dados');
+        logger.warn('⚠️ Nenhum NVR encontrado no banco de dados');
         toast.info('Nenhum NVR encontrado no banco de dados');
       }
     } catch (error) {
-      console.error('❌ Erro ao carregar NVRs:', error);
+      logger.error('❌ Erro ao carregar NVRs:', error);
       toast.error('Erro ao carregar NVRs do banco de dados. Verifique o console para mais detalhes.');
     } finally {
       setLoading(false);
@@ -161,7 +162,7 @@ export function NVRProvider({ children }: { children: ReactNode }) {
       );
       toast.success('NVR atualizado com sucesso');
     } catch (error) {
-      console.error('Erro ao atualizar NVR:', error);
+      logger.error('Erro ao atualizar NVR:', error);
       toast.error('Erro ao atualizar NVR');
       throw error;
     }
@@ -174,7 +175,7 @@ export function NVRProvider({ children }: { children: ReactNode }) {
       toast.success('NVR adicionado com sucesso');
       return newNVR;
     } catch (error) {
-      console.error('Erro ao adicionar NVR:', error);
+      logger.error('Erro ao adicionar NVR:', error);
       toast.error('Erro ao adicionar NVR');
       throw error;
     }
@@ -186,7 +187,7 @@ export function NVRProvider({ children }: { children: ReactNode }) {
       setNvrs((prev) => prev.filter((nvr) => nvr.id !== id));
       toast.success('NVR removido com sucesso');
     } catch (error) {
-      console.error('Erro ao deletar NVR:', error);
+      logger.error('Erro ao deletar NVR:', error);
       toast.error('Erro ao remover NVR');
       throw error;
     }
@@ -199,7 +200,7 @@ export function NVRProvider({ children }: { children: ReactNode }) {
         prev.map((nvr) => (nvr.id === nvrId ? updated : nvr))
       );
     } catch (error) {
-      console.error('Erro ao atualizar slot:', error);
+      logger.error('Erro ao atualizar slot:', error);
       toast.error('Erro ao atualizar slot');
       throw error;
     }

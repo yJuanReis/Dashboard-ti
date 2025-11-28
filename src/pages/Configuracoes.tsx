@@ -49,10 +49,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLogout } from "@/hooks/use-logout";
 import { supabase } from "@/lib/supabaseClient";
 import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService";
-import { generateRandomPassword } from "@/lib/passwordGenerator";
-import { logUpdate } from "@/lib/auditService";
+import { logUpdate, logAction, AuditAction } from "@/lib/auditService";
 import { logger } from "@/lib/logger";
 import { normalizeRoutePath } from "@/lib/pathUtils";
+import { sanitizeText } from "@/lib/sanitize";
+import { getUserIP } from "@/lib/ipService";
 import zxcvbn from "zxcvbn";
 import { 
   getAllPagesMaintenance, 
@@ -100,18 +101,6 @@ type PasswordStrength = {
   bgColor: string;
 };
 
-// Função para obter IP do usuário
-async function getUserIP(): Promise<string> {
-  try {
-    const response = await fetch("https://api.ipify.org/?format=json");
-    const data = await response.json();
-    return data.ip || "unknown";
-  } catch (error) {
-    console.error("Erro ao obter IP:", error);
-    return "unknown";
-  }
-}
-
 // Função para registrar log de segurança
 async function registrarLogSeguranca(
   userId: string,
@@ -129,11 +118,11 @@ async function registrarLogSeguranca(
     });
 
     if (error) {
-      console.error("Erro ao registrar log de segurança:", error);
+      logger.error("Erro ao registrar log de segurança:", error);
       // Não bloqueia o fluxo se o log falhar
     }
   } catch (error) {
-    console.error("Erro ao registrar log de segurança:", error);
+    logger.error("Erro ao registrar log de segurança:", error);
   }
 }
 
@@ -385,7 +374,7 @@ export default function Configuracoes() {
         }
       } catch (err) {
         // Se a tabela não existir, usar role dos metadados como fallback
-        console.error("Erro ao verificar permissões:", err);
+        logger.error("Erro ao verificar permissões:", err);
         setRealRole(user.user_metadata?.role || "user");
       }
     };
@@ -530,7 +519,7 @@ export default function Configuracoes() {
       // Limpar mensagem após 5 segundos
       setTimeout(() => setMensagemSucesso(""), 5000);
     } catch (error) {
-      console.error("Erro ao alterar senha:", error);
+      logger.error("Erro ao alterar senha:", error);
       toast.error("Erro ao alterar senha. Tente novamente.");
     } finally {
       setLoading(false);
@@ -604,7 +593,7 @@ export default function Configuracoes() {
       setNomeConfirmacao("");
       setSenhaConfirmacao("");
     } catch (error) {
-      console.error("Erro ao enviar email:", error);
+      logger.error("Erro ao enviar email:", error);
       toast.error("Erro ao enviar email. Tente novamente.");
     } finally {
       setLoadingEmail(false);
@@ -687,7 +676,7 @@ export default function Configuracoes() {
           return;
         } else {
           // Outro tipo de erro - apenas logar, não mostrar toast
-          console.error("Erro ao carregar usuários:", profilesError);
+          logger.error("Erro ao carregar usuários:", profilesError);
           // Não fazer throw, apenas usar fallback
           if (user) {
             setUsuarios([{
@@ -762,7 +751,7 @@ export default function Configuracoes() {
         }
       }
     } catch (error) {
-      console.error("Erro ao carregar usuários:", error);
+      logger.error("Erro ao carregar usuários:", error);
       // Não mostrar toast para erros 404 (tabela não existe)
           const errorObj = error as any;
           const isTableNotFound = 
@@ -834,7 +823,7 @@ export default function Configuracoes() {
       // Recarregar a página
       window.location.reload();
     } catch (error) {
-      console.error("Erro ao recarregar página:", error);
+      logger.error("Erro ao recarregar página:", error);
       toast.error("Erro ao recarregar página. Tente novamente.");
     }
   }, []);
@@ -846,7 +835,7 @@ export default function Configuracoes() {
     setLoadingPagesMaintenance(true);
     try {
       const pages = await getAllPagesMaintenance();
-      console.log('[Configuracoes] Páginas carregadas do banco:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
+      logger.log('[Configuracoes] Páginas carregadas do banco:', pages.map(p => ({ path: p.page_path, is_active: p.is_active })));
       setPagesMaintenance(pages);
       
       // Verificar se há páginas no banco que não estão em PAGINAS_DISPONIVEIS
@@ -857,10 +846,10 @@ export default function Configuracoes() {
         return !normalizedDisponiveis.includes(normalizedPath);
       });
       if (pathsNaoEncontrados.length > 0) {
-        console.warn('[Configuracoes] Páginas no banco que não estão em PAGINAS_DISPONIVEIS:', pathsNaoEncontrados);
+        logger.warn('[Configuracoes] Páginas no banco que não estão em PAGINAS_DISPONIVEIS:', pathsNaoEncontrados);
       }
     } catch (error) {
-      console.error("Erro ao carregar páginas em manutenção:", error);
+      logger.error("Erro ao carregar páginas em manutenção:", error);
       toast.error("Erro ao carregar páginas em manutenção");
     } finally {
       setLoadingPagesMaintenance(false);
@@ -893,7 +882,7 @@ export default function Configuracoes() {
         // Pequeno delay para garantir que o banco foi atualizado
         await new Promise(resolve => setTimeout(resolve, 100));
         // Notificar outros componentes sobre a mudança
-        console.log('[Configuracoes] Disparando evento pagesMaintenanceChanged para página:', pagePath, 'status:', newStatus);
+        logger.log('[Configuracoes] Disparando evento pagesMaintenanceChanged para página:', pagePath, 'status:', newStatus);
         window.dispatchEvent(new CustomEvent('pagesMaintenanceChanged', { 
           detail: { pagePath, isActive: newStatus } 
         }));
@@ -901,7 +890,7 @@ export default function Configuracoes() {
         toast.error(result.error || "Erro ao atualizar página");
       }
     } catch (error: any) {
-      console.error("Erro ao atualizar página:", error);
+      logger.error("Erro ao atualizar página:", error);
       toast.error("Erro ao atualizar página: " + (error.message || "Erro desconhecido"));
     } finally {
       setLoadingPagesMaintenance(false);
@@ -946,7 +935,7 @@ export default function Configuracoes() {
         try {
           const { error: updateError } = await supabase
             .from("user_profiles")
-            .update({ nome: nomeExibicao.trim() })
+            .update({ nome: sanitizeText(nomeExibicao.trim()) })
             .eq("user_id", user.id);
 
           if (updateError) {
@@ -1009,7 +998,7 @@ export default function Configuracoes() {
         ip
       );
     } catch (error: any) {
-      console.error("Erro ao salvar nome:", error);
+      logger.error("Erro ao salvar nome:", error);
       toast.error("Erro ao salvar nome. Tente novamente.");
     } finally {
       setLoadingNome(false);
@@ -1054,7 +1043,7 @@ export default function Configuracoes() {
 
   // Função para criar usuário e enviar email de reset password (executada após confirmação)
   const handleConfirmarCriacaoUsuario = useCallback(async () => {
-    console.log('🚀 [Configuracoes] handleConfirmarCriacaoUsuario chamado');
+    logger.log('🚀 [Configuracoes] handleConfirmarCriacaoUsuario chamado');
     
     if (!novoUsuario.email) {
       setStatusMessage("Preencha o email");
@@ -1063,7 +1052,7 @@ export default function Configuracoes() {
       return;
     }
 
-    console.log('📝 [Configuracoes] Criando/atualizando usuário:', novoUsuario.email);
+    logger.log('📝 [Configuracoes] Criando/atualizando usuário:', novoUsuario.email);
     
     // Fechar modal de confirmação
     setModalConfirmacaoCriacao(false);
@@ -1089,15 +1078,15 @@ export default function Configuracoes() {
       if (existingProfile) {
         // Usuário já existe, usar o ID existente
         userId = existingProfile.user_id;
-        console.log("Usuário existente encontrado:", userId);
+        logger.log("Usuário existente encontrado:", userId);
       } else {
         // Usuário não existe, criar novo diretamente no banco
         isNewUser = true;
-        console.log("Criando novo usuário...");
+        logger.log("Criando novo usuário...");
         
         // 2. Definir senha padrão para novo usuário
         const novaSenha = senhaTemporariaPadrao;
-        console.log("Senha padrão atribuída para novo usuário (não será exibida)");
+        logger.log("Senha padrão atribuída para novo usuário (não será exibida)");
 
         // 3. Criar usuário diretamente no banco usando função RPC
         const { data: createResult, error: createError } = await supabase.rpc(
@@ -1126,14 +1115,14 @@ export default function Configuracoes() {
         }
 
         userId = createResult.user_id;
-        console.log("Usuário criado com sucesso:", userId);
+        logger.log("Usuário criado com sucesso:", userId);
       }
 
       // 5. Se usuário já existia, atualizar senha e perfil
       if (!isNewUser) {
         // Definir nova senha padrão para usuário existente
         const novaSenha = senhaTemporariaPadrao;
-        console.log("Senha padrão atribuída para usuário existente (não será exibida)");
+        logger.log("Senha padrão atribuída para usuário existente (não será exibida)");
 
         // Atualizar senha do usuário usando função admin
         try {
@@ -1160,7 +1149,7 @@ export default function Configuracoes() {
           .eq("user_id", userId);
 
         if (updateProfileError) {
-          console.warn("Erro ao atualizar perfil:", updateProfileError);
+          logger.warn("Erro ao atualizar perfil:", updateProfileError);
           // Não bloquear se falhar, pois a senha já foi atualizada
         }
       }
@@ -1196,14 +1185,14 @@ export default function Configuracoes() {
 
         if (rpcError) {
           // Se RPC falhar, tentar update direto
-          console.warn("RPC não disponível, usando update direto:", rpcError);
+          logger.warn("RPC não disponível, usando update direto:", rpcError);
           const { error: directUpdateError } = await supabase
             .from("user_profiles")
             .update({ page_permissions: permissoesParaSalvar })
             .eq("user_id", userId);
 
           if (directUpdateError) {
-            console.error("Erro ao salvar permissões:", directUpdateError);
+            logger.error("Erro ao salvar permissões:", directUpdateError);
             // Não bloquear se falhar, apenas avisar
             toast.warning("Permissões podem não ter sido salvas corretamente. Tente novamente.");
           }
@@ -1238,12 +1227,22 @@ export default function Configuracoes() {
           : `Senha temporária atualizada! O usuário pode fazer login e será solicitado a trocar a senha.`
       );
       
+      // Auditoria
+      if (isNewUser) {
+        await logAction(
+          AuditAction.USER_CREATED,
+          userId,
+          `Novo usuário criado: ${emailLower}`,
+          { email: emailLower, role: novoUsuario.role, admin_id: user!.id }
+        );
+      }
+      
       // Enviar email de confirmação de signup via Supabase
       try {
-        console.log('📧 [EMAIL] Iniciando envio de email de confirmação para:', emailLower);
+        logger.log('📧 [EMAIL] Iniciando envio de email de confirmação para:', emailLower);
         
         const redirectTo = `${window.location.origin}`;
-        console.log('📧 [EMAIL] RedirectTo configurado:', redirectTo);
+        logger.log('📧 [EMAIL] RedirectTo configurado:', redirectTo);
         
         // Usar resend para enviar email de confirmação de signup
         const { data, error } = await supabase.auth.resend({
@@ -1254,7 +1253,7 @@ export default function Configuracoes() {
           }
         });
 
-        console.log('📧 [EMAIL] Resposta completa do resend:', { 
+        logger.log('📧 [EMAIL] Resposta completa do resend:', { 
           hasData: !!data, 
           hasError: !!error,
           errorCode: error?.code,
@@ -1262,7 +1261,7 @@ export default function Configuracoes() {
         });
 
         if (error) {
-          console.error('❌ [EMAIL] Erro detalhado:', {
+          logger.error('❌ [EMAIL] Erro detalhado:', {
             code: error.code,
             message: error.message,
             status: error.status,
@@ -1270,7 +1269,7 @@ export default function Configuracoes() {
           });
           toast.error('Erro ao enviar email: ' + error.message);
         } else {
-          console.log('✅ [EMAIL] Email de confirmação enviado com sucesso');
+          logger.log('✅ [EMAIL] Email de confirmação enviado com sucesso');
           
           // Confirmar email automaticamente para permitir login imediato
           try {
@@ -1280,20 +1279,20 @@ export default function Configuracoes() {
             );
 
             if (confirmError) {
-              console.warn('⚠️ [EMAIL] Erro ao confirmar email automaticamente:', confirmError);
+              logger.warn('⚠️ [EMAIL] Erro ao confirmar email automaticamente:', confirmError);
               // Não bloquear o fluxo, apenas avisar
             } else if (confirmResult?.success) {
-              console.log('✅ [EMAIL] Email confirmado automaticamente - usuário pode fazer login');
+              logger.log('✅ [EMAIL] Email confirmado automaticamente - usuário pode fazer login');
             }
           } catch (confirmErr) {
-            console.warn('⚠️ [EMAIL] Erro ao confirmar email:', confirmErr);
+            logger.warn('⚠️ [EMAIL] Erro ao confirmar email:', confirmErr);
             // Não bloquear o fluxo
           }
           
           toast.success('✅ Email de confirmação enviado! Usuário pode fazer login com a senha: 12345a.');
         }
       } catch (emailError: any) {
-        console.error('❌ [EMAIL] Exceção ao enviar email:', {
+        logger.error('❌ [EMAIL] Exceção ao enviar email:', {
           message: emailError.message,
           stack: emailError.stack,
           error: emailError
@@ -1310,7 +1309,7 @@ export default function Configuracoes() {
       // Recarregar lista de usuários
       carregarUsuarios();
     } catch (error: any) {
-      console.error("Erro ao processar usuário:", error);
+      logger.error("Erro ao processar usuário:", error);
       
       // Tratamento específico para timeout
       if (error.message && (error.message.includes("Timeout") || error.message.includes("504"))) {
@@ -1349,6 +1348,14 @@ export default function Configuracoes() {
       toast.success(`Senha de ${usuarioParaEditar.nome || usuarioParaEditar.email} alterada com sucesso.`);
       setModalSenhaOpen(false);
       setNovaSenhaAdmin("");
+      
+      // Auditoria
+      await logAction(
+        AuditAction.USER_UPDATED,
+        usuarioParaEditar.user_id,
+        `Senha alterada por admin para ${usuarioParaEditar.email}`,
+        { email: usuarioParaEditar.email, admin_id: user!.id }
+      );
       
       // Log
       const ip = await getUserIP();
@@ -1392,6 +1399,14 @@ export default function Configuracoes() {
 
       toast.success("Utilizador removido do sistema.");
       
+      // Auditoria
+      await logAction(
+        AuditAction.USER_DELETED,
+        usuarioParaExcluir.user_id,
+        `Usuário ${usuarioParaExcluir.email} removido por admin`,
+        { email: usuarioParaExcluir.email, nome: usuarioParaExcluir.nome, admin_id: user!.id }
+      );
+      
       // Log
       const ip = await getUserIP();
       await registrarLogSeguranca(user!.id, "admin_delete_user", ip, `Deleted user ${usuarioParaExcluir.user_id}`);
@@ -1402,7 +1417,7 @@ export default function Configuracoes() {
       // Limpar estado
       setUsuarioParaExcluir(null);
     } catch (error: any) {
-      console.error("Erro ao remover usuário:", error);
+      logger.error("Erro ao remover usuário:", error);
       toast.error("Erro ao remover usuário: " + (error.message || "Erro desconhecido"));
       setUsuarioParaExcluir(null);
     } finally {
@@ -1499,8 +1514,8 @@ export default function Configuracoes() {
       
       // Preparar objeto de update (sem page_permissions por enquanto)
       const updateData: any = {
-        nome: editarNome.trim(),
-        email: editarEmail.trim(),
+        nome: sanitizeText(editarNome.trim()),
+        email: sanitizeText(editarEmail.trim()),
         role: editarRole,
       };
       
@@ -1511,7 +1526,7 @@ export default function Configuracoes() {
         .eq("user_id", usuarioEditando.user_id);
 
       if (updateError) {
-        console.error("Erro ao atualizar dados básicos:", updateError);
+        logger.error("Erro ao atualizar dados básicos:", updateError);
         
         // Mensagem específica para erro de updated_at
         if (updateError.code === '42703' && updateError.message?.includes('updated_at')) {
@@ -1540,14 +1555,14 @@ export default function Configuracoes() {
       
       if (rpcError) {
         // Se RPC falhar, tentar update direto
-        console.warn("RPC não disponível, usando update direto:", rpcError);
+        logger.warn("RPC não disponível, usando update direto:", rpcError);
         const { error: directUpdateError } = await supabase
           .from("user_profiles")
           .update({ page_permissions: permissoesParaSalvar })
           .eq("user_id", usuarioEditando.user_id);
         
         if (directUpdateError) {
-          console.error("Erro ao atualizar permissões:", directUpdateError);
+          logger.error("Erro ao atualizar permissões:", directUpdateError);
           // Não bloquear se falhar, apenas avisar
           toast.warning("Permissões podem não ter sido salvas corretamente. Tente novamente.");
         }
@@ -1561,7 +1576,7 @@ export default function Configuracoes() {
         .single();
       
       if (!verifyError && usuarioAtualizado) {
-        console.log("Verificação após salvar - o que está no banco:", {
+        logger.log("Verificação após salvar - o que está no banco:", {
           email: usuarioEditando.email,
           page_permissions: usuarioAtualizado.page_permissions,
           tipo: typeof usuarioAtualizado.page_permissions,
@@ -1581,11 +1596,11 @@ export default function Configuracoes() {
           normalizedExpectedPermissions.every(p => normalizedSavedPermissions.includes(p));
         
         if (!salvouCorretamente && permissoesParaSalvar.length > 0) {
-          console.error("⚠️ PERMISSÕES NÃO FORAM SALVAS CORRETAMENTE!");
+          logger.error("⚠️ PERMISSÕES NÃO FORAM SALVAS CORRETAMENTE!");
           toast.error("Erro ao salvar permissões. Verifique o console para mais detalhes.");
         }
       } else if (verifyError) {
-        console.error("Erro ao verificar permissões salvas:", verifyError);
+        logger.error("Erro ao verificar permissões salvas:", verifyError);
       }
 
       // Atualizar email no auth.users via Admin API (se mudou)
@@ -1593,7 +1608,7 @@ export default function Configuracoes() {
       // O email é atualizado no user_profiles, mas pode precisar ser atualizado
       // manualmente no auth.users através do Supabase Dashboard se necessário
       if (editarEmail !== usuarioEditando.email) {
-        console.info("Email atualizado no perfil. Para atualizar no auth.users, use o Supabase Dashboard.");
+        logger.info("Email atualizado no perfil. Para atualizar no auth.users, use o Supabase Dashboard.");
         // Para implementar: criar uma função RPC segura no backend para atualizar email
       }
 
@@ -1612,7 +1627,7 @@ export default function Configuracoes() {
           oldUserData as Record<string, any>,
           newUserData as Record<string, any>,
           `Atualizou dados do usuário "${editarEmail}"`
-        ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+        ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
       }
 
       toast.success("Utilizador atualizado com sucesso!");
@@ -1624,7 +1639,7 @@ export default function Configuracoes() {
       setModalEditarUsuarioOpen(false);
       carregarUsuarios();
     } catch (error: any) {
-      console.error("Erro ao atualizar usuário:", error);
+      logger.error("Erro ao atualizar usuário:", error);
       
       // Mensagem específica para erro de updated_at
       if (error.code === '42703' && error.message?.includes('updated_at')) {
@@ -2285,7 +2300,7 @@ export default function Configuracoes() {
                         
                         // Log para debug
                         if (maintenanceConfig) {
-                          console.log(`[Configuracoes] Página ${pagina.path} encontrada no banco:`, {
+                          logger.log(`[Configuracoes] Página ${pagina.path} encontrada no banco:`, {
                             path: maintenanceConfig.page_path,
                             is_active: maintenanceConfig.is_active,
                             badge_text: maintenanceConfig.badge_text

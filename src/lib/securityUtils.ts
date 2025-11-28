@@ -3,29 +3,18 @@
  * Funções para sanitização e validação de dados
  */
 
+import { sanitizeText, sanitizeUserInput } from './sanitize';
+
 /**
  * Sanitiza uma string removendo tags HTML e caracteres perigosos
- * ATENÇÃO: Esta é uma sanitização básica. Para produção, use DOMPurify
+ * Usa DOMPurify para proteção robusta contra XSS
  */
 export function sanitizeString(input: string): string {
   if (!input || typeof input !== 'string') {
     return '';
   }
 
-  // Remove tags HTML
-  let sanitized = input.replace(/<[^>]*>/g, '');
-  
-  // Remove caracteres perigosos comuns
-  sanitized = sanitized.replace(/[<>'"&]/g, '');
-  
-  // Remove scripts e eventos
-  sanitized = sanitized.replace(/javascript:/gi, '');
-  sanitized = sanitized.replace(/on\w+\s*=/gi, '');
-  
-  // Remove SQL injection patterns básicos
-  sanitized = sanitized.replace(/['";]/g, '');
-  
-  return sanitized.trim();
+  return sanitizeText(input).trim();
 }
 
 /**
@@ -163,11 +152,14 @@ export function isValidUrl(url: string): boolean {
 
 /**
  * Sanitiza URL removendo javascript: e outros protocolos perigosos
+ * Usa DOMPurify para proteção adicional
  */
 export function sanitizeUrl(url: string): string {
   if (!url || typeof url !== 'string') {
     return '';
   }
+  
+  const { sanitizeURL } = require('./sanitize');
   
   // Remove protocolos perigosos
   const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
@@ -181,7 +173,7 @@ export function sanitizeUrl(url: string): string {
   
   // Valida se é uma URL válida
   if (isValidUrl(url)) {
-    return url;
+    return sanitizeURL(url);
   }
   
   return '#';

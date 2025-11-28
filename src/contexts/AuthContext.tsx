@@ -3,16 +3,31 @@ import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import { clearAdminCache, updateAdminCache } from "@/lib/disableConsoleInProduction";
+import { logger } from "@/lib/logger";
+import {
+  withTimingProtection,
+  recordLoginAttempt,
+  isLocked,
+  shouldRequireCaptcha,
+  resetLoginAttempts,
+  getLockoutTimeRemaining,
+  createError,
+  mapSupabaseError,
+  AUTH_ERRORS,
+  type AppError
+} from "@/lib/errorService";
+import { logAction, AuditAction } from "@/lib/auditService";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   passwordTemporary: boolean | null; // null = não verificado ainda, true/false = resultado
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
   signOut: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   checkPasswordTemporary: () => Promise<void>;
+  requiresCaptcha: (email: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,11 +72,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return true;
             } else {
               // Se falhar ao criar (pode ser RLS), retornar true mesmo assim
-              console.warn("Não foi possível criar perfil automaticamente:", insertError);
+              logger.warn("Não foi possível criar perfil automaticamente:", insertError);
               return true; // Permitir login mesmo sem perfil
             }
           } catch (insertErr) {
-            console.warn("Erro ao criar perfil:", insertErr);
+            logger.warn("Erro ao criar perfil:", insertErr);
             return true; // Permitir login mesmo sem perfil
           }
         }
@@ -71,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         // Não logar erro 42703 (coluna não existe) - pode ser problema de estrutura da tabela
         if (error.code !== '42703') {
-          console.warn("Erro ao verificar usuário (permitindo login mesmo assim):", error);
+          logger.warn("Erro ao verificar usuário (permitindo login mesmo assim):", error);
         }
         return true; // Permitir login mesmo com erro
       }
@@ -80,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (err) {
       // Em caso de erro, permitir login para não bloquear usuários legítimos
-      console.warn("Erro ao verificar usuário (permitindo login mesmo assim):", err);
+      logger.warn("Erro ao verificar usuário (permitindo login mesmo assim):", err);
       return true;
     }
   }, []);
@@ -119,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      console.log("checkPasswordTemporary: Verificando para user_id:", user.id);
+      logger.log("checkPasswordTemporary: Verificando para user_id:", user.id);
       
       // Tentar até 3 vezes com delay crescente (o perfil pode estar sendo criado)
       let attempts = 0;
@@ -132,11 +147,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        console.log(`checkPasswordTemporary: Tentativa ${attempts + 1}, dados:`, data, "erro:", error);
+        logger.log(`checkPasswordTemporary: Tentativa ${attempts + 1}, dados:`, data, "erro:", error);
 
         if (!error && data) {
           const isTemporary = data.password_temporary === true;
-          console.log("checkPasswordTemporary: password_temporary =", isTemporary);
+          logger.log("checkPasswordTemporary: password_temporary =", isTemporary);
           setPasswordTemporary(isTemporary);
           return;
         }
@@ -150,13 +165,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Se não encontrou após todas as tentativas, verificar user_metadata como fallback
-      console.log("checkPasswordTemporary: Perfil não encontrado após", maxAttempts, "tentativas, usando fallback");
+      logger.log("checkPasswordTemporary: Perfil não encontrado após", maxAttempts, "tentativas, usando fallback");
       const isTemporary = user.user_metadata?.password_temporary === true;
-      console.log("checkPasswordTemporary: Fallback user_metadata, password_temporary =", isTemporary);
+      logger.log("checkPasswordTemporary: Fallback user_metadata, password_temporary =", isTemporary);
       setPasswordTemporary(isTemporary);
     } catch (err) {
       // Em caso de erro, assumir que não é temporária
-      console.warn("Erro ao verificar senha temporária:", err);
+      logger.warn("Erro ao verificar senha temporária:", err);
       setPasswordTemporary(false);
     }
   }, [user]);
@@ -207,7 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearAdminCache();
         }
       } catch (error) {
-        console.error("Erro ao processar sessão:", error);
+        logger.error("Erro ao processar sessão:", error);
       } finally {
         if (isMounted) {
           clearTimeout(loadingTimeout);
@@ -215,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }).catch((error) => {
-      console.error("Erro ao obter sessão:", error);
+      logger.error("Erro ao obter sessão:", error);
       if (isMounted) {
         clearTimeout(loadingTimeout);
         setLoading(false);
@@ -268,22 +283,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 // Se encontrou dados no banco, usar o valor do banco (prioridade máxima)
                 if (!profileError && profileData !== null) {
                   const isTemporary = profileData.password_temporary === true;
-                  console.log("onAuthStateChange: password_temporary do banco =", isTemporary);
+                  logger.log("onAuthStateChange: password_temporary do banco =", isTemporary);
                   setPasswordTemporary(isTemporary);
                 } else {
                   // Se não encontrou no banco, usar fallback dos metadados
                   const isTemporary = session.user.user_metadata?.password_temporary === true;
-                  console.log("onAuthStateChange: password_temporary do metadata (fallback) =", isTemporary);
+                  logger.log("onAuthStateChange: password_temporary do metadata (fallback) =", isTemporary);
                   setPasswordTemporary(isTemporary);
                 }
               }
             })
             .catch((err) => {
-              console.warn("Erro ao verificar password_temporary no onAuthStateChange:", err);
+              logger.warn("Erro ao verificar password_temporary no onAuthStateChange:", err);
               // Usar fallback dos metadados apenas em caso de erro
               if (isMounted) {
                 const isTemporary = session.user.user_metadata?.password_temporary === true;
-                console.log("onAuthStateChange: password_temporary do metadata (erro) =", isTemporary);
+                logger.log("onAuthStateChange: password_temporary do metadata (erro) =", isTemporary);
                 setPasswordTemporary(isTemporary);
               }
             });
@@ -295,7 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearAdminCache();
         }
       } catch (error) {
-        console.error("Erro ao processar mudança de auth:", error);
+        logger.error("Erro ao processar mudança de auth:", error);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -311,89 +326,150 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [checkUserExists, updateAdminRoleCache]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    try {
-      // Validação básica antes de enviar ao Supabase
-      if (!email || !email.includes("@")) {
-        throw new Error("Por favor, insira um email válido");
-      }
+  const signIn = useCallback(async (email: string, password: string, captchaToken?: string) => {
+    const identifier = email.trim().toLowerCase();
+    
+    return withTimingProtection(async () => {
+      try {
+        // Verificar se está bloqueado
+        if (isLocked(identifier)) {
+          const remainingMinutes = getLockoutTimeRemaining(identifier);
+          const error = createError({
+            ...AUTH_ERRORS.ACCOUNT_LOCKED,
+            userMessage: `Sua conta foi bloqueada temporariamente. Tente novamente em ${remainingMinutes} minuto${remainingMinutes > 1 ? 's' : ''}`
+          });
+          throw error;
+        }
 
-      if (!password || password.length < 6) {
-        throw new Error("A senha deve ter pelo menos 6 caracteres");
-      }
+        // Verificar se requer CAPTCHA
+        if (shouldRequireCaptcha(identifier) && !captchaToken) {
+          const error = createError(AUTH_ERRORS.CAPTCHA_REQUIRED);
+          throw error;
+        }
 
-      // Tenta fazer login no Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
+        // Validação básica antes de enviar ao Supabase
+        if (!email || !email.includes("@")) {
+          const error = createError(AUTH_ERRORS.INVALID_EMAIL);
+          throw error;
+        }
 
-      if (error) {
-        console.error("Erro Supabase ao fazer login:", {
-          message: error.message,
-          status: (error as any)?.status,
-          name: error.name,
+        if (!password || password.length < 6) {
+          const error = createError(AUTH_ERRORS.PASSWORD_TOO_WEAK);
+          throw error;
+        }
+
+        // Tenta fazer login no Supabase
+        const { data, error: supabaseError } = await supabase.auth.signInWithPassword({
+          email: identifier,
+          password,
         });
 
-        // Mensagem genérica para o usuário, sem revelar detalhes sensíveis
-        throw new Error("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
-      }
+        if (supabaseError) {
+          // Registrar tentativa falhada
+          recordLoginAttempt(identifier);
+          
+          // Registrar auditoria de login falhado
+          logAction(
+            AuditAction.USER_LOGIN_FAILED,
+            identifier,
+            `Tentativa de login falhada para ${identifier}`,
+            { email: identifier, error: supabaseError.message }
+          ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
+          
+          // Mapear erro do Supabase para nosso formato
+          const appError = mapSupabaseError(supabaseError);
+          const error = createError(appError, {
+            email: identifier,
+            timestamp: Date.now()
+          });
+          
+          logger.error("Erro Supabase ao fazer login:", {
+            code: error.code,
+            message: error.technicalMessage,
+            status: (supabaseError as any)?.status,
+          });
 
-      // Verifica se a sessão foi criada
-      if (!data.session || !data.user) {
-        throw new Error("Não foi possível finalizar o login. Tente novamente.");
-      }
-
-      // Definir sessão e usuário imediatamente
-      setSession(data.session);
-      setUser(data.user);
-
-      // Fazer verificações em background (não bloquear o login)
-      Promise.allSettled([
-        checkUserExists(data.user.id, data.user.email),
-        updateAdminRoleCache(data.user.id)
-      ]).catch(() => {
-        // Ignorar erros, não bloquear o login
-      });
-
-      // Verificar se a senha é temporária após login
-      setTimeout(async () => {
-        try {
-          console.log("AuthContext: Verificando password_temporary para usuário:", data.user.id);
-          const { data: profileData, error: profileError } = await supabase
-            .from("user_profiles")
-            .select("password_temporary")
-            .eq("user_id", data.user.id)
-            .maybeSingle();
-
-          console.log("AuthContext: Dados do perfil:", profileData, "Erro:", profileError);
-
-          if (!profileError && profileData) {
-            const isTemporary = profileData.password_temporary === true;
-            console.log("AuthContext: password_temporary =", isTemporary);
-            setPasswordTemporary(isTemporary);
-          } else {
-            // Fallback para user_metadata
-            const isTemporary = data.user.user_metadata?.password_temporary === true;
-            console.log("AuthContext: Usando fallback user_metadata, password_temporary =", isTemporary);
-            setPasswordTemporary(isTemporary);
-          }
-        } catch (err) {
-          console.warn("Erro ao verificar senha temporária:", err);
-          setPasswordTemporary(false);
+          throw error;
         }
-      }, 1000); // Aumentar delay para garantir que o perfil foi criado
 
-      toast.success("Login realizado com sucesso!");
-    } catch (error) {
-      const authError = error as AuthError | Error;
-      console.error("Erro ao fazer login:", authError);
+        // Verifica se a sessão foi criada
+        if (!data.session || !data.user) {
+          recordLoginAttempt(identifier);
+          const error = createError(AUTH_ERRORS.SESSION_EXPIRED);
+          throw error;
+        }
 
-      // Sempre exibir mensagem genérica para o usuário
-      toast.error("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
-      throw error;
-    }
+        // Login bem-sucedido - resetar tentativas
+        resetLoginAttempts(identifier);
+
+        // Registrar auditoria de login bem-sucedido
+        logAction(
+          AuditAction.USER_LOGIN,
+          data.user.id,
+          `Login realizado com sucesso por ${data.user.email}`,
+          { email: data.user.email }
+        ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
+
+        // Definir sessão e usuário imediatamente
+        setSession(data.session);
+        setUser(data.user);
+
+        // Fazer verificações em background (não bloquear o login)
+        Promise.allSettled([
+          checkUserExists(data.user.id, data.user.email),
+          updateAdminRoleCache(data.user.id)
+        ]).catch(() => {
+          // Ignorar erros, não bloquear o login
+        });
+
+        // Verificar se a senha é temporária após login
+        setTimeout(async () => {
+          try {
+            logger.log("AuthContext: Verificando password_temporary para usuário:", data.user.id);
+            const { data: profileData, error: profileError } = await supabase
+              .from("user_profiles")
+              .select("password_temporary")
+              .eq("user_id", data.user.id)
+              .maybeSingle();
+
+            logger.log("AuthContext: Dados do perfil:", profileData, "Erro:", profileError);
+
+            if (!profileError && profileData) {
+              const isTemporary = profileData.password_temporary === true;
+              logger.log("AuthContext: password_temporary =", isTemporary);
+              setPasswordTemporary(isTemporary);
+            } else {
+              // Fallback para user_metadata
+              const isTemporary = data.user.user_metadata?.password_temporary === true;
+              logger.log("AuthContext: Usando fallback user_metadata, password_temporary =", isTemporary);
+              setPasswordTemporary(isTemporary);
+            }
+          } catch (err) {
+            logger.warn("Erro ao verificar senha temporária:", err);
+            setPasswordTemporary(false);
+          }
+        }, 1000);
+
+        toast.success("Login realizado com sucesso!");
+      } catch (error) {
+        const appError = error as AppError | Error;
+        
+        // Se for um AppError, usar a mensagem estruturada
+        if ('code' in appError && 'userMessage' in appError) {
+          toast.error(appError.userMessage);
+        } else {
+          // Fallback para erro genérico
+          toast.error("Não foi possível fazer login. Verifique suas credenciais e tente novamente.");
+        }
+        
+        throw error;
+      }
+    });
   }, [checkUserExists, updateAdminRoleCache]);
+
+  const requiresCaptcha = useCallback((email: string): boolean => {
+    return shouldRequireCaptcha(email.trim().toLowerCase());
+  }, []);
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -407,7 +483,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.success("Conta criada com sucesso! Verifique seu email para confirmar.");
     } catch (error) {
       const authError = error as AuthError;
-      console.error("Erro ao criar conta:", authError);
+      logger.error("Erro ao criar conta:", authError);
       toast.error(authError.message || "Erro ao criar conta.");
       throw error;
     }
@@ -415,8 +491,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      const currentUserId = user?.id;
+      const currentUserEmail = user?.email;
+      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+
+      // Registrar auditoria de logout
+      if (currentUserId) {
+        logAction(
+          AuditAction.USER_LOGOUT,
+          currentUserId,
+          `Logout realizado por ${currentUserEmail}`,
+          { email: currentUserEmail }
+        ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
+      }
 
       // Limpar cache do admin ao fazer logout
       clearAdminCache();
@@ -427,7 +516,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.success("Logout realizado com sucesso!");
     } catch (error) {
       const authError = error as AuthError;
-      console.error("Erro ao fazer logout:", authError);
+      logger.error("Erro ao fazer logout:", authError);
       toast.error("Erro ao fazer logout.");
       throw error;
     }
@@ -444,6 +533,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         signUp,
         checkPasswordTemporary,
+        requiresCaptcha,
       }}
     >
       {children}

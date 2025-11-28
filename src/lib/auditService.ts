@@ -10,9 +10,49 @@
  */
 
 import { supabase } from './supabaseClient';
+import { logger } from "@/lib/logger";
+import { getUserIP } from './ipService';
 
-// Tipos de ação de auditoria
+// Tipos de ação de auditoria expandidos
 export type AuditActionType = 'CREATE' | 'UPDATE' | 'DELETE';
+
+// Enum de ações específicas do sistema
+export enum AuditAction {
+  // Senhas
+  PASSWORD_CREATED = 'PASSWORD_CREATED',
+  PASSWORD_VIEWED = 'PASSWORD_VIEWED',
+  PASSWORD_COPIED = 'PASSWORD_COPIED',
+  PASSWORD_UPDATED = 'PASSWORD_UPDATED',
+  PASSWORD_DELETED = 'PASSWORD_DELETED',
+  PASSWORD_EXPORTED = 'PASSWORD_EXPORTED',
+  
+  // Usuários
+  USER_LOGIN = 'USER_LOGIN',
+  USER_LOGOUT = 'USER_LOGOUT',
+  USER_LOGIN_FAILED = 'USER_LOGIN_FAILED',
+  USER_CREATED = 'USER_CREATED',
+  USER_UPDATED = 'USER_UPDATED',
+  USER_DELETED = 'USER_DELETED',
+  USER_ROLE_CHANGED = 'USER_ROLE_CHANGED',
+  USER_PERMISSIONS_CHANGED = 'USER_PERMISSIONS_CHANGED',
+  
+  // Sessões
+  SESSION_EXPIRED = 'SESSION_EXPIRED',
+  SESSION_TIMEOUT = 'SESSION_TIMEOUT',
+  
+  // Segurança
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  SUSPICIOUS_ACTIVITY = 'SUSPICIOUS_ACTIVITY',
+}
+
+// Contexto adicional para auditoria
+export interface AuditContext {
+  ip: string;
+  userAgent: string;
+  location?: string;
+  device?: string;
+  timestamp?: string;
+}
 
 // Interface para um log de auditoria
 export interface AuditLog {
@@ -28,6 +68,10 @@ export interface AuditLog {
   changed_fields?: string[];
   description?: string;
   ip_address?: string;
+  user_agent?: string;
+  location?: string;
+  device?: string;
+  action?: AuditAction;
   created_at?: string;
 }
 
@@ -43,20 +87,6 @@ export interface FetchAuditLogsOptions {
   end_date?: string;
   order_by?: 'created_at';
   order?: 'asc' | 'desc';
-}
-
-/**
- * Obtém o IP do usuário (se disponível)
- */
-async function getUserIP(): Promise<string | undefined> {
-  try {
-    const response = await fetch('https://api.ipify.org/?format=json');
-    const data = await response.json();
-    return data.ip || undefined;
-  } catch (error) {
-    console.warn('Não foi possível obter IP do usuário:', error);
-    return undefined;
-  }
 }
 
 /**
@@ -87,7 +117,7 @@ async function getCurrentUserInfo(): Promise<{
       user_name: profile?.nome || user.user_metadata?.nome || user.user_metadata?.name,
     };
   } catch (error) {
-    console.warn('Erro ao obter informações do usuário:', error);
+    logger.warn('Erro ao obter informações do usuário:', error);
     // Tenta pelo menos pegar o user básico
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -142,6 +172,32 @@ function sanitizeData(data: Record<string, any>): Record<string, any> {
 }
 
 /**
+ * Obtém contexto do navegador
+ */
+function getAuditContext(): Partial<AuditContext> {
+  try {
+    const userAgent = navigator.userAgent || '';
+    
+    // Detectar tipo de dispositivo
+    let device = 'Desktop';
+    if (/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)) {
+      device = 'Mobile';
+    } else if (/Tablet|iPad/i.test(userAgent)) {
+      device = 'Tablet';
+    }
+
+    return {
+      userAgent,
+      device,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    logger.warn('Erro ao obter contexto de auditoria:', error);
+    return {};
+  }
+}
+
+/**
  * Registra um log de auditoria
  */
 export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Promise<void> {
@@ -151,6 +207,9 @@ export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Prom
     
     // Obtém IP do usuário
     const ipAddress = await getUserIP();
+    
+    // Obtém contexto do navegador
+    const context = getAuditContext();
     
     // Prepara o registro
     const logRecord: Omit<AuditLog, 'id'> = {
@@ -165,6 +224,10 @@ export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Prom
       changed_fields: entry.changed_fields || [],
       description: entry.description,
       ip_address: ipAddress || entry.ip_address,
+      user_agent: entry.user_agent || context.userAgent,
+      device: entry.device || context.device,
+      location: entry.location,
+      action: entry.action,
       created_at: new Date().toISOString(),
     };
 
@@ -174,12 +237,12 @@ export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Prom
       .insert(logRecord);
 
     if (error) {
-      console.error('Erro ao registrar log de auditoria:', error);
+      logger.error('Erro ao registrar log de auditoria:', error);
       // Não lança erro para não quebrar o fluxo da aplicação
       // Mas registra no console para debug
     }
   } catch (error) {
-    console.error('Erro ao registrar log de auditoria:', error);
+    logger.error('Erro ao registrar log de auditoria:', error);
     // Não lança erro para não quebrar o fluxo da aplicação
   }
 }
@@ -295,13 +358,13 @@ export async function fetchAuditLogs(options: FetchAuditLogsOptions = {}): Promi
     const { data, error } = await query;
 
     if (error) {
-      console.error('Erro ao buscar logs de auditoria:', error);
+      logger.error('Erro ao buscar logs de auditoria:', error);
       throw error;
     }
 
     return (data || []) as AuditLog[];
   } catch (error) {
-    console.error('Erro ao buscar logs de auditoria:', error);
+    logger.error('Erro ao buscar logs de auditoria:', error);
     throw error;
   }
 }
@@ -343,13 +406,183 @@ export async function countAuditLogs(options: Omit<FetchAuditLogsOptions, 'limit
     const { count, error } = await query;
 
     if (error) {
-      console.error('Erro ao contar logs de auditoria:', error);
+      logger.error('Erro ao contar logs de auditoria:', error);
       throw error;
     }
 
     return count || 0;
   } catch (error) {
-    console.error('Erro ao contar logs de auditoria:', error);
+    logger.error('Erro ao contar logs de auditoria:', error);
+    throw error;
+  }
+}
+
+/**
+ * Registra ação específica de auditoria (senhas, usuários, segurança)
+ */
+export async function logAction(
+  action: AuditAction,
+  recordId: string,
+  description?: string,
+  additionalData?: Record<string, any>
+): Promise<void> {
+  const tableName = action.startsWith('PASSWORD_') ? 'passwords' 
+    : action.startsWith('USER_') ? 'user_profiles'
+    : action.startsWith('SESSION_') ? 'sessions'
+    : 'security_logs';
+  
+  const actionType = action.includes('DELETED') ? 'DELETE' 
+    : action.includes('CREATED') ? 'CREATE'
+    : 'UPDATE';
+
+  await logAudit({
+    action_type: actionType,
+    table_name: tableName,
+    record_id: recordId,
+    description: description || action,
+    action,
+    new_data: additionalData,
+  });
+}
+
+/**
+ * Detecta e registra atividade suspeita
+ */
+export async function logSuspiciousActivity(
+  reason: string,
+  details: Record<string, any>
+): Promise<void> {
+  await logAction(
+    AuditAction.SUSPICIOUS_ACTIVITY,
+    `suspicious-${Date.now()}`,
+    reason,
+    details
+  );
+}
+
+/**
+ * Verifica eventos suspeitos e retorna alertas
+ */
+export async function checkSuspiciousActivity(userId: string): Promise<{
+  hasAlerts: boolean;
+  alerts: Array<{
+    type: string;
+    message: string;
+    severity: 'low' | 'medium' | 'high';
+  }>;
+}> {
+  try {
+    const alerts: Array<{
+      type: string;
+      message: string;
+      severity: 'low' | 'medium' | 'high';
+    }> = [];
+
+    // Verificar múltiplos logins falhados nas últimas 24h
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: failedLogins } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('action', AuditAction.USER_LOGIN_FAILED)
+      .gte('created_at', oneDayAgo);
+
+    if (failedLogins && failedLogins.length >= 5) {
+      alerts.push({
+        type: 'failed_logins',
+        message: `${failedLogins.length} tentativas de login falhadas nas últimas 24 horas`,
+        severity: 'high',
+      });
+    }
+
+    // Verificar acessos de IPs diferentes na última hora
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: recentLogs } = await supabase
+      .from('audit_logs')
+      .select('ip_address')
+      .eq('user_id', userId)
+      .gte('created_at', oneHourAgo);
+
+    if (recentLogs) {
+      const uniqueIPs = new Set(recentLogs.map(log => log.ip_address));
+      if (uniqueIPs.size > 2) {
+        alerts.push({
+          type: 'multiple_ips',
+          message: `Acessos de ${uniqueIPs.size} IPs diferentes na última hora`,
+          severity: 'medium',
+        });
+      }
+    }
+
+    // Verificar exclusões em massa (mais de 10 registros em 5 minutos)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: deletions } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('action_type', 'DELETE')
+      .gte('created_at', fiveMinutesAgo);
+
+    if (deletions && deletions.length >= 10) {
+      alerts.push({
+        type: 'mass_deletion',
+        message: `${deletions.length} registros excluídos nos últimos 5 minutos`,
+        severity: 'high',
+      });
+    }
+
+    return {
+      hasAlerts: alerts.length > 0,
+      alerts,
+    };
+  } catch (error) {
+    logger.error('Erro ao verificar atividade suspeita:', error);
+    return { hasAlerts: false, alerts: [] };
+  }
+}
+
+/**
+ * Exporta logs para CSV
+ */
+export async function exportLogsToCSV(options: FetchAuditLogsOptions = {}): Promise<string> {
+  try {
+    const logs = await fetchAuditLogs({ ...options, limit: 10000 });
+    
+    // Cabeçalho do CSV
+    const headers = [
+      'Data/Hora',
+      'Usuário',
+      'Email',
+      'Ação',
+      'Tabela',
+      'ID do Registro',
+      'Descrição',
+      'IP',
+      'Dispositivo',
+    ];
+    
+    // Converter logs para linhas CSV
+    const rows = logs.map(log => [
+      log.created_at || '',
+      log.user_name || '',
+      log.user_email || '',
+      log.action || log.action_type || '',
+      log.table_name || '',
+      log.record_id || '',
+      log.description || '',
+      log.ip_address || '',
+      log.device || '',
+    ]);
+    
+    // Construir CSV
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    return csvContent;
+  } catch (error) {
+    logger.error('Erro ao exportar logs para CSV:', error);
     throw error;
   }
 }

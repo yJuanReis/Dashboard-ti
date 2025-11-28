@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useSidebar } from "@/components/ui/sidebar";
+import { logAction, AuditAction } from "@/lib/auditService";
 
 // --- Componentes de Card Modulares ---
 
@@ -48,7 +49,7 @@ function getCardType(password: PasswordEntry): string {
 }
 
 // Componente base compartilhado - Helper para copiar
-function useCopyHandler() {
+function useCopyHandler(passwordId?: string, passwordService?: string) {
   const [copied, setCopied] = useState<string | null>(null);
   
   const handleCopy = (text: string | undefined, label: string) => {
@@ -57,6 +58,16 @@ function useCopyHandler() {
     toast.success(`${label} copiado!`);
     setCopied(label);
     setTimeout(() => setCopied(null), 2000);
+    
+    // Registrar auditoria quando senha ou campo sensível for copiado
+    if (passwordId && (label === 'Senha' || label.toLowerCase().includes('senha'))) {
+      logAction(
+        AuditAction.PASSWORD_COPIED,
+        passwordId,
+        `Campo copiado: ${label} de ${passwordService || 'registro desconhecido'}`,
+        { field: label, service: passwordService }
+      ).catch(err => console.warn('Erro ao registrar auditoria:', err));
+    }
   };
   
   return { copied, handleCopy };
@@ -204,7 +215,7 @@ function DetailsModal({
   isVisible: boolean,
   onToggleVisibility: () => void
 }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
 
   const fields = [
     { label: 'Tipo', value: password.tipo },
@@ -321,7 +332,7 @@ function DetailsModal({
 // Card para CFTV
 // Campos: serviço, tipo, descrição, marina, usuario, senha, contas_compartilhadas_info, cloud_intelbras
 function CFTVCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico de CFTV (câmera de gravação/HD)
   const CFTVIcon = Camera;
@@ -440,7 +451,7 @@ function CFTVCard({ password, isVisible, onToggleVisibility, onEdit }: { passwor
 // Card para Google
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso, contas_compartilhadas_info (se tiver)
 function GoogleCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico do Google (Chrome)
   const GoogleIcon = Chrome;
@@ -533,7 +544,7 @@ function GoogleCard({ password, isVisible, onToggleVisibility, onEdit }: { passw
 // Card para Microsoft
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso, contas_compartilhadas_info
 function MicrosoftCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico da Microsoft (Building2 - escritório/empresa)
   const MicrosoftIcon = Building2;
@@ -626,7 +637,7 @@ function MicrosoftCard({ password, isVisible, onToggleVisibility, onEdit }: { pa
 // Card para Rede
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso, contas_compartilhadas_info (se tiver), winbox (se tiver), ssh (se tiver), www (se tiver)
 function RedeCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico de Rede (Router)
   const RedeIcon = Router;
@@ -765,7 +776,7 @@ function RedeCard({ password, isVisible, onToggleVisibility, onEdit }: { passwor
 // Card para Servidor
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso, contas_compartilhadas_info (se tiver), winbox (se tiver), ssh (se tiver), www (se tiver)
 function ServidorCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico de Servidor (HardDrive)
   const ServidorIcon = HardDrive;
@@ -904,7 +915,7 @@ function ServidorCard({ password, isVisible, onToggleVisibility, onEdit }: { pas
 // Card para Provedor
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso
 function ProvedorCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico de Provedor (Server)
   const ProvedorIcon = Server;
@@ -989,7 +1000,7 @@ function ProvedorCard({ password, isVisible, onToggleVisibility, onEdit }: { pas
 // Card para Intelbras
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso, contas_compartilhadas_info (se tiver)
 function IntelbrasCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico da Intelbras (LockKeyhole - controle de acesso/tranca)
   const IntelbrasIcon = LockKeyhole;
@@ -1082,7 +1093,7 @@ function IntelbrasCard({ password, isVisible, onToggleVisibility, onEdit }: { pa
 // Card para Acesso Web
 // Campos: serviço, descrição, marina, tipo(padrão), usuario, senha, link de acesso, contas_compartilhadas_info
 function AcessoWebCard({ password, isVisible, onToggleVisibility, onEdit }: { password: PasswordEntry, isVisible: boolean, onToggleVisibility: () => void, onEdit: () => void }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   // Usa ícone específico de Acesso Web (Globe - internet/web)
   const AcessoWebIcon = Globe;
@@ -1184,7 +1195,7 @@ function ModernCard({
   onToggleVisibility: () => void,
   onEdit: () => void
 }) {
-  const { copied, handleCopy } = useCopyHandler();
+  const { copied, handleCopy } = useCopyHandler(password.id, password.service);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const Icon = password.icon;
 
@@ -1717,14 +1728,14 @@ export default function Senhas() {
       // }, error?.stack); // EM DESENVOLVIMENTO
       
       // Mensagens de erro mais específicas
-      if (error?.message?.includes('não encontrada')) {
+      if (error?.message?.includes('não encontrada') || error?.message?.includes('does not exist')) {
         toast.error(
-          `Tabela não encontrada. Verifique o nome da tabela em src/lib/passwordsConfig.ts`,
+          'Funções RPC não encontradas. Execute o script docs/sql/passwords_rpc_functions.sql no Supabase.',
           { duration: 5000 }
         );
-      } else if (error?.message?.includes('Coluna não encontrada')) {
+      } else if (error?.message?.includes('permission denied') || error?.message?.includes('políticas RLS')) {
         toast.error(
-          `Coluna não encontrada. Verifique o mapeamento de campos em src/lib/passwordsConfig.ts`,
+          'Permissão negada. Verifique as políticas RLS e permissões das funções RPC no Supabase.',
           { duration: 5000 }
         );
       } else {
@@ -1893,10 +1904,23 @@ export default function Senhas() {
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords((prev) => {
       const newSet = new Set(prev);
+      const isBecomingVisible = !newSet.has(id);
+      
       if (newSet.has(id)) {
         newSet.delete(id);
       } else {
         newSet.add(id);
+        
+        // Registrar auditoria quando senha for visualizada
+        const password = passwords.find(p => p.id === id);
+        if (password && isBecomingVisible) {
+          logAction(
+            AuditAction.PASSWORD_VIEWED,
+            id,
+            `Senha visualizada: ${password.service || 'Sem nome'}`,
+            { service: password.service, category: password.category }
+          ).catch(err => console.warn('Erro ao registrar auditoria:', err));
+        }
       }
       return newSet;
     });
@@ -2213,6 +2237,14 @@ export default function Senhas() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      // Registrar auditoria de exportação
+      logAction(
+        AuditAction.PASSWORD_EXPORTED,
+        'export-csv-' + Date.now(),
+        `Exportação de ${passwords.length} senhas para CSV`,
+        { total_records: passwords.length, format: 'CSV' }
+      ).catch(err => console.warn('Erro ao registrar auditoria:', err));
       
       toast.success('CSV exportado com sucesso!');
     } catch (error: any) {

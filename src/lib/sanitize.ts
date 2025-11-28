@@ -1,47 +1,57 @@
 import DOMPurify from 'dompurify';
 
 /**
- * Sanitiza HTML para prevenir ataques XSS
- * @param dirty - String HTML potencialmente perigosa
- * @returns String HTML sanitizada e segura
+ * Sanitiza HTML permitindo apenas tags e atributos seguros
+ * Para uso em campos que precisam suportar formatação básica
  */
-export function sanitizeHtml(dirty: string): string {
+export function sanitizeHTML(dirty: string): string {
   return DOMPurify.sanitize(dirty, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'span', 'div'],
-    ALLOWED_ATTR: ['href', 'title', 'target', 'class'],
-    ALLOW_DATA_ATTR: false,
+    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br'],
+    ALLOWED_ATTR: ['href', 'target'],
+    ALLOW_DATA_ATTR: false
   });
 }
 
 /**
- * Sanitiza HTML permitindo mais tags (para conteúdo rico)
- * @param dirty - String HTML potencialmente perigosa
- * @returns String HTML sanitizada e segura
+ * Sanitiza texto removendo todas as tags HTML
+ * Para uso em campos de texto simples
  */
-export function sanitizeRichHtml(dirty: string): string {
+export function sanitizeText(dirty: string): string {
   return DOMPurify.sanitize(dirty, {
-    ALLOWED_TAGS: [
-      'b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 
-      'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
-      'blockquote', 'code', 'pre'
-    ],
-    ALLOWED_ATTR: ['href', 'title', 'target', 'class', 'src', 'alt', 'width', 'height'],
-    ALLOW_DATA_ATTR: false,
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: []
   });
 }
 
 /**
- * Remove completamente todas as tags HTML
- * @param dirty - String com HTML
- * @returns String sem nenhuma tag HTML
+ * Sanitiza URL para prevenir javascript: e data: URIs
  */
-export function stripHtml(dirty: string): string {
-  return DOMPurify.sanitize(dirty, { ALLOWED_TAGS: [] });
+export function sanitizeURL(url: string): string {
+  const sanitized = DOMPurify.sanitize(url, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: []
+  });
+  
+  // Verifica se é uma URL segura
+  if (sanitized.startsWith('javascript:') || 
+      sanitized.startsWith('data:') ||
+      sanitized.startsWith('vbscript:')) {
+    return '';
+  }
+  
+  return sanitized;
 }
 
-// Adicionar DOMPurify ao window para detecção nos testes de segurança
-if (typeof window !== 'undefined') {
-  (window as any).DOMPurify = DOMPurify;
+/**
+ * Sanitiza input de usuário com configurações estritas
+ * Remove scripts, eventos e tags perigosas
+ */
+export function sanitizeUserInput(input: string): string {
+  return DOMPurify.sanitize(input, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+    KEEP_CONTENT: true,
+    ALLOW_DATA_ATTR: false,
+    SAFE_FOR_TEMPLATES: true
+  });
 }
-

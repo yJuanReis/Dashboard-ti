@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste de Sanitização XSS - DOMPurify</title>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.3.0/dist/purify.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      border-bottom: 3px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #666;
+      margin-top: 30px;
+    }
+    .test-item {
+      margin: 15px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-left: 4px solid #2196F3;
+      border-radius: 4px;
+    }
+    .payload {
+      font-family: 'Courier New', monospace;
+      background: #fff3cd;
+      padding: 8px;
+      margin: 8px 0;
+      border-radius: 4px;
+      word-break: break-all;
+      border: 1px solid #ffc107;
+    }
+    .result {
+      font-family: 'Courier New', monospace;
+      background: #d4edda;
+      padding: 8px;
+      margin: 8px 0;
+      border-radius: 4px;
+      word-break: break-all;
+      border: 1px solid #28a745;
+    }
+    .success {
+      color: #28a745;
+      font-weight: bold;
+    }
+    .danger {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .status.passed {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.failed {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .summary {
+      background: #e7f3ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      border: 2px solid #2196F3;
+    }
+    .summary h3 {
+      margin-top: 0;
+      color: #0d47a1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🛡️ Teste de Sanitização XSS com DOMPurify</h1>
+    
+    <div class="summary">
+      <h3>Resumo dos Testes</h3>
+      <div id="summary">Executando testes...</div>
+    </div>
+
+    <h2>📋 Payloads XSS Testados</h2>
+    <div id="results"></div>
+
+    <h2>✅ Funções de Sanitização</h2>
+    <div id="functions"></div>
+  </div>
+
+  <script>
+    // Simular as funções do sanitize.ts
+    function sanitizeHTML(dirty) {
+      return DOMPurify.sanitize(dirty, {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br'],
+        ALLOWED_ATTR: ['href', 'target'],
+        ALLOW_DATA_ATTR: false
+      });
+    }
+
+    function sanitizeText(dirty) {
+      return DOMPurify.sanitize(dirty, {
+        ALLOWED_TAGS: [],
+        ALLOWED_ATTR: []
+      });
+    }
+
+    function sanitizeURL(url) {
+      const sanitized = DOMPurify.sanitize(url, {
+        ALLOWED_TAGS: [],
+        ALLOWED_ATTR: []
+      });
+      
+      if (sanitized.startsWith('javascript:') || 
+          sanitized.startsWith('data:') ||
+          sanitized.startsWith('vbscript:')) {
+        return '';
+      }
+      
+      return sanitized;
+    }
+
+    function sanitizeUserInput(input) {
+      return DOMPurify.sanitize(input, {
+        ALLOWED_TAGS: [],
+        ALLOWED_ATTR: [],
+        KEEP_CONTENT: true,
+        ALLOW_DATA_ATTR: false,
+        SAFE_FOR_TEMPLATES: true
+      });
+    }
+
+    // Payloads XSS conhecidos
+    const xssPayloads = [
+      { name: 'Script básico', payload: '<script>alert("XSS")</script>' },
+      { name: 'Img com onerror', payload: '<img src=x onerror=alert("XSS")>' },
+      { name: 'JavaScript URI', payload: 'javascript:alert("XSS")' },
+      { name: 'SVG onload', payload: '<svg onload=alert("XSS")>' },
+      { name: 'Iframe javascript', payload: '<iframe src="javascript:alert(\'XSS\')"></iframe>' },
+      { name: 'Body onload', payload: '<body onload=alert("XSS")>' },
+      { name: 'Input autofocus', payload: '<input onfocus=alert("XSS") autofocus>' },
+      { name: 'Select onfocus', payload: '<select onfocus=alert("XSS") autofocus>' },
+      { name: 'Textarea onfocus', payload: '<textarea onfocus=alert("XSS") autofocus>' },
+      { name: 'Marquee onstart', payload: '<marquee onstart=alert("XSS")>' },
+      { name: 'Video source onerror', payload: '<video><source onerror="alert(\'XSS\')"></video>' },
+      { name: 'Audio onerror', payload: '<audio src=x onerror=alert("XSS")>' },
+      { name: 'Details ontoggle', payload: '<details open ontoggle=alert("XSS")>' },
+      { name: 'Embed data URI', payload: '<embed src="data:text/html,<script>alert(1)</script>">' },
+      { name: 'Object javascript', payload: '<object data="javascript:alert(\'XSS\')"></object>' },
+    ];
+
+    // Executar testes
+    let passed = 0;
+    let failed = 0;
+    const resultsDiv = document.getElementById('results');
+
+    xssPayloads.forEach((test, index) => {
+      const testDiv = document.createElement('div');
+      testDiv.className = 'test-item';
+      
+      const cleanText = sanitizeText(test.payload);
+      const cleanInput = sanitizeUserInput(test.payload);
+      
+      // Verificar se bloqueou tags perigosas
+      const isBlocked = !cleanText.includes('<script') && 
+                       !cleanText.includes('onerror') && 
+                       !cleanText.includes('onload') && 
+                       !cleanText.includes('javascript:') &&
+                       !cleanInput.includes('<script') && 
+                       !cleanInput.includes('onerror') && 
+                       !cleanInput.includes('onload') && 
+                       !cleanInput.includes('javascript:');
+      
+      if (isBlocked) {
+        passed++;
+      } else {
+        failed++;
+      }
+      
+      testDiv.innerHTML = `
+        <strong>Teste ${index + 1}: ${test.name}</strong>
+        <span class="status ${isBlocked ? 'passed' : 'failed'}">
+          ${isBlocked ? '✓ BLOQUEADO' : '✗ VULNERÁVEL'}
+        </span>
+        <div class="payload"><strong>Payload:</strong> ${escapeHtml(test.payload)}</div>
+        <div class="result"><strong>sanitizeText:</strong> ${escapeHtml(cleanText)}</div>
+        <div class="result"><strong>sanitizeUserInput:</strong> ${escapeHtml(cleanInput)}</div>
+      `;
+      
+      resultsDiv.appendChild(testDiv);
+    });
+
+    // Atualizar resumo
+    const summaryDiv = document.getElementById('summary');
+    const total = passed + failed;
+    const percentage = ((passed / total) * 100).toFixed(1);
+    
+    summaryDiv.innerHTML = `
+      <p><strong>Total de testes:</strong> ${total}</p>
+      <p class="success"><strong>✓ Bloqueados:</strong> ${passed}</p>
+      <p class="danger"><strong>✗ Vulneráveis:</strong> ${failed}</p>
+      <p><strong>Taxa de sucesso:</strong> ${percentage}%</p>
+      ${failed === 0 ? '<p class="success">🎉 Todos os payloads XSS foram bloqueados com sucesso!</p>' : '<p class="danger">⚠️ Alguns payloads não foram bloqueados corretamente!</p>'}
+    `;
+
+    // Mostrar funções disponíveis
+    const functionsDiv = document.getElementById('functions');
+    functionsDiv.innerHTML = `
+      <div class="test-item">
+        <strong>sanitizeHTML(dirty)</strong>
+        <p>Sanitiza HTML permitindo apenas tags seguras: b, i, em, strong, a, p, br</p>
+        <div class="payload">Entrada: &lt;b&gt;Negrito&lt;/b&gt; e &lt;script&gt;alert(1)&lt;/script&gt;</div>
+        <div class="result">Saída: ${sanitizeHTML('<b>Negrito</b> e <script>alert(1)</script>')}</div>
+      </div>
+
+      <div class="test-item">
+        <strong>sanitizeText(dirty)</strong>
+        <p>Remove todas as tags HTML, mantendo apenas o texto</p>
+        <div class="payload">Entrada: &lt;b&gt;Texto&lt;/b&gt; normal</div>
+        <div class="result">Saída: ${sanitizeText('<b>Texto</b> normal')}</div>
+      </div>
+
+      <div class="test-item">
+        <strong>sanitizeURL(url)</strong>
+        <p>Bloqueia protocolos perigosos: javascript:, data:, vbscript:</p>
+        <div class="payload">Entrada: javascript:alert('XSS')</div>
+        <div class="result">Saída: "${sanitizeURL('javascript:alert(\'XSS\')')}"</div>
+      </div>
+
+      <div class="test-item">
+        <strong>sanitizeUserInput(input)</strong>
+        <p>Sanitização estrita para entrada de usuários</p>
+        <div class="payload">Entrada: &lt;div onclick="alert(1)"&gt;Click me&lt;/div&gt;</div>
+        <div class="result">Saída: ${sanitizeUserInput('<div onclick="alert(1)">Click me</div>')}</div>
+      </div>
+    `;
+
+    // Helper para escapar HTML na exibição
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
+

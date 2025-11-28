@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 import { normalizeRoutePath } from "@/lib/pathUtils";
+import { logger } from "@/lib/logger";
 
 export function usePagePermissions() {
   const { user } = useAuth();
@@ -26,10 +27,10 @@ export function usePagePermissions() {
           .single();
 
         if (error) {
-          console.error("Erro ao carregar permissões:", error);
+          logger.error("Erro ao carregar permissões:", error);
           // Fallback: verificar user_metadata
           const fallbackRole = user.user_metadata?.role || "user";
-          console.log("Usando fallback role do user_metadata:", fallbackRole);
+          logger.log("Usando fallback role do user_metadata:", fallbackRole);
           setPermissions([]);
           setRole(fallbackRole);
           setLoading(false);
@@ -37,7 +38,7 @@ export function usePagePermissions() {
         }
 
         const userRole = data?.role || user.user_metadata?.role || "user";
-        console.log("Role carregado:", { role: userRole, fromDB: data?.role, fromMetadata: user.user_metadata?.role });
+        logger.log("Role carregado:", { role: userRole, fromDB: data?.role, fromMetadata: user.user_metadata?.role });
         setRole(userRole);
         // Se for admin, não precisa verificar permissões
         if (data?.role === "admin") {
@@ -51,7 +52,7 @@ export function usePagePermissions() {
           setPermissions(normalizedPerms);
         }
       } catch (error) {
-        console.error("Erro ao carregar permissões:", error);
+        logger.error("Erro ao carregar permissões:", error);
         setPermissions([]);
         setRole("user");
       } finally {

@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { NVR, Slot } from '@/contexts/NVRContext';
 import { logCreate, logUpdate, logDelete } from './auditService';
+import { logger } from "@/lib/logger";
 
 // Interface para o formato no banco de dados
 export interface NVRDB {
@@ -30,7 +31,7 @@ function dbToNVR(dbNVR: NVRDB): NVR {
       try {
         slots = JSON.parse(dbNVR.slots);
       } catch (e) {
-        console.warn('Erro ao fazer parse de slots:', e);
+        logger.warn('Erro ao fazer parse de slots:', e);
         slots = [];
       }
     }
@@ -67,7 +68,7 @@ function nvrToDB(nvr: Partial<NVR>): Partial<NVRDB> {
  * Trata erros do Supabase de forma consistente
  */
 function handleSupabaseError(error: any, operation: string) {
-  console.error(`Erro ao ${operation}:`, error);
+  logger.error(`Erro ao ${operation}:`, error);
   throw new Error(`Erro ao ${operation}: ${error.message || 'Erro desconhecido'}`);
 }
 
@@ -76,7 +77,7 @@ function handleSupabaseError(error: any, operation: string) {
  */
 export async function fetchNVRs(): Promise<NVR[]> {
   try {
-    console.log('🔍 Buscando NVRs do Supabase...');
+    logger.log('🔍 Buscando NVRs do Supabase...');
     const { data, error } = await supabase
       .from('nvrs')
       .select('*')
@@ -84,8 +85,8 @@ export async function fetchNVRs(): Promise<NVR[]> {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error('❌ Erro ao buscar NVRs:', error);
-      console.error('Detalhes do erro:', {
+      logger.error('❌ Erro ao buscar NVRs:', error);
+      logger.error('Detalhes do erro:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
@@ -95,24 +96,24 @@ export async function fetchNVRs(): Promise<NVR[]> {
       return [];
     }
 
-    console.log(`✅ ${data?.length || 0} NVRs encontrados no Supabase`);
+    logger.log(`✅ ${data?.length || 0} NVRs encontrados no Supabase`);
     if (data && data.length > 0) {
-      console.log('📋 Primeiro NVR (exemplo):', data[0]);
+      logger.log('📋 Primeiro NVR (exemplo):', data[0]);
     }
     
     const nvrs = (data || []).map((item, index) => {
       try {
         return dbToNVR(item);
       } catch (e) {
-        console.error(`❌ Erro ao converter NVR ${index}:`, e, item);
+        logger.error(`❌ Erro ao converter NVR ${index}:`, e, item);
         return null;
       }
     }).filter((nvr): nvr is NVR => nvr !== null);
     
-    console.log(`📦 ${nvrs.length} NVRs convertidos com sucesso`);
+    logger.log(`📦 ${nvrs.length} NVRs convertidos com sucesso`);
     return nvrs;
   } catch (error) {
-    console.error('❌ Erro ao buscar NVRs:', error);
+    logger.error('❌ Erro ao buscar NVRs:', error);
     handleSupabaseError(error, 'buscar NVRs');
     return [];
   }
@@ -144,7 +145,7 @@ export async function createNVR(nvr: Omit<NVR, 'id'>): Promise<NVR> {
       createdNVR.id,
       nvrData as Record<string, any>,
       `Criou NVR "${nvr.name}" (${nvr.marina})`
-    ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+    ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
 
     return createdNVR;
   } catch (error) {
@@ -197,7 +198,7 @@ export async function updateNVR(id: string, updates: Partial<NVR>): Promise<NVR>
         oldData as Record<string, any>,
         data as Record<string, any>,
         `Atualizou NVR "${nvrName}"`
-      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+      ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
     }
 
     return updatedNVR;
@@ -239,7 +240,7 @@ export async function deleteNVR(id: string): Promise<void> {
         id,
         oldData as Record<string, any>,
         `Excluiu NVR "${nvrName}"`
-      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+      ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
     }
   } catch (error) {
     handleSupabaseError(error, 'deletar NVR');
@@ -298,7 +299,7 @@ export async function updateNVRSlot(
         currentNVR as Record<string, any>,
         data as Record<string, any>,
         `Atualizou slot ${slotIndex + 1} do NVR "${updatedNVR.name}"`
-      ).catch(err => console.warn('Erro ao registrar log de auditoria:', err));
+      ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
     }
 
     return updatedNVR;

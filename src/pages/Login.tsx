@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Server, Loader2, AlertCircle, CheckCircle2, Key } from "lucide-react";
+import { Server, Loader2, AlertCircle, CheckCircle2, Key, Shield } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
+import ReCAPTCHA from "react-google-recaptcha";
+
+// Chave pública do Google reCAPTCHA v2
+// IMPORTANTE: Esta chave é específica para localhost e o domínio de produção
+// Configure sua própria chave em: https://www.google.com/recaptcha/admin
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"; // Chave de teste do Google
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -26,7 +33,10 @@ export default function Login() {
   const [showRecuperarSenha, setShowRecuperarSenha] = useState(false);
   const [emailRecuperacao, setEmailRecuperacao] = useState("");
   const [isSendingRecuperacao, setIsSendingRecuperacao] = useState(false);
-  const { signIn } = useAuth();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [showCaptcha, setShowCaptcha] = useState(false);
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
+  const { signIn, requiresCaptcha } = useAuth();
   const navigate = useNavigate();
 
   // Verifica conexão com Supabase ao montar o componente
@@ -35,19 +45,38 @@ export default function Login() {
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) {
-          console.error("Erro ao conectar com Supabase:", error);
+          logger.error("Erro ao conectar com Supabase:", error);
           setIsSupabaseConnected(false);
         } else {
           setIsSupabaseConnected(true);
         }
       } catch (err) {
-        console.error("Erro ao verificar conexão:", err);
+        logger.error("Erro ao verificar conexão:", err);
         setIsSupabaseConnected(false);
       }
     };
 
     checkSupabaseConnection();
   }, []);
+
+  // Verifica se precisa mostrar CAPTCHA quando o email muda
+  useEffect(() => {
+    if (email.trim()) {
+      const needsCaptcha = requiresCaptcha(email);
+      setShowCaptcha(needsCaptcha);
+      
+      // Resetar token do CAPTCHA se não precisar mais
+      if (!needsCaptcha) {
+        setCaptchaToken(null);
+        recaptchaRef.current?.reset();
+      }
+    }
+  }, [email, requiresCaptcha]);
+
+  const handleCaptchaChange = (token: string | null) => {
+    setCaptchaToken(token);
+    logger.log("CAPTCHA token recebido:", token ? "válido" : "inválido");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,12 +97,28 @@ export default function Login() {
         return;
       }
 
+      // Verificar se CAPTCHA é necessário e foi preenchido
+      if (showCaptcha && !captchaToken) {
+        setError("Por favor, complete a verificação de segurança (CAPTCHA)");
+        setIsLoading(false);
+        return;
+      }
+
       // Tenta fazer login - a validação real acontece no Supabase
-      await signIn(email, password);
+      await signIn(email, password, captchaToken || undefined);
+      
+      // Resetar CAPTCHA após tentativa
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
+      
       navigate("/home");
     } catch (_error: any) {
       // Erro detalhado já é tratado e logado no AuthContext
       setError("Não foi possível fazer login. Verifique suas credenciais ou tente novamente mais tarde.");
+      
+      // Resetar CAPTCHA após erro
+      recaptchaRef.current?.reset();
+      setCaptchaToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +145,7 @@ export default function Login() {
 
       if (resetError) {
         // Não mostrar erro específico por segurança (não revelar se o email existe ou não)
-        console.error("Erro ao enviar email de recuperação:", resetError);
+        logger.error("Erro ao enviar email de recuperação:", resetError);
         toast.error("Erro ao enviar email de recuperação. Verifique se o email está correto e tente novamente.");
         setIsSendingRecuperacao(false);
         return;
@@ -113,7 +158,7 @@ export default function Login() {
       setShowRecuperarSenha(false);
       setEmailRecuperacao("");
     } catch (error) {
-      console.error("Erro ao processar recuperação de senha:", error);
+      logger.error("Erro ao processar recuperação de senha:", error);
       toast.error("Erro ao processar solicitação. Tente novamente.");
     } finally {
       setIsSendingRecuperacao(false);
@@ -188,6 +233,31 @@ export default function Login() {
                 autoComplete="current-password"
               />
             </div>
+
+            {/* Aviso de segurança quando CAPTCHA é exigido */}
+            {showCaptcha && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-md flex items-start gap-2">
+                <Shield className="w-4 h-4 text-amber-600 dark:text-amber-500 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-400">Verificação de segurança necessária</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
+                    Por favor, complete o CAPTCHA abaixo para continuar
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* CAPTCHA - mostrar após múltiplas tentativas */}
+            {showCaptcha && (
+              <div className="flex justify-center">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={RECAPTCHA_SITE_KEY}
+                  onChange={handleCaptchaChange}
+                  theme="light"
+                />
+              </div>
+            )}
 
             {/* Mensagem de erro */}
             {error && (

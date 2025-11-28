@@ -14,6 +14,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 import zxcvbn from "zxcvbn";
 import { useAuth } from "@/contexts/AuthContext";
+import { logger } from "@/lib/logger";
+import { sanitizeText } from "@/lib/sanitize";
 
 interface PasswordChangeModalProps {
   open: boolean;
@@ -77,34 +79,35 @@ export function PasswordChangeModal({
 
     try {
       // 1. Atualizar senha e nome nos metadados do Supabase Auth
+      const nomeSanitizado = sanitizeText(nome.trim());
       const { error: updateError } = await supabase.auth.updateUser({
         password: novaSenha,
         data: {
-          nome: nome.trim(),
-          name: nome.trim(), // Também salvar como 'name' para compatibilidade
+          nome: nomeSanitizado,
+          name: nomeSanitizado, // Também salvar como 'name' para compatibilidade
         },
       });
 
       if (updateError) {
-        console.error("Erro ao atualizar senha:", updateError);
+        logger.error("Erro ao atualizar senha:", updateError);
         setError("Não foi possível atualizar a senha. Tente novamente.");
         setLoading(false);
         return;
       }
 
       // 2. Atualizar nome e remover flag de senha temporária no user_profiles
-      console.log("PasswordChangeModal: Tentando atualizar perfil - userId:", userId, "nome:", nome.trim());
+      logger.log("PasswordChangeModal: Tentando atualizar perfil - userId:", userId, "nome:", nomeSanitizado);
       const { data: updateData, error: profileError } = await supabase
         .from("user_profiles")
         .update({
-          nome: nome.trim(),
+          nome: nomeSanitizado,
           password_temporary: false,
         })
         .eq("user_id", userId)
         .select(); // Adicionar select para verificar se atualizou
 
       if (profileError) {
-        console.error("ERRO CRÍTICO ao atualizar perfil:", {
+        logger.error("ERRO CRÍTICO ao atualizar perfil:", {
           code: profileError.code,
           message: profileError.message,
           details: profileError.details,
@@ -116,14 +119,14 @@ export function PasswordChangeModal({
       }
 
       if (!updateData || updateData.length === 0) {
-        console.error("ERRO: Nenhum registro foi atualizado no banco de dados");
+        logger.error("ERRO: Nenhum registro foi atualizado no banco de dados");
         setError("Erro: Não foi possível atualizar o perfil. Verifique se você tem permissão.");
         setLoading(false);
         return;
       }
 
-      console.log("PasswordChangeModal: Perfil atualizado com sucesso:", updateData);
-      console.log("PasswordChangeModal: Verificando se password_temporary foi atualizado para false...");
+      logger.log("PasswordChangeModal: Perfil atualizado com sucesso:", updateData);
+      logger.log("PasswordChangeModal: Verificando se password_temporary foi atualizado para false...");
       
       // Verificar se realmente foi atualizado
       const { data: verifyData, error: verifyError } = await supabase
@@ -133,11 +136,11 @@ export function PasswordChangeModal({
         .single();
 
       if (verifyError) {
-        console.error("Erro ao verificar atualização:", verifyError);
+        logger.error("Erro ao verificar atualização:", verifyError);
       } else {
-        console.log("PasswordChangeModal: Dados verificados no banco:", verifyData);
+        logger.log("PasswordChangeModal: Dados verificados no banco:", verifyData);
         if (verifyData.password_temporary === true) {
-          console.error("ERRO: password_temporary ainda está TRUE após atualização!");
+          logger.error("ERRO: password_temporary ainda está TRUE após atualização!");
           setError("Não foi possível concluir a atualização da senha. Tente novamente.");
           setLoading(false);
           return;
@@ -152,7 +155,7 @@ export function PasswordChangeModal({
       }
 
       // Atualizar o estado no contexto após atualizar o banco
-      console.log("PasswordChangeModal: Atualizando estado do contexto após mudança de senha");
+      logger.log("PasswordChangeModal: Atualizando estado do contexto após mudança de senha");
       // Aguardar um pouco para garantir que o banco foi atualizado
       await new Promise(resolve => setTimeout(resolve, 500));
       // Verificar novamente para atualizar o estado no contexto
@@ -164,7 +167,7 @@ export function PasswordChangeModal({
         onSuccess();
       }, 300);
     } catch (error: any) {
-      console.error("Erro ao alterar senha:", error);
+      logger.error("Erro ao alterar senha:", error);
       setError("Erro ao alterar senha. Tente novamente.");
     } finally {
       setLoading(false);

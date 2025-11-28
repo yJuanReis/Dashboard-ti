@@ -2,6 +2,7 @@
 // Execute isso no console do navegador ou adicione temporariamente na página
 
 import { supabase } from './supabaseClient';
+import { logger } from './logger';
 
 /**
  * Verifica quais tabelas existem no Supabase
@@ -12,7 +13,7 @@ export async function checkTables() {
     // Tenta buscar de algumas tabelas comuns
     const tableNames = ['passwords', 'senhas', 'credentials', 'credenciais', 'password', 'senha'];
     
-    console.log('🔍 Verificando tabelas no Supabase...\n');
+    logger.log('🔍 Verificando tabelas no Supabase...\n');
     
     for (const tableName of tableNames) {
       try {
@@ -22,12 +23,12 @@ export async function checkTables() {
           .limit(1);
         
         if (!error && data !== null) {
-          console.log(`✅ Tabela "${tableName}" encontrada!`);
+          logger.log(`✅ Tabela "${tableName}" encontrada!`);
           if (data.length > 0) {
-            console.log('📋 Estrutura da primeira linha:');
-            console.log(JSON.stringify(data[0], null, 2));
+            logger.log('📋 Estrutura da primeira linha:');
+            logger.log(JSON.stringify(data[0], null, 2));
           } else {
-            console.log('⚠️ Tabela existe mas está vazia');
+            logger.log('⚠️ Tabela existe mas está vazia');
           }
           return tableName;
         }
@@ -36,11 +37,11 @@ export async function checkTables() {
       }
     }
     
-    console.log('❌ Nenhuma tabela conhecida encontrada');
-    console.log('💡 Dica: Verifique o nome da sua tabela no Supabase e atualize o código');
+    logger.log('❌ Nenhuma tabela conhecida encontrada');
+    logger.log('💡 Dica: Verifique o nome da sua tabela no Supabase e atualize o código');
     return null;
   } catch (error) {
-    console.error('Erro ao verificar tabelas:', error);
+    logger.error('Erro ao verificar tabelas:', error);
     return null;
   }
 }
@@ -56,22 +57,22 @@ export async function getTableStructure(tableName: string) {
       .limit(1);
     
     if (error) {
-      console.error(`Erro ao buscar estrutura da tabela ${tableName}:`, error);
+      logger.error(`Erro ao buscar estrutura da tabela ${tableName}:`, error);
       return null;
     }
     
     if (data && data.length > 0) {
       const columns = Object.keys(data[0]);
-      console.log(`📊 Colunas da tabela "${tableName}":`);
+      logger.log(`📊 Colunas da tabela "${tableName}":`);
       columns.forEach(col => {
-        console.log(`  - ${col}: ${typeof data[0][col]}`);
+        logger.log(`  - ${col}: ${typeof data[0][col]}`);
       });
       return columns;
     }
     
     return null;
   } catch (error) {
-    console.error('Erro ao obter estrutura da tabela:', error);
+    logger.error('Erro ao obter estrutura da tabela:', error);
     return null;
   }
 }
