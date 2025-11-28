@@ -41,8 +41,8 @@ const navigationMeta: Record<
 
 const IGNORED_PATHS = new Set([
   "/login",
-  "/reset-password",
-  "/security-test",
+  "/reset-de-senha",
+  "/teste-de-seguranca",
 ]);
 
 export function NavigationHistoryProvider({ children }: { children: ReactNode }) {

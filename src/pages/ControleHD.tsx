@@ -849,7 +849,7 @@ export default function EvolucaoHDs() {
       )}
 
       {/* Tabela com Scroll */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full custom-scrollbar">
         <table className="w-full caption-bottom text-sm border-collapse">
             <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
                 <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2 m-0">
@@ -944,7 +944,7 @@ export default function EvolucaoHDs() {
                         )}
                         {/* Mobile: todos os slots em linha única com scroll horizontal */}
                         {isMobile && (
-                          <div className="w-full overflow-x-auto">
+                          <div className="w-full overflow-x-auto custom-scrollbar">
                             <div className="flex gap-1.5 justify-start items-stretch min-w-max pr-2">
                               {(nvr.slots || []).map((slot, originalIndex) => {
                                 if (slot.status === "inactive") return null;

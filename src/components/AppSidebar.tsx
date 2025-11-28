@@ -893,7 +893,7 @@ export function AppSidebar({}: AppSidebarProps) {
 
       {/* Modal de Configurações */}
       <Dialog open={settingsModalOpen} onOpenChange={setSettingsModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full custom-scrollbar">
           <DialogHeader>
             <DialogTitle>Configurações</DialogTitle>
             <DialogDescription>
@@ -1097,7 +1097,7 @@ export function AppSidebar({}: AppSidebarProps) {
                       
                       try {
                         const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-                          redirectTo: `${window.location.origin}/reset-password`,
+                          redirectTo: `${window.location.origin}/reset-de-senha`,
                         });
                         
                         if (error) {

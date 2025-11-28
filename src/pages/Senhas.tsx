@@ -222,7 +222,7 @@ function DetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] sm:w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:w-full max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
@@ -2488,7 +2488,7 @@ export default function Senhas() {
 
       {/* Conteúdo - Scroll apenas em modo cards, fixo em modo planilha */}
       <div className={cn(
-        viewMode === "table" ? "flex-1 overflow-hidden flex flex-col min-h-0 relative w-full" : "flex-1 overflow-y-auto overflow-x-hidden"
+        viewMode === "table" ? "flex-1 overflow-hidden flex flex-col min-h-0 relative w-full" : "flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
       )}>
         <div className={cn(
           viewMode === "table" ? "flex-1 flex flex-col min-h-0 h-full w-full" : "space-y-6"
@@ -2653,67 +2653,12 @@ export default function Senhas() {
             <div 
               className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar h-full w-full relative" 
               style={{ 
-                scrollbarWidth: 'auto',
-                scrollbarColor: 'rgb(148 163 184) rgb(241 245 249)',
                 WebkitOverflowScrolling: 'touch',
                 position: 'relative',
                 boxSizing: 'border-box',
                 isolation: 'isolate'
               }}
             >
-              <style>{`
-                .custom-scrollbar {
-                  scrollbar-width: auto !important;
-                  scrollbar-color: rgb(148 163 184) rgb(241 245 249) !important;
-                  overflow-x: scroll !important;
-                  overflow-y: scroll !important;
-                }
-                .custom-scrollbar::-webkit-scrollbar {
-                  width: 16px !important;
-                  height: 16px !important;
-                  display: block !important;
-                  -webkit-appearance: none !important;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                  background: rgb(241 245 249) !important;
-                  border-radius: 8px !important;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                  background-color: rgb(148 163 184) !important;
-                  border-radius: 8px !important;
-                  border: 3px solid rgb(241 245 249) !important;
-                  min-height: 30px !important;
-                  min-width: 30px !important;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                  background-color: rgb(100 116 139) !important;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:active {
-                  background-color: rgb(71 85 105) !important;
-                }
-                .dark .custom-scrollbar {
-                  scrollbar-color: rgb(71 85 105) rgb(30 41 59) !important;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-track {
-                  background: rgb(30 41 59) !important;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-                  background-color: rgb(71 85 105) !important;
-                  border-color: rgb(30 41 59) !important;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                  background-color: rgb(100 116 139) !important;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-thumb:active {
-                  background-color: rgb(148 163 184) !important;
-                }
-                .custom-scrollbar::-webkit-scrollbar-corner {
-                  background: rgb(241 245 249) !important;
-                }
-                .dark .custom-scrollbar::-webkit-scrollbar-corner {
-                  background: rgb(30 41 59) !important;
-                }
-              `}</style>
               <div style={{ width: `${2200 * (fontSize / 14)}px`, minWidth: `${2200 * (fontSize / 14)}px`, display: 'block', flexShrink: 0, position: 'relative' }}>
                 <table className="w-full caption-bottom text-sm" style={{ width: `${2200 * (fontSize / 14)}px`, minWidth: `${2200 * (fontSize / 14)}px`, tableLayout: 'auto' }}>
                 <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0, fontSize: `${fontSize}px` }}>
@@ -3262,7 +3207,7 @@ export default function Senhas() {
 
       {/* Modal de Formulário */}
       <Dialog open={showFormModal} onOpenChange={setShowFormModal}>
-        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 capitalize">
               <Plus className="w-5 h-5" />
@@ -3604,7 +3549,7 @@ export default function Senhas() {
           </div>
           
           {/* Formulário com scroll */}
-          <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
             <form id="edit-form" onSubmit={handleUpdate} className="space-y-4">
             {/* Marina */}
             <div className="space-y-2">
@@ -3801,7 +3746,7 @@ export default function Senhas() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto pr-2 mt-4">
+          <div className="flex-1 overflow-y-auto pr-2 mt-4 custom-scrollbar">
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
               {passwordProblems.map((problem) => {
                 const password = passwords.find(p => p.id === problem.id);

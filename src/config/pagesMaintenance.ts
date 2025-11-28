@@ -47,7 +47,7 @@ export const PAGES_IN_MAINTENANCE: PageMaintenanceConfig[] = [
     badgeVariant: "yellow",
   },
   {
-    path: "/security-test",
+    path: "/teste-de-seguranca",
     status: "dev",
     badgeText: "Dev",
     badgeVariant: "gray",

@@ -363,7 +363,7 @@ export default function Impressoras() {
 
 
       {/* Tabela */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full custom-scrollbar">
         <Table className="w-full caption-bottom text-xs md:text-sm min-w-[800px]">
           <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
             <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
@@ -510,7 +510,7 @@ export default function Impressoras() {
 
       {/* Dialog de Edição/Criação */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <DialogTitle>
               {editingImpressora ? "Editar Impressora" : "Nova Impressora"}

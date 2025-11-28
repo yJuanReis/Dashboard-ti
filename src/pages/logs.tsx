@@ -469,7 +469,7 @@ export default function AuditLogs() {
               </div>
             ) : (
               <>
-                <div className="overflow-auto flex-1 -mx-6 px-6">
+                <div className="overflow-auto flex-1 -mx-6 px-6 custom-scrollbar">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -593,7 +593,7 @@ export default function AuditLogs() {
         {/* Modal de Detalhes */}
         {showDetailsModal && selectedLog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>Detalhes do Log</CardTitle>
@@ -675,7 +675,7 @@ export default function AuditLogs() {
                 {selectedLog.old_data && (
                   <div>
                     <Label className="text-sm font-semibold">Dados Antigos (antes da alteração)</Label>
-                    <div className="mt-2 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-64 overflow-y-auto">
+                    <div className="mt-2 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-64 overflow-y-auto custom-scrollbar">
                       <pre className="whitespace-pre-wrap break-words">
                         {JSON.stringify(selectedLog.old_data, null, 2)}
                       </pre>
@@ -686,7 +686,7 @@ export default function AuditLogs() {
                 {selectedLog.new_data && (
                   <div>
                     <Label className="text-sm font-semibold">Dados Novos (após a alteração)</Label>
-                    <div className="mt-2 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-64 overflow-y-auto">
+                    <div className="mt-2 p-3 bg-muted rounded-md text-xs overflow-x-auto max-h-64 overflow-y-auto custom-scrollbar">
                       <pre className="whitespace-pre-wrap break-words">
                         {JSON.stringify(selectedLog.new_data, null, 2)}
                       </pre>

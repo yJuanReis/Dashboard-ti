@@ -89,7 +89,7 @@ export async function testRouteProtection(): Promise<SecurityTestResult> {
     // Lista de rotas que devem estar protegidas
     const protectedRoutes = [
       '/configuracoes',
-      '/security-test',
+      '/teste-de-seguranca',
       '/senhas',
     ];
 

@@ -139,7 +139,7 @@ export default function Login() {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         emailRecuperacao.trim().toLowerCase(),
         {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${window.location.origin}/reset-de-senha`,
         }
       );
 

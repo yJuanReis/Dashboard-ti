@@ -39,13 +39,14 @@ export function Layout({ children }: LayoutProps) {
   // mas como drawer mobile (controlado por useIsMobile/useSidebar).
   const showSidebarUI = true;
 
+  const isHomePage = location.pathname.toLowerCase() === "/home" || location.pathname === "/";
   const isSenhasPage = location.pathname.toLowerCase().includes("senhas");
   const isNvrPage = location.pathname.toLowerCase().includes("controle-nvr");
   const isHdPage = location.pathname.toLowerCase().includes("controle-hds") || location.pathname.toLowerCase().includes("evolucao-hds");
   const isNvrOrHdPage = isNvrPage || isHdPage;
   const isImpressorasPage = location.pathname.toLowerCase().includes("impressoras");
   const isRamaisPage = location.pathname.toLowerCase().includes("ramais");
-  const isAuditLogsPage = location.pathname.toLowerCase().includes("audit-logs");
+  const isAuditLogsPage = location.pathname.toLowerCase().includes("logs");
   
   const MARINA_OPTIONS = [
     "BRACUHY",
@@ -254,41 +255,43 @@ export function Layout({ children }: LayoutProps) {
               </h1>
             </div>
 
-            {/* TI BR MARINAS centralizado */}
-            <div className="absolute left-1/2 -translate-x-1/2">
-              <button className="button-animated" data-text="TI BR MARINAS">
-                <span className="actual-text">
-                  &nbsp;
-                  <span
-                    style={{
-                      fontWeight: 800,
-                      letterSpacing: "0.5px",
-                      fontSize: "1em",
-                      color: "hsl(var(--primary))",
-                      textShadow: "0 2px 8px hsla(var(--primary),0.35)",
-                    }}
-                  >
-                    TI
+            {/* TI BR MARINAS centralizado - apenas na Home */}
+            {isHomePage && (
+              <div className="absolute left-1/2 -translate-x-1/2">
+                <button className="button-animated" data-text="TI BR MARINAS">
+                  <span className="actual-text">
+                    &nbsp;
+                    <span
+                      style={{
+                        fontWeight: 800,
+                        letterSpacing: "0.5px",
+                        fontSize: "1em",
+                        color: "hsl(var(--primary))",
+                        textShadow: "0 2px 8px hsla(var(--primary),0.35)",
+                      }}
+                    >
+                      TI
+                    </span>
+                    &nbsp;BR MARINAS&nbsp;
                   </span>
-                  &nbsp;BR MARINAS&nbsp;
-                </span>
-                <span aria-hidden="true" className="hover-text">
-                  &nbsp;
-                  <span
-                    style={{
-                      fontWeight: 800,
-                      letterSpacing: "0.5px",
-                      fontSize: "1em",
-                      color: "hsl(var(--primary))",
-                      textShadow: "0 2px 8px hsla(var(--primary),0.35)",
-                    }}
-                  >
-                    TI
+                  <span aria-hidden="true" className="hover-text">
+                    &nbsp;
+                    <span
+                      style={{
+                        fontWeight: 800,
+                        letterSpacing: "0.5px",
+                        fontSize: "1em",
+                        color: "hsl(var(--primary))",
+                        textShadow: "0 2px 8px hsla(var(--primary),0.35)",
+                      }}
+                    >
+                      TI
+                    </span>
+                    &nbsp;BR MARINAS&nbsp;
                   </span>
-                  &nbsp;BR MARINAS&nbsp;
-                </span>
-              </button>
-            </div>
+                </button>
+              </div>
+            )}
 
             {/* Filtros e controles à direita */}
             <div className="flex-1 min-w-0 flex items-center gap-2 justify-end">
@@ -665,10 +668,10 @@ export function Layout({ children }: LayoutProps) {
           <main
             className={
               isSenhasPage
-                ? "app-main flex-1 overflow-y-auto p-0"
+                ? "app-main flex-1 overflow-y-auto p-0 custom-scrollbar"
                 : isNvrOrHdPage && isMobile
-                ? "app-main flex-1 overflow-y-auto p-0"
-                : "app-main flex-1 overflow-y-auto p-3 md:p-4 lg:p-6"
+                ? "app-main flex-1 overflow-y-auto p-0 custom-scrollbar"
+                : "app-main flex-1 overflow-y-auto p-3 md:p-4 lg:p-6 custom-scrollbar"
             }
           >
             <div className="max-w-full">

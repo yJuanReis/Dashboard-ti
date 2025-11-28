@@ -279,7 +279,7 @@ export default function Assinaturas() {
           <CardHeader className="p-4 md:p-6">
             <CardTitle className="text-lg md:text-xl">Informações da Assinatura</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6 flex-1 overflow-y-auto">
+          <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
             {/* Layout Selection */}
             <div className="space-y-2 md:space-y-3">
               <Label className="text-sm md:text-base font-semibold">Layout</Label>
@@ -419,7 +419,7 @@ export default function Assinaturas() {
           <CardHeader>
 
           </CardHeader>
-          <CardContent className="p-4 md:p-6 lg:p-8 rounded-lg overflow-x-auto flex-1 flex items-center justify-center">
+          <CardContent className="p-4 md:p-6 lg:p-8 rounded-lg overflow-x-auto flex-1 flex items-center justify-center custom-scrollbar">
             <div className="flex items-center justify-center w-full h-full">
               <div 
                 ref={previewRef} 

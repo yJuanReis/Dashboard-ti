@@ -88,13 +88,13 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/gestaorede', nome: 'Gestão de Rede', icon: '🌐' },
   { path: '/servidores', nome: 'Servidores', icon: '🖥️' },
   { path: '/chamados', nome: 'Chamados', icon: '🔧' },
-  { path: '/security-test', nome: 'Security Test', icon: '🔒' },
+  { path: '/teste-de-seguranca', nome: 'Teste de Segurança', icon: '🔒' },
   { path: '/configuracoes', nome: 'Configurações', icon: '⚙️' },
-  { path: '/audit-logs', nome: 'Audit Logs', icon: '📋' },
+  { path: '/logs', nome: 'Logs', icon: '📋' },
 ];
 
 // Páginas que são exclusivas para administradores (não aparecem nas permissões de usuários normais)
-const PAGINAS_ADMIN_ONLY = ['/configuracoes', '/audit-logs'];
+const PAGINAS_ADMIN_ONLY = ['/configuracoes', '/logs'];
 
 // Função auxiliar para obter páginas disponíveis para usuários não-admin (exclui páginas admin-only)
 const getPaginasParaUsuarios = () => {
@@ -590,7 +590,7 @@ export default function Configuracoes() {
 
       // Se a senha está correta, enviar email de redefinição
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}/reset-de-senha`,
       });
 
       if (error) {
@@ -2209,7 +2209,7 @@ export default function Configuracoes() {
                         Por padrão, todas as páginas estarão visíveis. Clique nas páginas para ocultá-las.
                       </p>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md custom-scrollbar">
                         {getPaginasParaUsuarios().map((pagina) => {
                           const estaOculta = permissoesPaginasNovoUsuario.includes(pagina.path);
                           
@@ -2310,7 +2310,7 @@ export default function Configuracoes() {
                     </div>
                   ) : (
                     // Modificação solicitada: Substituição do ScrollArea por div nativa e ajuste no header
-                    <div className="max-h-[500px] w-full overflow-y-auto border rounded-md">
+                    <div className="max-h-[500px] w-full overflow-y-auto border rounded-md custom-scrollbar">
                       {/* Desktop Table */}
                       <div className="hidden md:block">
                         <Table>
@@ -2630,7 +2630,7 @@ export default function Configuracoes() {
                   <Button
                     onClick={() => {
                       sessionStorage.setItem('securityTestFromConfig', 'true');
-                      navigate('/security-test');
+                      navigate('/teste-de-seguranca');
                     }}
                     className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
                   >
@@ -2646,7 +2646,7 @@ export default function Configuracoes() {
                 </div>
                 <div className="pt-2 border-t">
                   <Button
-                    onClick={() => navigate('/audit-logs')}
+                    onClick={() => navigate('/logs')}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                   >
                     <Database className="w-4 h-4 mr-2" />
@@ -2691,7 +2691,7 @@ export default function Configuracoes() {
                 <X className="w-4 h-4" />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-6 pt-6 overflow-y-auto flex-1">
+            <CardContent className="space-y-6 pt-6 overflow-y-auto flex-1 custom-scrollbar">
 
 
               {/* Informações Básicas */}
@@ -2733,7 +2733,7 @@ export default function Configuracoes() {
                     ⚠️ Administradores têm acesso a todas as páginas automaticamente.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto p-2 border rounded-md custom-scrollbar">
                     {getPaginasParaUsuarios().map((pagina) => {
                       const estaOculta = permissoesPaginas.includes(pagina.path);
                       
@@ -2835,7 +2835,7 @@ export default function Configuracoes() {
                 <X className="w-4 h-4" />
               </Button>
             </CardHeader>
-            <CardContent className="space-y-4 overflow-y-auto flex-1">
+            <CardContent className="space-y-4 overflow-y-auto flex-1 custom-scrollbar">
 
               <div className="space-y-2">
                 <Label>Nova Senha</Label>
@@ -2956,7 +2956,7 @@ export default function Configuracoes() {
 
       {/* Modal de Confirmação de Criação/Atualização de Usuário */}
       <Dialog open={modalConfirmacaoCriacao} onOpenChange={setModalConfirmacaoCriacao}>
-        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <DialogTitle>Confirmar Criação/Atualização de Usuário</DialogTitle>
             <DialogDescription>

@@ -29,7 +29,7 @@ export function SimpleModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${maxWidthClasses[maxWidth]} max-h-[80vh] overflow-y-auto rounded-xl`}>
+      <DialogContent className={`${maxWidthClasses[maxWidth]} max-h-[80vh] overflow-y-auto rounded-xl custom-scrollbar`}>
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
         </DialogHeader>

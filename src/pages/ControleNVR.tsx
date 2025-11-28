@@ -157,7 +157,7 @@ function SlotsMenu({
   return (
     <div
       ref={menuRef}
-      className="slots-menu fixed z-[100] w-auto p-3 bg-popover border rounded-md shadow-lg max-h-[80vh] overflow-y-auto min-w-[280px]"
+      className="slots-menu fixed z-[100] w-auto p-3 bg-popover border rounded-md shadow-lg max-h-[80vh] overflow-y-auto min-w-[280px] custom-scrollbar"
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
@@ -989,7 +989,7 @@ export default function ControleNVR() {
       )}
 
       {/* Tabela com Scroll - Otimizada para landscape mobile */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full">
+      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full custom-scrollbar">
         <table className="w-full caption-bottom text-xs md:text-sm min-w-[600px] border-collapse">
             <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
                 <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2 leading-tight m-0">
@@ -1223,7 +1223,7 @@ export default function ControleNVR() {
 
       {/* Dialog de Edição/Criação */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full custom-scrollbar">
           <DialogHeader>
             <DialogTitle>
               {editingNVR ? "Editar NVR" : "Novo NVR"}

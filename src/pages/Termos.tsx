@@ -973,7 +973,7 @@ export default function TesteTermos() {
     <div className={`grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-4 ${isMobile ? "" : "flex-1 min-h-0"}`}>
     {/* Formulário */}
     <Card className={`shadow-lg border-border/50 ${isMobile ? "" : "lg:col-span-3"} flex flex-col`}>
-      <CardContent className={`space-y-2 md:space-y-3 ${isMobile ? "" : "flex-1 overflow-y-auto"} pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4`}>
+      <CardContent className={`space-y-2 md:space-y-3 ${isMobile ? "" : "flex-1 overflow-y-auto custom-scrollbar"} pt-3 md:pt-4 pb-3 md:pb-4 px-3 md:px-4`}>
         {/* Seletor de Modelo */}
         <div>
           <Label htmlFor="tipoModelo" className="text-sm mb-2 block">Tipo de Termo</Label>
@@ -1641,7 +1641,7 @@ export default function TesteTermos() {
           Ações Rápidas
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 flex-1 overflow-y-auto">
+      <CardContent className="space-y-4 flex-1 overflow-y-auto custom-scrollbar">
         {/* Botões de Acesso Rápido */}
         <div className="space-y-3">
 
