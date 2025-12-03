@@ -38,6 +38,7 @@ import {
   AlertTriangle,
   MessageSquare,
   Download,
+  RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -536,15 +537,30 @@ export default function EvolucaoHDs() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border-2 border-primary rounded-lg p-6 max-w-md text-center shadow-2xl">
             <div className="mb-4">
-              <HardDrive className="w-12 h-12 mx-auto text-primary mb-2" />
+              <div className="relative mb-4">
+                <HardDrive className="w-12 h-12 mx-auto text-primary mb-2" />
+                <RotateCw className="w-6 h-6 absolute -top-1 -right-1 text-primary animate-spin" />
+              </div>
               <h2 className="text-xl font-bold text-foreground mb-2">
                 Gire seu dispositivo
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-2">
                 Para visualizar melhor a planilha de HDs, gire seu dispositivo para o modo horizontal (landscape).
               </p>
+              <p className="text-xs text-muted-foreground/80 italic">
+                Desative o bloqueio de rotação nas configurações do seu celular se necessário
+              </p>
             </div>
-            <div className="mt-6 flex justify-center">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground mb-4">
+              <div className="w-10 h-10 border-2 border-muted-foreground rounded-lg flex items-center justify-center bg-muted/30">
+                <span className="text-xl">📱</span>
+              </div>
+              <RotateCw className="w-6 h-6 text-primary animate-spin" />
+              <div className="w-10 h-10 border-2 border-primary rounded-lg flex items-center justify-center bg-primary/10 animate-pulse">
+                <span className="text-xl">📱</span>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"

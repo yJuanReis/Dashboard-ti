@@ -26,6 +26,7 @@ import Senhas from "./pages/Senhas";
 import GestaoRede from "./pages/GestaoRede";
 import Impressoras from "./pages/Impressoras";
 import Ramais from "./pages/Ramais";
+import Solicitacoes from "./pages/Solicitacoes";
 import TesteTermos from "./pages/Termos";
 import SecurityTest from "./pages/teste-de-segurança";
 import NotFound from "./pages/NotFound";
@@ -72,6 +73,7 @@ const App = () => (
                               <Route path="/gestaorede" element={<PagePermissionGuard><GestaoRede /></PagePermissionGuard>} />
                               <Route path="/impressoras" element={<PagePermissionGuard><Impressoras /></PagePermissionGuard>} />
                               <Route path="/ramais" element={<PagePermissionGuard><Ramais /></PagePermissionGuard>} />
+                              <Route path="/solicitacoes" element={<PagePermissionGuard><Solicitacoes /></PagePermissionGuard>} />
                               <Route path="/termos" element={<PagePermissionGuard><TesteTermos /></PagePermissionGuard>} />
                               <Route path="/teste-de-seguranca" element={<PagePermissionGuard><SecurityTest /></PagePermissionGuard>} />
                               <Route path="*" element={<NotFound />} />

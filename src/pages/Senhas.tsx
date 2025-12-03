@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, X, Eye, EyeOff, Copy, Plus, Loader2, Check, Grid3x3, Chrome, Building2, Server, Network, Info, AlertTriangle, ChevronDown, ChevronUp, CreditCard, Wifi, Shield, Globe, Video, Router, Camera, HardDrive, LockKeyhole, Pencil, Table2, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown, Type, FileText, Download } from "lucide-react"; // Adicionado 'Check' e ícones das abas
+import { Search, X, Eye, EyeOff, Copy, Plus, Loader2, Check, Grid3x3, Chrome, Building2, Server, Network, Info, AlertTriangle, ChevronDown, ChevronUp, CreditCard, Wifi, Shield, Globe, Video, Router, Camera, HardDrive, LockKeyhole, Pencil, Table2, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown, Type, FileText, Download, RotateCw } from "lucide-react"; // Adicionado 'Check' e ícones das abas
 import { toast } from "sonner";
 import { fetchPasswords, createPassword, updatePassword, type PasswordEntry } from "@/lib/passwordsService";
 import { cn } from "@/lib/utils"; // Importa o helper `cn`
@@ -1546,6 +1546,7 @@ export default function Senhas() {
   }); // Modo de visualização: cards ou planilha, sincronizado com localStorage
   const [sortColumn, setSortColumn] = useState<string | null>(null); // Coluna atual para ordenação
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc"); // Direção da ordenação
+  const [displayedCount, setDisplayedCount] = useState(100); // Quantidade de itens a exibir
   const [fontSize, setFontSize] = useState(() => {
     if (typeof window === "undefined") return 14;
     try {
@@ -1874,6 +1875,14 @@ export default function Senhas() {
       return 0;
     });
   }
+
+  // Limitar quantidade de itens exibidos
+  const displayedPasswords = filteredPasswords.slice(0, displayedCount);
+
+  // Resetar contador quando filtros mudarem
+  useEffect(() => {
+    setDisplayedCount(100);
+  }, [activeTab, subCategoryFilter, serviceFilter, searchTerm, sortColumn, sortDirection]);
 
   // Função para lidar com a ordenação
   const handleSort = (column: string) => {
@@ -2355,8 +2364,14 @@ export default function Senhas() {
 
   const { setOpenMobile, isMobile } = useSidebar();
   const [isPortrait, setIsPortrait] = useState(false);
-  // Começa ignorando o aviso para não bloquear o acesso à planilha no modo retrato
-  const [ignoreOrientationWarning, setIgnoreOrientationWarning] = useState(true);
+  const [ignoreOrientationWarning, setIgnoreOrientationWarning] = useState(false);
+
+  // Forçar modo planilha no mobile - sempre usar table no mobile
+  useEffect(() => {
+    if (isMobile && viewMode !== "table") {
+      setViewMode("table");
+    }
+  }, [isMobile, viewMode]);
 
   // Detectar orientação e controlar sidebar (igual ao ControleNVR)
   // Sincroniza viewMode com localStorage e com o header global (eventos customizados)
@@ -2443,15 +2458,30 @@ export default function Senhas() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card border-2 border-primary rounded-lg p-6 max-w-md text-center shadow-2xl">
             <div className="mb-4">
-              <LockKeyhole className="w-12 h-12 mx-auto text-primary mb-2" />
+              <div className="relative mb-4">
+                <LockKeyhole className="w-12 h-12 mx-auto text-primary mb-2" />
+                <RotateCw className="w-6 h-6 absolute -top-1 -right-1 text-primary animate-spin" />
+              </div>
               <h2 className="text-xl font-bold text-foreground mb-2">
                 Gire seu dispositivo
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mb-2">
                 Para consultar melhor todas as colunas de senhas, gire seu dispositivo para o modo horizontal (landscape).
               </p>
+              <p className="text-xs text-muted-foreground/80 italic">
+                Desative o bloqueio de rotação nas configurações do seu celular se necessário
+              </p>
             </div>
-            <div className="mt-6 flex justify-center">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground mb-4">
+              <div className="w-10 h-10 border-2 border-muted-foreground rounded-lg flex items-center justify-center bg-muted/30">
+                <span className="text-xl">📱</span>
+              </div>
+              <RotateCw className="w-6 h-6 text-primary animate-spin" />
+              <div className="w-10 h-10 border-2 border-primary rounded-lg flex items-center justify-center bg-primary/10 animate-pulse">
+                <span className="text-xl">📱</span>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -2570,8 +2600,9 @@ export default function Senhas() {
       ) : filteredPasswords.length > 0 ? (
         viewMode === "cards" ? (
           // Visualização em Cards
+          <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 p-4">
-            {filteredPasswords.map((password) => (
+            {displayedPasswords.map((password) => (
               <PasswordCard
                 key={password.id}
                 password={password}
@@ -2581,6 +2612,22 @@ export default function Senhas() {
               />
             ))}
           </div>
+          {/* Botão Carregar Mais - Cards */}
+          {filteredPasswords.length > displayedCount && (
+            <div className="flex justify-center py-4">
+              <Button
+                onClick={() => setDisplayedCount(prev => prev + 100)}
+                variant="outline"
+                className="gap-2"
+              >
+                Carregar Mais
+                <Badge variant="secondary">
+                  {Math.min(100, filteredPasswords.length - displayedCount)} restantes
+                </Badge>
+              </Button>
+            </div>
+          )}
+          </>
         ) : (
           // Visualização em Planilha - Ocupa toda a altura disponível
           <div className="flex flex-col flex-1 min-h-0 h-full w-full bg-white dark:bg-slate-900">
@@ -2863,7 +2910,7 @@ export default function Senhas() {
                   </TableRow>
                 </TableHeader>
                 <TableBody style={{ fontSize: `${fontSize}px` }}>
-                  {filteredPasswords.map((password, index) => {
+                  {displayedPasswords.map((password, index) => {
                     const isVisible = visiblePasswords.has(password.id);
                     
                     return (
@@ -3125,6 +3172,21 @@ export default function Senhas() {
                 </TableBody>
               </table>
               </div>
+              {/* Botão Carregar Mais - Tabela */}
+              {filteredPasswords.length > displayedCount && (
+                <div className="flex justify-center py-4 border-t">
+                  <Button
+                    onClick={() => setDisplayedCount(prev => prev + 100)}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    Carregar Mais
+                    <Badge variant="secondary">
+                      {Math.min(100, filteredPasswords.length - displayedCount)} restantes
+                    </Badge>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )

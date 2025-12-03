@@ -1,7 +1,7 @@
 import { ReactNode, useRef, useMemo } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw } from "lucide-react";
+import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home } from "lucide-react";
 import { useIsMobile, useIsLandscapeMobile } from "@/hooks/use-mobile";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { MobileBottomBar } from "@/components/MobileBottomBar";
@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { NAVIGATION_ITEMS } from "@/config/navigation.config";
 import { NVR_MODELS } from "@/contexts/NVRContext";
 
@@ -31,6 +33,12 @@ export function Layout({ children }: LayoutProps) {
   const [impressorasSearch, setImpressorasSearch] = useState("");
   const [impressorasMarinaFilter, setImpressorasMarinaFilter] = useState("");
   const [ramaisSearch, setRamaisSearch] = useState("");
+  const [solicitacoesSearch, setSolicitacoesSearch] = useState("");
+  const [solicitacoesServicoFilter, setSolicitacoesServicoFilter] = useState("todos");
+  const [solicitacoesAnoFilter, setSolicitacoesAnoFilter] = useState("todos");
+  const [solicitacoesServicoOptions, setSolicitacoesServicoOptions] = useState<string[]>([]);
+  const [solicitacoesAnoOptions, setSolicitacoesAnoOptions] = useState<string[]>([]);
+  const [solicitacoesShowDuplicados, setSolicitacoesShowDuplicados] = useState(false);
   const [nvrMarinaFilter, setNvrMarinaFilter] = useState("");
   const [nvrOwnerFilter, setNvrOwnerFilter] = useState("");
   const [nvrModelFilter, setNvrModelFilter] = useState("");
@@ -46,6 +54,7 @@ export function Layout({ children }: LayoutProps) {
   const isNvrOrHdPage = isNvrPage || isHdPage;
   const isImpressorasPage = location.pathname.toLowerCase().includes("impressoras");
   const isRamaisPage = location.pathname.toLowerCase().includes("ramais");
+  const isSolicitacoesPage = location.pathname.toLowerCase().includes("solicitacoes");
   const isAuditLogsPage = location.pathname.toLowerCase().includes("logs");
   
   const MARINA_OPTIONS = [
@@ -203,6 +212,61 @@ export function Layout({ children }: LayoutProps) {
     window.dispatchEvent(event);
   };
   
+  const handleSolicitacoesSearchChange = (value: string) => {
+    setSolicitacoesSearch(value);
+    const event = new CustomEvent("solicitacoes:setSearch", { detail: value });
+    window.dispatchEvent(event);
+  };
+
+  const handleSolicitacoesServicoFilterChange = (value: string) => {
+    setSolicitacoesServicoFilter(value);
+    const event = new CustomEvent("solicitacoes:setServicoFilter", { detail: value });
+    window.dispatchEvent(event);
+  };
+
+  const handleSolicitacoesAnoFilterChange = (value: string) => {
+    setSolicitacoesAnoFilter(value);
+    const event = new CustomEvent("solicitacoes:setAnoFilter", { detail: value });
+    window.dispatchEvent(event);
+  };
+
+  const handleSolicitacoesClearFilters = () => {
+    setSolicitacoesSearch("");
+    setSolicitacoesServicoFilter("todos");
+    setSolicitacoesAnoFilter("todos");
+    const event = new CustomEvent("solicitacoes:clearFilters");
+    window.dispatchEvent(event);
+  };
+
+  const handleSolicitacoesToggleDuplicados = (checked: boolean) => {
+    setSolicitacoesShowDuplicados(checked);
+    const event = new CustomEvent("solicitacoes:toggleDuplicados", { detail: checked });
+    window.dispatchEvent(event);
+  };
+
+  // Receber opções de serviço e ano da página
+  useEffect(() => {
+    const handleSetServicoOptions = (event: Event) => {
+      const custom = event as CustomEvent<string[]>;
+      const options = Array.isArray(custom.detail) ? custom.detail : [];
+      setSolicitacoesServicoOptions(options);
+    };
+
+    const handleSetAnoOptions = (event: Event) => {
+      const custom = event as CustomEvent<string[]>;
+      const options = Array.isArray(custom.detail) ? custom.detail : [];
+      setSolicitacoesAnoOptions(options);
+    };
+
+    window.addEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
+    window.addEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
+
+    return () => {
+      window.removeEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
+      window.removeEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
+    };
+  }, []);
+  
   const handleNvrMarinaFilterChange = (value: string) => {
     setNvrMarinaFilter(value);
     const event = new CustomEvent("nvr:setMarinaFilter", { detail: value });
@@ -250,14 +314,26 @@ export function Layout({ children }: LayoutProps) {
                   <span className="text-lg leading-none">←</span>
                 </button>
               )}
+              {/* Botão Home nas páginas de Senhas, Controle NVR e Controle HD */}
+              {(isSenhasPage || isNvrPage || isHdPage) && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/home")}
+                  className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-secondary text-foreground border border-border transition-colors"
+                  aria-label="Voltar para o início"
+                  title="Voltar ao início"
+                >
+                  <Home className="h-4 w-4" />
+                </button>
+              )}
               <h1 className="text-sm md:text-lg font-semibold text-foreground truncate">
                 {currentPageTitle}
               </h1>
             </div>
 
-            {/* TI BR MARINAS centralizado - apenas na Home */}
+            {/* TI BR MARINAS centralizado - apenas na Home (oculto no mobile) */}
             {isHomePage && (
-              <div className="absolute left-1/2 -translate-x-1/2">
+              <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
                 <button className="button-animated" data-text="TI BR MARINAS">
                   <span className="actual-text">
                     &nbsp;
@@ -327,33 +403,35 @@ export function Layout({ children }: LayoutProps) {
                       </select>
                     </div>
                   )}
-                  {/* Botões de visualização e tamanho de fonte - Desktop e Mobile */}
-                  <div className="flex items-center gap-1 border rounded-md p-1.5 bg-background">
-                    <button
-                      type="button"
-                      onClick={() => handleSenhasToggle("table")}
-                      className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-1.5 ${
-                        senhasViewMode === "table"
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-transparent text-foreground/90 hover:bg-secondary"
-                      }`}
-                    >
-                      <Table2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">Planilha</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSenhasToggle("cards")}
-                      className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-1.5 ${
-                        senhasViewMode === "cards"
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-transparent text-foreground/90 hover:bg-secondary"
-                      }`}
-                    >
-                      <LayoutGrid className="w-4 h-4" />
-                      <span className="hidden sm:inline">Cards</span>
-                    </button>
-                  </div>
+                  {/* Botões de visualização e tamanho de fonte - Apenas Desktop */}
+                  {!isMobile && (
+                    <div className="flex items-center gap-1 border rounded-md p-1.5 bg-background">
+                      <button
+                        type="button"
+                        onClick={() => handleSenhasToggle("table")}
+                        className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-1.5 ${
+                          senhasViewMode === "table"
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-transparent text-foreground/90 hover:bg-secondary"
+                        }`}
+                      >
+                        <Table2 className="w-4 h-4" />
+                        <span className="hidden sm:inline">Planilha</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSenhasToggle("cards")}
+                        className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-1.5 ${
+                          senhasViewMode === "cards"
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-transparent text-foreground/90 hover:bg-secondary"
+                        }`}
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                        <span className="hidden sm:inline">Cards</span>
+                      </button>
+                    </div>
+                  )}
                   {/* Controle de tamanho de fonte - Apenas Desktop */}
                   {!isMobile && (
                     <div className="flex items-center gap-1 border rounded-md p-1 bg-background">
@@ -631,6 +709,95 @@ export function Layout({ children }: LayoutProps) {
                   </Button>
                 </div>
               )}
+
+              {/* Busca e filtros da página de Solicitações no header (apenas desktop) */}
+              {isSolicitacoesPage && !isMobile && (
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  <div className="relative max-w-[300px] md:max-w-[400px] min-w-[120px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar..."
+                      value={solicitacoesSearch}
+                      autoComplete="off"
+                      onChange={(e) => handleSolicitacoesSearchChange(e.target.value)}
+                      className="pl-10 pr-10 h-8 text-xs md:text-sm"
+                    />
+                    {solicitacoesSearch && (
+                      <button
+                        onClick={() => handleSolicitacoesSearchChange("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="w-[130px] md:w-[150px]">
+                    <Select value={solicitacoesServicoFilter || "todos"} onValueChange={handleSolicitacoesServicoFilterChange}>
+                      <SelectTrigger className="h-8 text-xs md:text-sm">
+                        <SelectValue placeholder="Serviço" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        {solicitacoesServicoOptions.map((servico) => (
+                          <SelectItem key={servico} value={servico}>
+                            {servico}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-[130px] md:w-[150px]">
+                    <Select value={solicitacoesAnoFilter || "todos"} onValueChange={handleSolicitacoesAnoFilterChange}>
+                      <SelectTrigger className="h-8 text-xs md:text-sm">
+                        <SelectValue placeholder="Ano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        {solicitacoesAnoOptions.map((ano) => (
+                          <SelectItem key={ano} value={ano}>
+                            {ano}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(solicitacoesSearch || (solicitacoesServicoFilter && solicitacoesServicoFilter !== "todos") || (solicitacoesAnoFilter && solicitacoesAnoFilter !== "todos")) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSolicitacoesClearFilters}
+                      className="h-8 text-xs px-2"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      <span className="hidden sm:inline">Limpar</span>
+                    </Button>
+                  )}
+                  <div className="flex items-center gap-2 px-2 py-1 border rounded-md bg-background">
+                    <Switch
+                      id="duplicados-switch"
+                      checked={solicitacoesShowDuplicados}
+                      onCheckedChange={handleSolicitacoesToggleDuplicados}
+                    />
+                    <Label htmlFor="duplicados-switch" className="text-xs cursor-pointer whitespace-nowrap">
+                      Duplicados
+                    </Label>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      const event = new CustomEvent("solicitacoes:openCreateDialog");
+                      window.dispatchEvent(event);
+                    }}
+                    size="sm"
+                    className="gap-1 md:gap-2 bg-primary hover:bg-primary/90 text-xs md:text-sm ml-auto"
+                  >
+                    <Plus className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden sm:inline">Adicionar</span>
+                    <span className="sm:hidden">Adicionar</span>
+                  </Button>
+                </div>
+              )}
+
               {isAuditLogsPage && !isMobile && (
                 <div className="flex-1 flex items-center gap-2 min-w-0 justify-end">
                   <Button 

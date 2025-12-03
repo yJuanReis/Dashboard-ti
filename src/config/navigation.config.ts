@@ -13,6 +13,7 @@ import {
   Printer,
   Phone,
   Settings,
+  ShoppingCart,
 } from "lucide-react";
 
 export type AppRole = "admin" | "user";
@@ -107,6 +108,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     title: "Ramais",
     url: "/ramais",
     icon: Phone,
+  },
+  {
+    title: "Solicitações",
+    url: "/solicitacoes",
+    icon: ShoppingCart,
   },
   {
     title: "Configurações",

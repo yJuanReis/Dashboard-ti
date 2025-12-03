@@ -65,19 +65,21 @@ export function MobileBottomBar() {
           <span className="mt-0.5 text-[10px] font-medium">Buscar</span>
         </button>
 
-        {/* Perfil (leva às Configurações se permitido) */}
-        <button
-          type="button"
-          onClick={() => handleSafeNavigate("/configuracoes")}
-          className={`flex flex-col items-center justify-center px-2 py-1 rounded-full transition-all duration-200 ${
-            isActivePath("/configuracoes")
-              ? "text-primary bg-primary/10"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          }`}
-        >
-          <User className="h-5 w-5" />
-          <span className="mt-0.5 text-[10px] font-medium">Perfil</span>
-        </button>
+        {/* Perfil (leva às Configurações se permitido) - Apenas para admin */}
+        {hasPermission("/configuracoes") && (
+          <button
+            type="button"
+            onClick={() => handleSafeNavigate("/configuracoes")}
+            className={`flex flex-col items-center justify-center px-2 py-1 rounded-full transition-all duration-200 ${
+              isActivePath("/configuracoes")
+                ? "text-primary bg-primary/10"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            }`}
+          >
+            <User className="h-5 w-5" />
+            <span className="mt-0.5 text-[10px] font-medium">Perfil</span>
+          </button>
+        )}
 
         {/* Menu (abre o drawer da sidebar) */}
         <button

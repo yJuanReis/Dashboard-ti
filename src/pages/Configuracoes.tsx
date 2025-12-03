@@ -84,6 +84,7 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/controle-hds', nome: 'Controle de HDs', icon: '💾' }, // Nota: case-sensitive
   { path: '/impressoras', nome: 'Impressoras', icon: '🖨️' },
   { path: '/ramais', nome: 'Ramais', icon: '📞' },
+  { path: '/solicitacoes', nome: 'Solicitações', icon: '🛒' },
   { path: '/termos', nome: 'Termo de Responsabilidade', icon: '📄' },
   { path: '/gestaorede', nome: 'Gestão de Rede', icon: '🌐' },
   { path: '/servidores', nome: 'Servidores', icon: '🖥️' },
