@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -47,8 +48,16 @@ import {
   DollarSign,
   Package,
   ChevronDown,
+  ChevronUp,
   Calendar as CalendarIcon,
   Check,
+  Table2,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  TrendingUp,
+  Building2,
+  Receipt,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -68,9 +77,19 @@ import {
   fetchConfigByServico,
   type ConfigSolicitacao,
 } from "@/lib/configSolicitacoesService";
+import {
+  fetchTodasDespesas,
+  getValorMesAtual,
+  getMesAtual,
+  isDespesaMarcada,
+  toggleDespesaCheck,
+  resetarChecksMesAtual,
+  type DespesaTI,
+} from "@/lib/despesasService";
 import { useSidebar } from "@/components/ui/sidebar";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
+import { HorizontalBarChart } from "@/components/charts/HorizontalBarChart";
 
 
 type SortField =
@@ -97,6 +116,7 @@ export default function Solicitacoes() {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [activeTipoTab, setActiveTipoTab] = useState<"servico" | "produto">("servico");
+  const [activeMainTab, setActiveMainTab] = useState<"lista" | "central">("lista");
   const [showDuplicados, setShowDuplicados] = useState(false);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editingValues, setEditingValues] = useState<Partial<ServicoProduto>>({});
@@ -109,6 +129,16 @@ export default function Solicitacoes() {
   const [configsFiltradas, setConfigsFiltradas] = useState<ConfigSolicitacao[]>([]);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showServicosModal, setShowServicosModal] = useState(false);
+  const [showProdutosModal, setShowProdutosModal] = useState(false);
+  const [showDespesasModal, setShowDespesasModal] = useState(false);
+  const [despesasRecorrentes, setDespesasRecorrentes] = useState<DespesaTI[]>([]);
+  const [despesasEsporadicas, setDespesasEsporadicas] = useState<DespesaTI[]>([]);
+  const [loadingDespesas, setLoadingDespesas] = useState(false);
+  const [servicosMesesExibidos, setServicosMesesExibidos] = useState(6);
+  const [produtosMesesExibidos, setProdutosMesesExibidos] = useState(6);
+  const [servicosMesesExpandidos, setServicosMesesExpandidos] = useState<Set<string>>(new Set());
+  const [produtosMesesExpandidos, setProdutosMesesExpandidos] = useState<Set<string>>(new Set());
 
   // Função para converter data brasileira (dd/mm/yyyy) para Date
   const parseDateBR = (dateStr: string): Date | undefined => {
@@ -201,6 +231,55 @@ export default function Solicitacoes() {
       toast.error("Erro ao carregar dados");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDespesas = async () => {
+    try {
+      setLoadingDespesas(true);
+      const { recorrentes, esporadicas } = await fetchTodasDespesas();
+      setDespesasRecorrentes(recorrentes);
+      setDespesasEsporadicas(esporadicas);
+    } catch (error) {
+      logger.error("Erro ao carregar despesas:", error);
+      toast.error("Erro ao carregar despesas");
+    } finally {
+      setLoadingDespesas(false);
+    }
+  };
+
+  const handleToggleDespesa = async (despesaId: string, marcado: boolean) => {
+    try {
+      await toggleDespesaCheck(despesaId, marcado);
+      // Atualizar o estado local
+      setDespesasRecorrentes(prev => 
+        prev.map(d => {
+          if (d.id === despesaId) {
+            const mesAtual = getMesAtual();
+            return { ...d, [mesAtual]: marcado ? 1 : 0 };
+          }
+          return d;
+        })
+      );
+      toast.success(marcado ? "Despesa marcada" : "Despesa desmarcada");
+    } catch (error) {
+      logger.error("Erro ao atualizar despesa:", error);
+      toast.error("Erro ao atualizar despesa");
+    }
+  };
+
+  const handleResetarChecks = async () => {
+    const mesNome = getMesAtual().replace('_', '').toUpperCase();
+    if (!window.confirm(`Deseja resetar todos os checks do mês ${mesNome}?`)) {
+      return;
+    }
+    try {
+      await resetarChecksMesAtual();
+      await loadDespesas(); // Recarregar para atualizar o estado
+      toast.success("Checks do mês resetados com sucesso");
+    } catch (error) {
+      logger.error("Erro ao resetar checks:", error);
+      toast.error("Erro ao resetar checks");
     }
   };
 
@@ -298,6 +377,18 @@ export default function Solicitacoes() {
       setShowDuplicados(value);
     };
 
+    const handleTipoTabFromHeader = (event: Event) => {
+      const custom = event as CustomEvent<"servico" | "produto">;
+      const tipo = custom.detail === "produto" ? "produto" : "servico";
+      setActiveTipoTab(tipo);
+    };
+
+    const handleMainTabFromHeader = (event: Event) => {
+      const custom = event as CustomEvent<"lista" | "central">;
+      const tab = custom.detail === "central" ? "central" : "lista";
+      setActiveMainTab(tab);
+    };
+
     const handleOpenCreateDialog = (event?: Event) => {
       console.log("🟢 [DIALOG] Abrindo dialog de criação...");
       setCreateTipo(null);
@@ -330,6 +421,8 @@ export default function Solicitacoes() {
     window.addEventListener("solicitacoes:setServicoFilter", handleServicoFilterFromHeader);
     window.addEventListener("solicitacoes:setAnoFilter", handleAnoFilterFromHeader);
     window.addEventListener("solicitacoes:toggleDuplicados", handleToggleDuplicados);
+    window.addEventListener("solicitacoes:setTipoTab", handleTipoTabFromHeader);
+    window.addEventListener("solicitacoes:setMainTab", handleMainTabFromHeader);
     window.addEventListener("solicitacoes:openCreateDialog", handleOpenCreateDialog);
     window.addEventListener("solicitacoes:clearFilters", handleClearFilters);
 
@@ -343,10 +436,24 @@ export default function Solicitacoes() {
       window.removeEventListener("solicitacoes:setServicoFilter", handleServicoFilterFromHeader);
       window.removeEventListener("solicitacoes:setAnoFilter", handleAnoFilterFromHeader);
       window.removeEventListener("solicitacoes:toggleDuplicados", handleToggleDuplicados);
+      window.removeEventListener("solicitacoes:setTipoTab", handleTipoTabFromHeader);
+      window.removeEventListener("solicitacoes:setMainTab", handleMainTabFromHeader);
       window.removeEventListener("solicitacoes:openCreateDialog", handleOpenCreateDialog);
       window.removeEventListener("solicitacoes:clearFilters", handleClearFilters);
     };
   }, [items, servicosUnicos, anosDisponiveis]);
+
+  // Notificar o Layout sobre o tipo atual quando mudar
+  useEffect(() => {
+    const event = new CustomEvent("solicitacoes:tipoTabChanged", { detail: activeTipoTab });
+    window.dispatchEvent(event);
+  }, [activeTipoTab]);
+
+  // Notificar o Layout sobre a aba principal atual quando mudar
+  useEffect(() => {
+    const event = new CustomEvent("solicitacoes:mainTabChanged", { detail: activeMainTab });
+    window.dispatchEvent(event);
+  }, [activeMainTab]);
 
   // Selecionar automaticamente o ano mais recente quando mudar o tipo ou quando carregar os dados
   useEffect(() => {
@@ -482,17 +589,310 @@ export default function Solicitacoes() {
     });
 
   // Calcular estatísticas
-  const stats = {
-    total: items.length,
-    servicos: items.filter((i) => i.tipo === "servico").length,
-    produtos: items.filter((i) => i.tipo === "produto").length,
-    valorTotal: items
-      .filter((i) => i.valor)
-      .reduce((sum, i) => {
-        const valorStr = i.valor?.replace(/[^\d,.-]/g, "").replace(",", ".") || "0";
-        return sum + (parseFloat(valorStr) || 0);
-      }, 0),
-  };
+  const stats = useMemo(() => {
+    const servicos = items.filter((i) => i.tipo === "servico");
+    const produtos = items.filter((i) => i.tipo === "produto");
+    
+    const calcularValor = (item: ServicoProduto) => {
+      if (!item.valor) return 0;
+      const valorStr = item.valor.replace(/[^\d,.-]/g, "").replace(",", ".");
+      return parseFloat(valorStr) || 0;
+    };
+
+    const valorTotal = items.reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorServicos = servicos.reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorProdutos = produtos.reduce((sum, i) => sum + calcularValor(i), 0);
+
+    const comValor = items.filter(i => calcularValor(i) > 0);
+    const mediaValor = comValor.length > 0 ? valorTotal / comValor.length : 0;
+    const mediaServicos = servicos.filter(i => calcularValor(i) > 0).length > 0 
+      ? valorServicos / servicos.filter(i => calcularValor(i) > 0).length 
+      : 0;
+    const mediaProdutos = produtos.filter(i => calcularValor(i) > 0).length > 0
+      ? valorProdutos / produtos.filter(i => calcularValor(i) > 0).length
+      : 0;
+
+    const paga = items.filter(i => i.situacao === "paga").length;
+    const cancelada = items.filter(i => i.situacao === "cancelado").length;
+    const pendente = items.filter(i => !i.situacao || i.situacao === "?").length;
+    
+    const valorPaga = items
+      .filter(i => i.situacao === "paga")
+      .reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorPendente = items
+      .filter(i => !i.situacao || i.situacao === "?")
+      .reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorCancelada = items
+      .filter(i => i.situacao === "cancelado")
+      .reduce((sum, i) => sum + calcularValor(i), 0);
+
+    // Top empresas por valor 
+    // Filtrar apenas campos de empresa válidos (não SCs ou números)
+    const empresasMap = new Map<string, number>();
+    items.forEach(item => {
+      if (item.empresa && calcularValor(item) > 0) {
+        const empresa = item.empresa.trim();
+        // Filtrar valores que são apenas números (provavelmente SCs)
+        const isOnlyNumbers = /^\d+$/.test(empresa);
+        // Filtrar valores muito curtos ou que parecem SCs
+        if (!isOnlyNumbers && empresa.length > 2 && empresa !== item.sc) {
+          const atual = empresasMap.get(empresa) || 0;
+          empresasMap.set(empresa, atual + calcularValor(item));
+        }
+      }
+    });
+    const topEmpresas = Array.from(empresasMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    // Top 5 serviços mais caros
+    const topServicos = servicos
+      .map(servico => ({
+        servico: servico.servico || "-",
+        descricao: servico.descricao || "-",
+        valor: calcularValor(servico),
+        empresa: servico.empresa || "-",
+      }))
+      .filter(s => s.valor > 0)
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 5);
+
+    // Anos disponíveis
+    const anos = Array.from(new Set(items.map(i => i.ano).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0));
+
+    // Insights adicionais
+    const semValor = items.filter(i => calcularValor(i) === 0).length;
+    const taxaPreenchimento = items.length > 0 ? ((items.length - semValor) / items.length * 100) : 0;
+    
+    // Distribuição por ano
+    const distribuicaoAno = new Map<number, number>();
+    items.forEach(item => {
+      if (item.ano) {
+        distribuicaoAno.set(item.ano, (distribuicaoAno.get(item.ano) || 0) + 1);
+      }
+    });
+    const topAno = Array.from(distribuicaoAno.entries())
+      .sort((a, b) => b[1] - a[1])[0] || [null, 0];
+
+    // Empresas com mais itens (quantidade)
+    const empresasQtdMap = new Map<string, number>();
+    items.forEach(item => {
+      if (item.empresa) {
+        empresasQtdMap.set(item.empresa, (empresasQtdMap.get(item.empresa) || 0) + 1);
+      }
+    });
+    const topEmpresasQtd = Array.from(empresasQtdMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    // Serviços mais frequentes
+    const servicosFreqMap = new Map<string, number>();
+    servicos.forEach(item => {
+      if (item.servico) {
+        servicosFreqMap.set(item.servico, (servicosFreqMap.get(item.servico) || 0) + 1);
+      }
+    });
+    const topServicosFreq = Array.from(servicosFreqMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    // Itens com OC vs sem OC
+    const comOC = items.filter(i => i.oc && i.oc.trim() !== "").length;
+    const semOC = items.length - comOC;
+
+    // Itens com nota fiscal vs sem
+    const comNF = items.filter(i => i.nota_fiscal && i.nota_fiscal.trim() !== "").length;
+    const semNF = items.length - comNF;
+
+    // Média de itens por mês (baseado nos últimos 12 meses)
+    const mesesComItens = new Set<string>();
+    items.forEach(item => {
+      const data = item.tipo === "servico" ? item.data_solicitacao : item.data_sc;
+      if (data) {
+        const parts = data.split('/');
+        if (parts.length === 3) {
+          const mes = parts[1];
+          let ano = parseInt(parts[2], 10);
+          if (ano < 100) ano += 2000;
+          mesesComItens.add(`${ano}-${mes}`);
+        }
+      }
+    });
+    const mediaItensMes = mesesComItens.size > 0 ? items.length / mesesComItens.size : 0;
+
+    return {
+      total: items.length,
+      servicos: servicos.length,
+      produtos: produtos.length,
+      valorTotal,
+      valorServicos,
+      valorProdutos,
+      mediaValor,
+      topEmpresas,
+      topServicos,
+      anos: anos.length,
+      anoAtual: anos[0] || new Date().getFullYear(),
+      // Situação
+      paga,
+      cancelada,
+      pendente,
+      valorPaga,
+      valorPendente,
+      valorCancelada,
+      // Insights
+      semValor,
+      taxaPreenchimento,
+      topAno: topAno[0] ? { ano: topAno[0], quantidade: topAno[1] } : null,
+      topEmpresasQtd,
+      topServicosFreq,
+      comOC,
+      semOC,
+      comNF,
+      semNF,
+      mediaItensMes,
+      mesesComItens: mesesComItens.size,
+    };
+  }, [items]);
+
+  // Agrupar serviços por mês
+  const servicosPorMes = useMemo(() => {
+    const servicos = items.filter((i) => i.tipo === "servico" && i.data_solicitacao);
+    
+    // Função para extrair mês/ano da data brasileira (dd/mm/yyyy)
+    const extrairMesAno = (dataStr: string): string | null => {
+      if (!dataStr) return null;
+      const parts = dataStr.split('/');
+      if (parts.length === 3) {
+        const mes = parseInt(parts[1], 10);
+        let ano = parseInt(parts[2], 10);
+        if (ano < 100) ano += 2000;
+        
+        if (!isNaN(mes) && !isNaN(ano) && mes >= 1 && mes <= 12) {
+          // Criar data para formatar o nome do mês
+          const date = new Date(ano, mes - 1, 1);
+          const nomeMes = format(date, "MMMM yyyy", { locale: ptBR });
+          return `${ano}-${String(mes).padStart(2, '0')}`; // Chave para ordenação
+        }
+      }
+      return null;
+    };
+
+    // Agrupar por mês/ano
+    const agrupados = new Map<string, {
+      mesAno: string;
+      nomeMes: string;
+      servicos: ServicoProduto[];
+      quantidade: number;
+      valorTotal: number;
+    }>();
+
+    servicos.forEach((servico) => {
+      const chave = extrairMesAno(servico.data_solicitacao || "");
+      if (!chave) return;
+
+      if (!agrupados.has(chave)) {
+        const parts = servico.data_solicitacao?.split('/') || [];
+        const mes = parseInt(parts[1] || "1", 10);
+        let ano = parseInt(parts[2] || "2024", 10);
+        if (ano < 100) ano += 2000;
+        const date = new Date(ano, mes - 1, 1);
+        const nomeMes = format(date, "MMMM/yyyy", { locale: ptBR });
+        
+        agrupados.set(chave, {
+          mesAno: chave,
+          nomeMes: nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1),
+          servicos: [],
+          quantidade: 0,
+          valorTotal: 0,
+        });
+      }
+
+      const grupo = agrupados.get(chave)!;
+      grupo.servicos.push(servico);
+      grupo.quantidade += 1;
+      
+      if (servico.valor) {
+        const valorStr = servico.valor.replace(/[^\d,.-]/g, "").replace(",", ".");
+        const valor = parseFloat(valorStr) || 0;
+        grupo.valorTotal += valor;
+      }
+    });
+
+    // Converter para array e ordenar (mais recente primeiro)
+    return Array.from(agrupados.values()).sort((a, b) => {
+      return b.mesAno.localeCompare(a.mesAno);
+    });
+  }, [items]);
+
+  // Agrupar produtos por mês
+  const produtosPorMes = useMemo(() => {
+    const produtos = items.filter((i) => i.tipo === "produto" && i.data_sc);
+    
+    // Função para extrair mês/ano da data brasileira (dd/mm/yyyy)
+    const extrairMesAno = (dataStr: string): string | null => {
+      if (!dataStr) return null;
+      const parts = dataStr.split('/');
+      if (parts.length === 3) {
+        const mes = parseInt(parts[1], 10);
+        let ano = parseInt(parts[2], 10);
+        if (ano < 100) ano += 2000;
+        
+        if (!isNaN(mes) && !isNaN(ano) && mes >= 1 && mes <= 12) {
+          // Criar data para formatar o nome do mês
+          const date = new Date(ano, mes - 1, 1);
+          const nomeMes = format(date, "MMMM yyyy", { locale: ptBR });
+          return `${ano}-${String(mes).padStart(2, '0')}`; // Chave para ordenação
+        }
+      }
+      return null;
+    };
+
+    // Agrupar por mês/ano
+    const agrupados = new Map<string, {
+      mesAno: string;
+      nomeMes: string;
+      produtos: ServicoProduto[];
+      quantidade: number;
+      valorTotal: number;
+    }>();
+
+    produtos.forEach((produto) => {
+      const chave = extrairMesAno(produto.data_sc || "");
+      if (!chave) return;
+
+      if (!agrupados.has(chave)) {
+        const parts = produto.data_sc?.split('/') || [];
+        const mes = parseInt(parts[1] || "1", 10);
+        let ano = parseInt(parts[2] || "2024", 10);
+        if (ano < 100) ano += 2000;
+        const date = new Date(ano, mes - 1, 1);
+        const nomeMes = format(date, "MMMM/yyyy", { locale: ptBR });
+        
+        agrupados.set(chave, {
+          mesAno: chave,
+          nomeMes: nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1),
+          produtos: [],
+          quantidade: 0,
+          valorTotal: 0,
+        });
+      }
+
+      const grupo = agrupados.get(chave)!;
+      grupo.produtos.push(produto);
+      grupo.quantidade += 1;
+      
+      if (produto.valor) {
+        const valorStr = produto.valor.replace(/[^\d,.-]/g, "").replace(",", ".");
+        const valor = parseFloat(valorStr) || 0;
+        grupo.valorTotal += valor;
+      }
+    });
+
+    // Converter para array e ordenar (mais recente primeiro)
+    return Array.from(agrupados.values()).sort((a, b) => {
+      return b.mesAno.localeCompare(a.mesAno);
+    });
+  }, [items]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -809,115 +1209,240 @@ export default function Solicitacoes() {
 
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 p-3 md:p-4 pb-2 md:pb-2">
-        <Card>
-          <CardContent className="p-3 md:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs md:text-sm text-muted-foreground">Total</p>
-                <p className="text-lg md:text-2xl font-bold">{stats.total}</p>
-              </div>
-              <Package className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 md:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs md:text-sm text-muted-foreground">Serviços</p>
-                <p className="text-lg md:text-2xl font-bold text-blue-600">{stats.servicos}</p>
-              </div>
-              <Wrench className="w-5 h-5 md:w-6 md:h-6 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 md:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs md:text-sm text-muted-foreground">Produtos</p>
-                <p className="text-lg md:text-2xl font-bold text-purple-600">{stats.produtos}</p>
-              </div>
-              <ShoppingCart className="w-5 h-5 md:w-6 md:h-6 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 md:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs md:text-sm text-muted-foreground">Valor Total</p>
-                <p className="text-lg md:text-2xl font-bold">
-                  {stats.valorTotal.toLocaleString("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  })}
+      {/* Conteúdo das abas */}
+      {activeMainTab === "central" ? (
+        /* Aba DADOS - Cards de Estatísticas */
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-3 md:p-4">
+          {/* Cards Principais */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+            <Card className="border-l-4 border-l-primary bg-gradient-to-br from-background to-primary/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Total de Itens</p>
+                    <p className="text-2xl md:text-3xl font-bold">{stats.total}</p>
+                  </div>
+                  <Package className="w-8 h-8 md:w-10 md:h-10 text-primary opacity-80" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-l-4 border-l-blue-600 bg-gradient-to-br from-background to-blue-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Serviços</p>
+                    <p className="text-2xl md:text-3xl font-bold text-blue-600">{stats.servicos}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {stats.valorServicos.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                        maximumFractionDigits: 0,
+                      })}
+                    </p>
+                  </div>
+                  <Wrench className="w-8 h-8 md:w-10 md:h-10 text-blue-500 opacity-80" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-l-4 border-l-purple-600 bg-gradient-to-br from-background to-purple-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Produtos</p>
+                    <p className="text-2xl md:text-3xl font-bold text-purple-600">{stats.produtos}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {stats.valorProdutos.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                        maximumFractionDigits: 0,
+                      })}
+                    </p>
+                  </div>
+                  <ShoppingCart className="w-8 h-8 md:w-10 md:h-10 text-purple-500 opacity-80" />
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-l-4 border-l-green-600 bg-gradient-to-br from-background to-green-500/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Valor Total</p>
+                    <p className="text-xl md:text-2xl font-bold text-green-600">
+                      {stats.valorTotal.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                        maximumFractionDigits: 0,
+                      })}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Média: {stats.mediaValor.toLocaleString("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                        maximumFractionDigits: 0,
+                      })}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 md:w-10 md:h-10 text-green-600 opacity-80" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Botões para abrir modais de Serviços, Produtos e Despesas por Mês */}
+          <div className="mb-6 flex gap-2 flex-wrap">
+            <Button
+              onClick={() => setShowServicosModal(true)}
+              variant="outline"
+              className="flex-1 gap-2 min-w-[150px]"
+            >
+              <Wrench className="w-4 h-4 text-blue-600" />
+              <span className="text-sm">Serviços por Mês</span>
+              <Badge variant="secondary" className="ml-auto">
+                {servicosPorMes.length}
+              </Badge>
+            </Button>
+            <Button
+              onClick={() => setShowProdutosModal(true)}
+              variant="outline"
+              className="flex-1 gap-2 min-w-[150px]"
+            >
+              <ShoppingCart className="w-4 h-4 text-purple-600" />
+              <span className="text-sm">Produtos por Mês</span>
+              <Badge variant="secondary" className="ml-auto">
+                {produtosPorMes.length}
+              </Badge>
+            </Button>
+            <Button
+              onClick={() => {
+                setShowDespesasModal(true);
+                loadDespesas();
+              }}
+              variant="outline"
+              className="flex-1 gap-2 min-w-[150px]"
+            >
+              <Receipt className="w-4 h-4 text-green-600" />
+              <span className="text-sm">Despesas T.I.</span>
+              <Badge variant="secondary" className="ml-auto">
+                {despesasRecorrentes.length + despesasEsporadicas.length}
+              </Badge>
+            </Button>
+          </div>
+
+          {/* Cards de Insights */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle className="w-4 h-4 text-orange-500" />
+                  <p className="text-xs font-semibold">Taxa Preenchimento</p>
+                </div>
+                <p className="text-lg font-bold">{stats.taxaPreenchimento.toFixed(1)}%</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {stats.semValor} sem valor
                 </p>
-              </div>
-              <DollarSign className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
 
-      {/* Abas de Tipo (Serviços/Produtos) */}
-      <div className="px-3 md:px-4 pb-2">
-        <div className="flex gap-2 border-b border-border">
-          <button
-            type="button"
-            onClick={() => setActiveTipoTab("servico")}
-            className={cn(
-              "px-4 py-2 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all",
-              activeTipoTab === "servico"
-                ? "border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Wrench className="w-4 h-4" />
-            Serviços
-            <Badge variant="secondary" className="ml-1">
-              {items.filter((i) => i.tipo === "servico").length}
-            </Badge>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTipoTab("produto")}
-            className={cn(
-              "px-4 py-2 border-b-2 font-semibold text-sm flex items-center gap-2 transition-all",
-              activeTipoTab === "produto"
-                ? "border-purple-500 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/20"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            Produtos
-            <Badge variant="secondary" className="ml-1">
-              {items.filter((i) => i.tipo === "produto").length}
-            </Badge>
-          </button>
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <CalendarIcon className="w-4 h-4 text-blue-500" />
+                  <p className="text-xs font-semibold">Ano Mais Ativo</p>
+                </div>
+                {stats.topAno ? (
+                  <>
+                    <p className="text-lg font-bold">{stats.topAno.ano}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {stats.topAno.quantidade} itens
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">N/A</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-4 h-4 text-purple-500" />
+                  <p className="text-xs font-semibold">Média/Mês</p>
+                </div>
+                <p className="text-lg font-bold">{stats.mediaItensMes.toFixed(1)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {stats.mesesComItens} meses
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <p className="text-xs font-semibold">Com OC</p>
+                </div>
+                <p className="text-lg font-bold">{stats.comOC}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  {stats.semOC} sem OC
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Gráfico Top 5 Empresas */}
+          {stats.topEmpresas.length > 0 ? (
+            <HorizontalBarChart
+              data={stats.topEmpresas.map(([empresa, valor]) => ({
+                empresa,
+                valor,
+              }))}
+              title="Maiores Gastos por Marina"
+              showLegend={false}
+              maxBars={5}
+              className="mb-6"
+            />
+          ) : (
+            <Card className="mb-6">
+              <CardContent className="p-4">
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Nenhuma empresa encontrada
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cards de Insights Úteis */}
+
         </div>
-      </div>
-
-
-
-      {/* Conteúdo - Tabela */}
-      <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full custom-scrollbar px-3 md:px-4 pb-3 md:pb-4">
+      ) : (
+        /* Aba Lista - Tabela */
+        <div className="flex-1 overflow-hidden min-h-0 w-full">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12">
+          <div className="flex flex-col items-center justify-center py-12 px-3 md:px-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
             <p className="text-muted-foreground">Carregando dados...</p>
           </div>
         ) : itemsParaExibir.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12 px-3 md:px-4">
             <p className="text-muted-foreground">
               Nenhum item encontrado
             </p>
           </div>
         ) : (
-          <Table className="w-full caption-bottom text-xs md:text-sm min-w-[1200px]">
-            <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
+          <div 
+            className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar h-full w-full relative px-3 md:px-4 pb-3 md:pb-4"
+            style={{ 
+              WebkitOverflowScrolling: 'touch',
+              position: 'relative',
+              boxSizing: 'border-box',
+              isolation: 'isolate'
+            }}
+          >
+            <Table className="w-full caption-bottom text-xs md:text-sm min-w-[1200px]">
+              <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 shadow-md" style={{ position: 'sticky', top: 0 }}>
               <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
                 {activeTipoTab === "produto" ? (
                   <>
@@ -1216,7 +1741,7 @@ export default function Solicitacoes() {
                            onMouseDown={(e) => e.stopPropagation()}
                          />
                        ) : (
-                         item.valor || "-"
+                         item.valor ? formatCurrency(item.valor) : "-"
                        )}
                      </TableCell>
                      <TableCell className="text-center text-xs md:text-sm font-mono min-w-[90px] px-1">
@@ -1312,24 +1837,26 @@ export default function Solicitacoes() {
               })}
             </TableBody>
           </Table>
-        )}
-        
-        {/* Botão Carregar Mais */}
-        {!loading && itemsParaExibir.length > 0 && filteredAndSortedItems.length > displayedCount && (
-          <div className="flex justify-center py-4">
-            <Button
-              onClick={() => setDisplayedCount(prev => prev + 100)}
-              variant="outline"
-              className="gap-2"
-            >
-              Carregar Mais
-              <Badge variant="secondary">
-                {Math.min(100, filteredAndSortedItems.length - displayedCount)} restantes
-              </Badge>
-            </Button>
+          
+          {/* Botão Carregar Mais */}
+          {!loading && itemsParaExibir.length > 0 && filteredAndSortedItems.length > displayedCount && (
+            <div className="flex justify-center py-4">
+              <Button
+                onClick={() => setDisplayedCount(prev => prev + 100)}
+                variant="outline"
+                className="gap-2"
+              >
+                Carregar Mais
+                <Badge variant="secondary">
+                  {Math.min(100, filteredAndSortedItems.length - displayedCount)} restantes
+                </Badge>
+              </Button>
+            </div>
+          )}
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Dialog de Criação */}
       <Dialog 
@@ -1951,6 +2478,419 @@ export default function Solicitacoes() {
                 </Button>
               </DialogFooter>
             </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Serviços por Mês */}
+      <Dialog 
+        open={showServicosModal} 
+        onOpenChange={(open) => {
+          setShowServicosModal(open);
+          if (!open) {
+            setServicosMesesExibidos(6);
+            setServicosMesesExpandidos(new Set());
+          }
+        }}
+      >
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Serviços por Mês</DialogTitle>
+            <DialogDescription>
+              Lista de serviços agrupados por mês de solicitação
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {servicosPorMes.length === 0 ? (
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Nenhum serviço encontrado com data de solicitação
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {servicosPorMes.slice(0, servicosMesesExibidos).map((grupo) => {
+                    const isExpanded = servicosMesesExpandidos.has(grupo.mesAno);
+                    return (
+                      <Card key={grupo.mesAno}>
+                        <CardContent className="p-2">
+                          <button
+                            onClick={() => {
+                              setServicosMesesExpandidos(prev => {
+                                const newSet = new Set(prev);
+                                if (newSet.has(grupo.mesAno)) {
+                                  newSet.delete(grupo.mesAno);
+                                } else {
+                                  newSet.add(grupo.mesAno);
+                                }
+                                return newSet;
+                              });
+                            }}
+                            className="w-full flex items-center justify-between mb-1.5 hover:bg-muted/50 rounded p-1 -m-1 transition-colors"
+                          >
+                            <h4 className="text-xs font-semibold text-foreground">
+                              {grupo.nomeMes}
+                            </h4>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">
+                                {grupo.quantidade} {grupo.quantidade === 1 ? 'serviço' : 'serviços'}
+                              </span>
+                              <span className="font-semibold text-blue-600">
+                                {grupo.valorTotal.toLocaleString("pt-BR", {
+                                  style: "currency",
+                                  currency: "BRL",
+                                })}
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </button>
+                          {isExpanded && (
+                            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                              {grupo.servicos.map((servico) => (
+                                <div
+                                  key={servico.id}
+                                  className="flex items-center justify-between p-1.5 bg-muted/30 rounded text-xs hover:bg-muted/60 hover:shadow-sm transition-colors cursor-pointer"
+                                >
+                                  <div className="flex-1 min-w-0 pr-2">
+                                    <p className="font-medium truncate">
+                                      {servico.servico || "-"}
+                                    </p>
+                                    <p className="text-muted-foreground truncate text-[10px] leading-tight">
+                                      {servico.descricao || "-"}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                                    <span className="text-muted-foreground text-[10px] whitespace-nowrap">
+                                      {servico.data_solicitacao || "-"}
+                                    </span>
+                                    {servico.valor && (
+                                      <span className="font-medium text-xs whitespace-nowrap">
+                                        {formatCurrency(servico.valor)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+                {servicosPorMes.length > servicosMesesExibidos && (
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setServicosMesesExibidos(prev => prev + 6)}
+                      className="gap-2"
+                    >
+                      Carregar Mais
+                      <Badge variant="secondary">
+                        {servicosPorMes.length - servicosMesesExibidos} restantes
+                      </Badge>
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Produtos por Mês */}
+      <Dialog 
+        open={showProdutosModal} 
+        onOpenChange={(open) => {
+          setShowProdutosModal(open);
+          if (!open) {
+            setProdutosMesesExibidos(6);
+            setProdutosMesesExpandidos(new Set());
+          }
+        }}
+      >
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Produtos por Mês</DialogTitle>
+            <DialogDescription>
+              Lista de produtos agrupados por mês de SC
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {produtosPorMes.length === 0 ? (
+              <Card>
+                <CardContent className="p-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Nenhum produto encontrado com data de SC
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {produtosPorMes.slice(0, produtosMesesExibidos).map((grupo) => {
+                    const isExpanded = produtosMesesExpandidos.has(grupo.mesAno);
+                    return (
+                      <Card key={grupo.mesAno}>
+                        <CardContent className="p-2">
+                          <button
+                            onClick={() => {
+                              setProdutosMesesExpandidos(prev => {
+                                const newSet = new Set(prev);
+                                if (newSet.has(grupo.mesAno)) {
+                                  newSet.delete(grupo.mesAno);
+                                } else {
+                                  newSet.add(grupo.mesAno);
+                                }
+                                return newSet;
+                              });
+                            }}
+                            className="w-full flex items-center justify-between mb-1.5 hover:bg-muted/50 rounded p-1 -m-1 transition-colors"
+                          >
+                            <h4 className="text-xs font-semibold text-foreground">
+                              {grupo.nomeMes}
+                            </h4>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">
+                                {grupo.quantidade} {grupo.quantidade === 1 ? 'prod.' : 'prod.'}
+                              </span>
+                              <span className="font-semibold text-purple-600">
+                                {grupo.valorTotal.toLocaleString("pt-BR", {
+                                  style: "currency",
+                                  currency: "BRL",
+                                })}
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </button>
+                          {isExpanded && (
+                            <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                              {grupo.produtos.map((produto) => (
+                                <div
+                                  key={produto.id}
+                                  className="flex items-center justify-between p-1.5 bg-muted/30 rounded text-xs hover:bg-muted/60 hover:shadow-sm transition-colors cursor-pointer"
+                                >
+                                  <div className="flex-1 min-w-0 pr-2">
+                                    <p className="font-medium truncate">
+                                      {produto.produto || "-"}
+                                    </p>
+                                    <p className="text-muted-foreground truncate text-[10px] leading-tight">
+                                      {produto.informacoes || "-"}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 ml-2 shrink-0">
+                                    <span className="text-muted-foreground text-[10px] whitespace-nowrap">
+                                      {produto.data_sc || "-"}
+                                    </span>
+                                    {produto.valor && (
+                                      <span className="font-medium text-xs whitespace-nowrap">
+                                        {formatCurrency(produto.valor)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+                {produtosPorMes.length > produtosMesesExibidos && (
+                  <div className="flex justify-center mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setProdutosMesesExibidos(prev => prev + 6)}
+                      className="gap-2"
+                    >
+                      Carregar Mais
+                      <Badge variant="secondary">
+                        {produtosPorMes.length - produtosMesesExibidos} restantes
+                      </Badge>
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Despesas T.I. - Checklist de SCs */}
+      <Dialog open={showDespesasModal} onOpenChange={setShowDespesasModal}>
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-primary" />
+                Checklist de SCs - {getMesAtual().replace('_', '').toUpperCase()}
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleResetarChecks}
+                className="gap-2 text-muted-foreground hover:text-destructive"
+              >
+                <X className="w-4 h-4" />
+                Resetar
+              </Button>
+            </div>
+          </DialogHeader>
+
+          {loadingDespesas ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Carregando despesas...</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Layout em duas colunas */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Coluna 1: Despesas Recorrentes */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Wrench className="w-5 h-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold">Recorrentes</h3>
+                      <Badge variant="secondary">
+                        {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length}/{despesasRecorrentes.length}
+                      </Badge>
+                    </div>
+                    {despesasRecorrentes.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        Nenhuma despesa recorrente encontrada
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-[550px] overflow-y-auto">
+                        {despesasRecorrentes.map((despesa) => {
+                          const marcada = isDespesaMarcada(despesa);
+                          return (
+                            <div
+                              key={despesa.id}
+                              className={cn(
+                                "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:bg-accent",
+                                marcada 
+                                  ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" 
+                                  : "bg-background border-border"
+                              )}
+                              onClick={() => handleToggleDespesa(despesa.id, !marcada)}
+                            >
+                              <Checkbox
+                                checked={marcada}
+                                onCheckedChange={(checked) => 
+                                  handleToggleDespesa(despesa.id, checked === true)
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                className="shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className={cn(
+                                  "font-medium text-sm",
+                                  marcada && "line-through text-muted-foreground"
+                                )}>
+                                  {despesa.fornecedor}
+                                </p>
+                                <p className={cn(
+                                  "text-xs text-muted-foreground truncate",
+                                  marcada && "line-through"
+                                )}>
+                                  {despesa.desc_servico}
+                                </p>
+                              </div>
+                              <Badge 
+                                variant={marcada ? "secondary" : "outline"}
+                                className="shrink-0"
+                              >
+                                {formatCurrency(String(despesa.valor_medio || 0))}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Coluna 2: Despesas Esporádicas */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <AlertCircle className="w-5 h-5 text-orange-600" />
+                      <h3 className="text-lg font-semibold">Esporádicas</h3>
+                      <Badge variant="secondary">
+                        {despesasEsporadicas.length}
+                      </Badge>
+                    </div>
+                    {despesasEsporadicas.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        Nenhuma despesa esporádica encontrada
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-[550px] overflow-y-auto">
+                        {despesasEsporadicas.map((despesa) => {
+                          const valorMes = getValorMesAtual(despesa);
+                          return (
+                            <div
+                              key={despesa.id}
+                              className="flex items-center gap-3 p-3 rounded-lg border bg-background hover:bg-accent transition-colors"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm">
+                                  {despesa.fornecedor}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {despesa.desc_servico}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="shrink-0">
+                                {formatCurrency(String(valorMes))}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Resumo Visual */}
+              <Card className="bg-muted/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span className="text-sm text-muted-foreground">
+                          {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length} SCs criadas
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <span className="text-sm text-muted-foreground">
+                          {despesasRecorrentes.filter(d => !isDespesaMarcada(d)).length} pendentes
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm font-medium">
+                      Progresso: {Math.round((despesasRecorrentes.filter(d => isDespesaMarcada(d)).length / Math.max(despesasRecorrentes.length, 1)) * 100)}%
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </DialogContent>
       </Dialog>

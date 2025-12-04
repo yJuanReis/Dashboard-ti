@@ -1,7 +1,7 @@
-import { ReactNode, useRef, useMemo } from "react";
+import React, { ReactNode, useRef, useMemo } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home } from "lucide-react";
+import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home, Package } from "lucide-react";
 import { useIsMobile, useIsLandscapeMobile } from "@/hooks/use-mobile";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { MobileBottomBar } from "@/components/MobileBottomBar";
@@ -14,6 +14,165 @@ import { Label } from "@/components/ui/label";
 import { NAVIGATION_ITEMS } from "@/config/navigation.config";
 import { NVR_MODELS } from "@/contexts/NVRContext";
 
+// Componente Glider para tabs de tipo (Serviços/Produtos)
+function TipoGlider({
+  tipoTab,
+  tipoTabRefs,
+}: {
+  tipoTab: "servico" | "produto";
+  tipoTabRefs: React.MutableRefObject<Map<string, HTMLLabelElement>>;
+}) {
+  const [gliderStyle, setGliderStyle] = useState({ width: 0, transform: "translateX(0)" });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeKey = tipoTab === "servico" ? "Serviços" : "Produtos";
+      const activeLabel = tipoTabRefs.current.get(activeKey);
+
+      if (activeLabel) {
+        const container = activeLabel.parentElement;
+        if (container) {
+          let translateX = 0;
+
+          const order = ["Serviços", "Produtos"];
+          
+          for (const key of order) {
+            if (key === activeKey) break;
+            const label = tipoTabRefs.current.get(key);
+            if (label) {
+              translateX += label.offsetWidth;
+            }
+          }
+
+          const width = activeLabel.offsetWidth;
+          setGliderStyle({
+            width: width,
+            transform: `translateX(${translateX}px)`,
+          });
+        }
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [tipoTab, tipoTabRefs]);
+
+  return (
+    <span
+      className="absolute left-1.5 top-1.5 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-full transition-all duration-250 ease-out z-0"
+      style={{
+        width: `${gliderStyle.width}px`,
+        transform: gliderStyle.transform,
+      }}
+    />
+  );
+}
+
+// Componente Glider para tabs de visualização (Planilha/Cards)
+function ViewModeGlider({
+  viewMode,
+  viewModeTabRefs,
+}: {
+  viewMode: "table" | "cards";
+  viewModeTabRefs: React.MutableRefObject<Map<string, HTMLLabelElement>>;
+}) {
+  const [gliderStyle, setGliderStyle] = useState({ width: 0, transform: "translateX(0)" });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeKey = viewMode === "table" ? "Planilha" : "Cards";
+      const activeLabel = viewModeTabRefs.current.get(activeKey);
+
+      if (activeLabel) {
+        const container = activeLabel.parentElement;
+        if (container) {
+          let translateX = 0;
+
+          const order = ["Planilha", "Cards"];
+          
+          for (const key of order) {
+            if (key === activeKey) break;
+            const label = viewModeTabRefs.current.get(key);
+            if (label) {
+              translateX += label.offsetWidth;
+            }
+          }
+
+          const width = activeLabel.offsetWidth;
+          setGliderStyle({
+            width: width,
+            transform: `translateX(${translateX}px)`,
+          });
+        }
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [viewMode, viewModeTabRefs]);
+
+  return (
+    <span
+      className="absolute left-1.5 top-1.5 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-full transition-all duration-250 ease-out z-0"
+      style={{
+        width: `${gliderStyle.width}px`,
+        transform: gliderStyle.transform,
+      }}
+    />
+  );
+}
+
+// Componente Glider para tabs principais de Solicitações (Lista/DADOS)
+function SolicitacoesMainGlider({
+  mainTab,
+  mainTabRefs,
+}: {
+  mainTab: "lista" | "central";
+  mainTabRefs: React.MutableRefObject<Map<string, HTMLLabelElement>>;
+}) {
+  const [gliderStyle, setGliderStyle] = useState({ width: 0, transform: "translateX(0)" });
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeKey = mainTab === "lista" ? "Lista" : "DADOS";
+      const activeLabel = mainTabRefs.current.get(activeKey);
+
+      if (activeLabel) {
+        const container = activeLabel.parentElement;
+        if (container) {
+          let translateX = 0;
+
+          const order = ["Lista", "DADOS"];
+          
+          for (const key of order) {
+            if (key === activeKey) break;
+            const label = mainTabRefs.current.get(key);
+            if (label) {
+              translateX += label.offsetWidth;
+            }
+          }
+
+          const width = activeLabel.offsetWidth;
+          setGliderStyle({
+            width: width,
+            transform: `translateX(${translateX}px)`,
+          });
+        }
+      }
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [mainTab, mainTabRefs]);
+
+  return (
+    <span
+      className="absolute left-1.5 top-1.5 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-full transition-all duration-250 ease-out z-0"
+      style={{
+        width: `${gliderStyle.width}px`,
+        transform: gliderStyle.transform,
+      }}
+    />
+  );
+}
+
 interface LayoutProps {
   children: ReactNode;
 }
@@ -24,6 +183,7 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [senhasViewMode, setSenhasViewMode] = useState<"table" | "cards">("table");
+  const senhasViewModeTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
   const [senhasSearch, setSenhasSearch] = useState("");
   const [senhasService, setSenhasService] = useState("todos");
   const [senhasServicesOptions, setSenhasServicesOptions] = useState<string[]>(["todos"]);
@@ -39,6 +199,10 @@ export function Layout({ children }: LayoutProps) {
   const [solicitacoesServicoOptions, setSolicitacoesServicoOptions] = useState<string[]>([]);
   const [solicitacoesAnoOptions, setSolicitacoesAnoOptions] = useState<string[]>([]);
   const [solicitacoesShowDuplicados, setSolicitacoesShowDuplicados] = useState(false);
+  const [solicitacoesTipoTab, setSolicitacoesTipoTab] = useState<"servico" | "produto">("servico");
+  const solicitacoesTipoTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
+  const [solicitacoesMainTab, setSolicitacoesMainTab] = useState<"lista" | "central">("lista");
+  const solicitacoesMainTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
   const [nvrMarinaFilter, setNvrMarinaFilter] = useState("");
   const [nvrOwnerFilter, setNvrOwnerFilter] = useState("");
   const [nvrModelFilter, setNvrModelFilter] = useState("");
@@ -244,6 +408,18 @@ export function Layout({ children }: LayoutProps) {
     window.dispatchEvent(event);
   };
 
+  const handleSolicitacoesToggleTipo = (tipo: "servico" | "produto") => {
+    setSolicitacoesTipoTab(tipo);
+    const event = new CustomEvent("solicitacoes:setTipoTab", { detail: tipo });
+    window.dispatchEvent(event);
+  };
+
+  const handleSolicitacoesToggleMainTab = (tab: "lista" | "central") => {
+    setSolicitacoesMainTab(tab);
+    const event = new CustomEvent("solicitacoes:setMainTab", { detail: tab });
+    window.dispatchEvent(event);
+  };
+
   // Receber opções de serviço e ano da página
   useEffect(() => {
     const handleSetServicoOptions = (event: Event) => {
@@ -258,12 +434,28 @@ export function Layout({ children }: LayoutProps) {
       setSolicitacoesAnoOptions(options);
     };
 
+    const handleTipoTabChanged = (event: Event) => {
+      const custom = event as CustomEvent<"servico" | "produto">;
+      const tipo = custom.detail === "produto" ? "produto" : "servico";
+      setSolicitacoesTipoTab(tipo);
+    };
+
+    const handleMainTabChanged = (event: Event) => {
+      const custom = event as CustomEvent<"lista" | "central">;
+      const tab = custom.detail === "central" ? "central" : "lista";
+      setSolicitacoesMainTab(tab);
+    };
+
     window.addEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
     window.addEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
+    window.addEventListener("solicitacoes:tipoTabChanged", handleTipoTabChanged);
+    window.addEventListener("solicitacoes:mainTabChanged", handleMainTabChanged);
 
     return () => {
       window.removeEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
       window.removeEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
+      window.removeEventListener("solicitacoes:tipoTabChanged", handleTipoTabChanged);
+      window.removeEventListener("solicitacoes:mainTabChanged", handleMainTabChanged);
     };
   }, []);
   
@@ -403,33 +595,54 @@ export function Layout({ children }: LayoutProps) {
                       </select>
                     </div>
                   )}
-                  {/* Botões de visualização e tamanho de fonte - Apenas Desktop */}
+                  {/* Tabs de visualização - Apenas Desktop */}
                   {!isMobile && (
-                    <div className="flex items-center gap-1 border rounded-md p-1.5 bg-background">
-                      <button
-                        type="button"
-                        onClick={() => handleSenhasToggle("table")}
-                        className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-1.5 ${
+                    <div className="relative inline-flex items-center bg-white dark:bg-slate-800 shadow-sm rounded-full p-1.5 border border-slate-200 dark:border-slate-700">
+                      <input
+                        type="radio"
+                        id="senhas-view-table"
+                        name="senhas-view-tabs"
+                        className="hidden"
+                        checked={senhasViewMode === "table"}
+                        onChange={() => handleSenhasToggle("table")}
+                      />
+                      <label
+                        ref={(el) => {
+                          if (el) senhasViewModeTabRefs.current.set("Planilha", el);
+                        }}
+                        htmlFor="senhas-view-table"
+                        className={`relative z-10 flex items-center justify-center gap-1.5 h-7 px-3 text-xs font-medium rounded-full cursor-pointer transition-colors ${
                           senhasViewMode === "table"
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "bg-transparent text-foreground/90 hover:bg-secondary"
-                        }`}
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                        } hover:bg-blue-100 dark:hover:bg-blue-900/30`}
                       >
-                        <Table2 className="w-4 h-4" />
+                        <Table2 className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Planilha</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSenhasToggle("cards")}
-                        className={`px-3 py-1.5 text-sm rounded-md flex items-center gap-1.5 ${
+                      </label>
+                      <input
+                        type="radio"
+                        id="senhas-view-cards"
+                        name="senhas-view-tabs"
+                        className="hidden"
+                        checked={senhasViewMode === "cards"}
+                        onChange={() => handleSenhasToggle("cards")}
+                      />
+                      <label
+                        ref={(el) => {
+                          if (el) senhasViewModeTabRefs.current.set("Cards", el);
+                        }}
+                        htmlFor="senhas-view-cards"
+                        className={`relative z-10 flex items-center justify-center gap-1.5 h-7 px-3 text-xs font-medium rounded-full cursor-pointer transition-colors ${
                           senhasViewMode === "cards"
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "bg-transparent text-foreground/90 hover:bg-secondary"
-                        }`}
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                        } hover:bg-blue-100 dark:hover:bg-blue-900/30`}
                       >
-                        <LayoutGrid className="w-4 h-4" />
+                        <LayoutGrid className="w-3.5 h-3.5" />
                         <span className="hidden sm:inline">Cards</span>
-                      </button>
+                      </label>
+                      <ViewModeGlider viewMode={senhasViewMode} viewModeTabRefs={senhasViewModeTabRefs} />
                     </div>
                   )}
                   {/* Controle de tamanho de fonte - Apenas Desktop */}
@@ -772,6 +985,100 @@ export function Layout({ children }: LayoutProps) {
                       <X className="w-3 h-3 mr-1" />
                       <span className="hidden sm:inline">Limpar</span>
                     </Button>
+                  )}
+                  <div className="relative inline-flex items-center bg-white dark:bg-slate-800 shadow-sm rounded-full p-1.5 border border-slate-200 dark:border-slate-700">
+                    <input
+                      type="radio"
+                      id="solicitacoes-main-lista"
+                      name="solicitacoes-main-tabs"
+                      className="hidden"
+                      checked={solicitacoesMainTab === "lista"}
+                      onChange={() => handleSolicitacoesToggleMainTab("lista")}
+                    />
+                    <label
+                      ref={(el) => {
+                        if (el) solicitacoesMainTabRefs.current.set("Lista", el);
+                      }}
+                      htmlFor="solicitacoes-main-lista"
+                      className={`relative z-10 flex items-center justify-center gap-1.5 h-7 px-3 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+                        solicitacoesMainTab === "lista"
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-slate-700 dark:text-slate-300"
+                      } hover:bg-blue-100 dark:hover:bg-blue-900/30`}
+                    >
+                      <Table2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Lista</span>
+                    </label>
+                    <input
+                      type="radio"
+                      id="solicitacoes-main-central"
+                      name="solicitacoes-main-tabs"
+                      className="hidden"
+                      checked={solicitacoesMainTab === "central"}
+                      onChange={() => handleSolicitacoesToggleMainTab("central")}
+                    />
+                    <label
+                      ref={(el) => {
+                        if (el) solicitacoesMainTabRefs.current.set("DADOS", el);
+                      }}
+                      htmlFor="solicitacoes-main-central"
+                      className={`relative z-10 flex items-center justify-center gap-1.5 h-7 px-3 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+                        solicitacoesMainTab === "central"
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-slate-700 dark:text-slate-300"
+                      } hover:bg-blue-100 dark:hover:bg-blue-900/30`}
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">DADOS</span>
+                    </label>
+                    <SolicitacoesMainGlider mainTab={solicitacoesMainTab} mainTabRefs={solicitacoesMainTabRefs} />
+                  </div>
+                  {solicitacoesMainTab === "lista" && (
+                    <div className="relative inline-flex items-center bg-white dark:bg-slate-800 shadow-sm rounded-full p-1.5 border border-slate-200 dark:border-slate-700">
+                      <input
+                        type="radio"
+                        id="solicitacoes-tipo-servico"
+                        name="solicitacoes-tipo-tabs"
+                        className="hidden"
+                        checked={solicitacoesTipoTab === "servico"}
+                        onChange={() => handleSolicitacoesToggleTipo("servico")}
+                      />
+                      <label
+                        ref={(el) => {
+                          if (el) solicitacoesTipoTabRefs.current.set("Serviços", el);
+                        }}
+                        htmlFor="solicitacoes-tipo-servico"
+                        className={`relative z-10 flex items-center justify-center h-7 px-4 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+                          solicitacoesTipoTab === "servico"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                        } hover:bg-blue-100 dark:hover:bg-blue-900/30`}
+                      >
+                        Serviços
+                      </label>
+                      <input
+                        type="radio"
+                        id="solicitacoes-tipo-produto"
+                        name="solicitacoes-tipo-tabs"
+                        className="hidden"
+                        checked={solicitacoesTipoTab === "produto"}
+                        onChange={() => handleSolicitacoesToggleTipo("produto")}
+                      />
+                      <label
+                        ref={(el) => {
+                          if (el) solicitacoesTipoTabRefs.current.set("Produtos", el);
+                        }}
+                        htmlFor="solicitacoes-tipo-produto"
+                        className={`relative z-10 flex items-center justify-center h-7 px-4 text-xs font-medium rounded-full cursor-pointer transition-colors ${
+                          solicitacoesTipoTab === "produto"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-slate-700 dark:text-slate-300"
+                        } hover:bg-purple-100 dark:hover:bg-purple-900/30`}
+                      >
+                        Produtos
+                      </label>
+                      <TipoGlider tipoTab={solicitacoesTipoTab} tipoTabRefs={solicitacoesTipoTabRefs} />
+                    </div>
                   )}
                   <div className="flex items-center gap-2 px-2 py-1 border rounded-md bg-background">
                     <Switch

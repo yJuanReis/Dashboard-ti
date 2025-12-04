@@ -431,7 +431,10 @@ export default function Crachas() {
                     // Estilos Brigadista (sobrescreve):
                     isBrigadista && "text-black top-[60%]"
                   )}
-                  style={{ textShadow: !isBrigadista ? '1px 1px 3px rgba(0, 0, 0, 0.8)' : 'none' }}
+                  style={{ 
+                    textShadow: !isBrigadista ? '1px 1px 3px rgba(0, 0, 0, 0.8)' : 'none',
+                    textAlign: 'center'
+                  }}
                 >
                   {nome.toUpperCase() || "NOME COMPLETO"}
                 </div>
@@ -440,13 +443,16 @@ export default function Crachas() {
                 <div
                   className={cn(
                     "absolute left-1/2 -translate-x-1/2 w-full text-center z-[3] grid-row-1 grid-col-1 font-medium",
-                    "text-[clamp(11px,3vw,18px)]", // Texto responsivo
+                    "text-[clamp(16px,4.5vw,28px)]", // Texto responsivo - aumentado
                     // Estilos Padrão/JL:
                     "text-white top-[85%]",
                     // Estilos Brigadista (sobrescreve):
                     isBrigadista && "text-black top-[70%]"
                   )}
-                  style={{ textShadow: !isBrigadista ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none' }}
+                  style={{ 
+                    textShadow: !isBrigadista ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none',
+                    textAlign: 'center'
+                  }}
                 >
                   {matricula ? matricula : "MATRÍCULA"}
                 </div>
