@@ -405,8 +405,10 @@ export default function Login() {
                     setIsLoading(true);
                     setError(null);
                     await signInWithGoogle();
+                    // Não precisa fazer nada aqui, o redirecionamento acontece automaticamente
                   } catch (err: any) {
-                    setError(err.message || "Erro ao fazer login com Google.");
+                    // Erros já são tratados no AuthContext, não precisa exibir aqui
+                    logger.error("Erro no login Google:", err);
                   } finally {
                     setIsLoading(false);
                   }
@@ -476,8 +478,10 @@ export default function Login() {
                     setIsLoading(true);
                     setError(null);
                     await signInWithGoogle();
+                    // Não precisa fazer nada aqui, o redirecionamento acontece automaticamente
                   } catch (err: any) {
-                    setError(err.message || "Erro ao fazer login com Google.");
+                    // Erros já são tratados no AuthContext, não precisa exibir aqui
+                    logger.error("Erro no login Google:", err);
                   } finally {
                     setIsLoading(false);
                   }
