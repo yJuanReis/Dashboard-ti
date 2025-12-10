@@ -505,7 +505,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         logger.error("Erro ao iniciar login com Google:", error);
-        // Exibir erro apenas se for um erro crítico do Supabase
         toast.error("Erro ao iniciar login com Google. Tente novamente.");
         throw error;
       }
@@ -522,26 +521,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(errorMsg);
       }
 
-      // Nota: Erros do tipo ERR_BLOCKED_BY_CLIENT no console são normais e não afetam o funcionamento.
-      // Eles ocorrem quando extensões do navegador bloqueiam requisições de telemetria do Google.
+      // Nota: Erros do tipo ERR_BLOCKED_BY_CLIENT que aparecem no console são normais 
+      // e não afetam o funcionamento. Eles ocorrem quando extensões do navegador 
+      // (como bloqueadores de anúncios) bloqueiam requisições de telemetria do Google.
+      // Esses erros não chegam ao nosso código e podem ser ignorados com segurança.
     } catch (error) {
       const authError = error as AuthError | Error;
-      
-      // Filtrar erros conhecidos que não afetam a funcionalidade
-      const errorMessage = authError instanceof Error ? authError.message : String(authError);
-      
-      // Ignorar erros de rede relacionados a scripts do Google (telemetria)
-      if (errorMessage.includes('ERR_BLOCKED_BY_CLIENT') || 
-          errorMessage.includes('play.google.com/log')) {
-        logger.warn("Erro de telemetria do Google (pode ser ignorado):", errorMessage);
-        // Não lançar o erro, permitir que o fluxo continue
-        return;
-      }
-      
       logger.error("Erro ao fazer login com Google:", authError);
       
-      // Apenas exibir toast se for um erro real que impede o login
-      if (!errorMessage.includes('ERR_BLOCKED_BY_CLIENT')) {
+      // Não exibir toast duplicado se já foi exibido acima
+      if (!(authError instanceof Error && authError.message.includes('Provider Google não está configurado'))) {
         toast.error("Erro ao fazer login com Google. Tente novamente.");
       }
       
