@@ -286,12 +286,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // Verificar senha temporária quando o usuário faz login
           // PRIORIZAR o valor do banco de dados sobre user_metadata
-          supabase
-            .from("user_profiles")
-            .select("password_temporary")
-            .eq("user_id", session.user.id)
-            .maybeSingle()
-            .then(({ data: profileData, error: profileError }) => {
+          (async () => {
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from("user_profiles")
+                .select("password_temporary")
+                .eq("user_id", session.user.id)
+                .maybeSingle();
+
               if (isMounted) {
                 // Se encontrou dados no banco, usar o valor do banco (prioridade máxima)
                 if (!profileError && profileData !== null) {
@@ -305,8 +307,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   setPasswordTemporary(isTemporary);
                 }
               }
-            })
-            .catch((err) => {
+            } catch (err) {
               logger.warn("Erro ao verificar password_temporary no onAuthStateChange:", err);
               // Usar fallback dos metadados apenas em caso de erro
               if (isMounted) {
@@ -314,7 +315,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 logger.log("onAuthStateChange: password_temporary do metadata (erro) =", isTemporary);
                 setPasswordTemporary(isTemporary);
               }
-            });
+            }
+          })();
         } else {
           setSession(null);
           setUser(null);
@@ -503,7 +505,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         logger.error("Erro ao iniciar login com Google:", error);
-        toast.error(`Erro ao fazer login com Google: ${error.message}`);
+        // Exibir erro apenas se for um erro crítico do Supabase
+        toast.error("Erro ao iniciar login com Google. Tente novamente.");
         throw error;
       }
 
@@ -515,14 +518,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!data?.url) {
         const errorMsg = "Provider Google não está configurado corretamente. Verifique o Supabase Dashboard.";
         logger.error(errorMsg);
-        toast.error(errorMsg);
+        toast.error("Google OAuth não está configurado. Entre em contato com o administrador.");
         throw new Error(errorMsg);
       }
+
+      // Nota: Erros do tipo ERR_BLOCKED_BY_CLIENT no console são normais e não afetam o funcionamento.
+      // Eles ocorrem quando extensões do navegador bloqueiam requisições de telemetria do Google.
     } catch (error) {
       const authError = error as AuthError | Error;
+      
+      // Filtrar erros conhecidos que não afetam a funcionalidade
+      const errorMessage = authError instanceof Error ? authError.message : String(authError);
+      
+      // Ignorar erros de rede relacionados a scripts do Google (telemetria)
+      if (errorMessage.includes('ERR_BLOCKED_BY_CLIENT') || 
+          errorMessage.includes('play.google.com/log')) {
+        logger.warn("Erro de telemetria do Google (pode ser ignorado):", errorMessage);
+        // Não lançar o erro, permitir que o fluxo continue
+        return;
+      }
+      
       logger.error("Erro ao fazer login com Google:", authError);
-      const errorMessage = authError instanceof Error ? authError.message : "Erro ao fazer login com Google.";
-      toast.error(errorMessage);
+      
+      // Apenas exibir toast se for um erro real que impede o login
+      if (!errorMessage.includes('ERR_BLOCKED_BY_CLIENT')) {
+        toast.error("Erro ao fazer login com Google. Tente novamente.");
+      }
+      
       throw error;
     }
   }, []);

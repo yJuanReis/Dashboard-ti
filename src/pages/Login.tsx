@@ -365,25 +365,45 @@ export default function Login() {
 
         .social-container {
           margin: 20px 0;
+          width: 100%;
+          display: flex;
+          justify-content: center;
         }
 
         .social-link {
-          border: 1px solid #DDDDDD;
-          border-radius: 50%;
+          border: 1px solid #dadce0;
+          border-radius: 24px;
           display: inline-flex;
           justify-content: center;
           align-items: center;
-          margin: 0 5px;
-          height: 40px;
-          width: 40px;
-          color: #333;
-          transition: 0.3s;
+          gap: 12px;
+          padding: 10px 24px;
+          height: auto;
+          width: auto;
+          min-width: 200px;
+          background-color: #ffffff;
+          color: #3c4043;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s ease;
           text-decoration: none;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          cursor: pointer;
         }
         
         .social-link:hover {
-          background-color: #f0f0f0;
-          color: #2563EB;
+          background-color: #f8f9fa;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+          border-color: #dadce0;
+        }
+        
+        .social-link:active {
+          background-color: #f1f3f4;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+        
+        .social-link svg {
+          flex-shrink: 0;
         }
       `}</style>
 
@@ -421,6 +441,7 @@ export default function Login() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
+                <span>Continuar com Google</span>
               </a>
             </div>
             
@@ -494,6 +515,7 @@ export default function Login() {
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                   <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                 </svg>
+                <span>Continuar com Google</span>
               </a>
             </div>
             
