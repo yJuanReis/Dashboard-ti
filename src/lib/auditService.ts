@@ -277,11 +277,11 @@ export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Prom
     }
 
     // Insere no banco de dados
-    const { data, error } = await supabase
+    // NOTA: Não usamos .select() porque usuários não-admin não podem ler audit_logs
+    // O INSERT funciona, mas o SELECT retornaria 401 para não-admins
+    const { error } = await supabase
       .from('audit_logs')
-      .insert(logRecord)
-      .select()
-      .single();
+      .insert(logRecord);
 
     if (error) {
       logger.error('❌ Erro ao registrar log de auditoria:', error);
@@ -304,7 +304,6 @@ export async function logAudit(entry: Omit<AuditLog, 'id' | 'created_at'>): Prom
       // Mas registra no console para debug
     } else {
       logger.log('✅ Log de auditoria registrado com sucesso:', {
-        id: data?.id,
         table: entry.table_name,
         record_id: entry.record_id,
         description: entry.description,

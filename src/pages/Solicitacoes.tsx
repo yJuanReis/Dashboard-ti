@@ -14,6 +14,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -84,6 +94,7 @@ import {
   isDespesaMarcada,
   toggleDespesaCheck,
   resetarChecksMesAtual,
+  resetarSeDia1,
   type DespesaTI,
 } from "@/lib/despesasService";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -135,6 +146,19 @@ export default function Solicitacoes() {
   const [despesasRecorrentes, setDespesasRecorrentes] = useState<DespesaTI[]>([]);
   const [despesasEsporadicas, setDespesasEsporadicas] = useState<DespesaTI[]>([]);
   const [loadingDespesas, setLoadingDespesas] = useState(false);
+  const [confirmarMarcacao, setConfirmarMarcacao] = useState<{
+    open: boolean;
+    despesaId: string | null;
+    despesaNome: string | null;
+    descricao: string | null;
+    empresa: string | null;
+  }>({
+    open: false,
+    despesaId: null,
+    despesaNome: null,
+    descricao: null,
+    empresa: null,
+  });
   const [servicosMesesExibidos, setServicosMesesExibidos] = useState(6);
   const [produtosMesesExibidos, setProdutosMesesExibidos] = useState(6);
   const [servicosMesesExpandidos, setServicosMesesExpandidos] = useState<Set<string>>(new Set());
@@ -238,6 +262,23 @@ export default function Solicitacoes() {
     try {
       setLoadingDespesas(true);
       const { recorrentes, esporadicas } = await fetchTodasDespesas();
+      
+      // Debug: verificar se a marina está vindo
+      logger.log('🔍 Debug - Despesas carregadas:', {
+        totalRecorrentes: recorrentes.length,
+        totalEsporadicas: esporadicas.length,
+        primeiraRecorrente: recorrentes[0] ? {
+          fornecedor: recorrentes[0].fornecedor,
+          empresa: recorrentes[0].empresa,
+          temEmpresa: !!recorrentes[0].empresa
+        } : null,
+        primeiraEsporadica: esporadicas[0] ? {
+          fornecedor: esporadicas[0].fornecedor,
+          empresa: esporadicas[0].empresa,
+          temEmpresa: !!esporadicas[0].empresa
+        } : null
+      });
+      
       setDespesasRecorrentes(recorrentes);
       setDespesasEsporadicas(esporadicas);
     } catch (error) {
@@ -249,22 +290,62 @@ export default function Solicitacoes() {
   };
 
   const handleToggleDespesa = async (despesaId: string, marcado: boolean) => {
+    // Se for desmarcar, não pede confirmação
+    if (!marcado) {
+      try {
+        await toggleDespesaCheck(despesaId, marcado);
+        // Atualizar o estado local
+        setDespesasRecorrentes(prev => 
+          prev.map(d => {
+            if (d.id === despesaId) {
+              const mesAtual = getMesAtual();
+              return { ...d, [mesAtual]: 0 };
+            }
+            return d;
+          })
+        );
+        toast.success("Despesa desmarcada");
+      } catch (error) {
+        logger.error("Erro ao atualizar despesa:", error);
+        toast.error("Erro ao atualizar despesa");
+      }
+      return;
+    }
+
+    // Se for marcar, pede confirmação
+    const despesa = despesasRecorrentes.find(d => d.id === despesaId);
+    if (despesa) {
+      setConfirmarMarcacao({
+        open: true,
+        despesaId: despesaId,
+        despesaNome: despesa.fornecedor,
+        descricao: despesa.desc_servico || null,
+        empresa: despesa.empresa || null,
+      });
+    }
+  };
+
+  const confirmarMarcarDespesa = async () => {
+    if (!confirmarMarcacao.despesaId) return;
+
     try {
-      await toggleDespesaCheck(despesaId, marcado);
+      await toggleDespesaCheck(confirmarMarcacao.despesaId, true);
       // Atualizar o estado local
       setDespesasRecorrentes(prev => 
         prev.map(d => {
-          if (d.id === despesaId) {
+          if (d.id === confirmarMarcacao.despesaId) {
             const mesAtual = getMesAtual();
-            return { ...d, [mesAtual]: marcado ? 1 : 0 };
+            return { ...d, [mesAtual]: 1 };
           }
           return d;
         })
       );
-      toast.success(marcado ? "Despesa marcada" : "Despesa desmarcada");
+      toast.success("Despesa marcada com sucesso");
+      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, empresa: null });
     } catch (error) {
       logger.error("Erro ao atualizar despesa:", error);
       toast.error("Erro ao atualizar despesa");
+      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, empresa: null });
     }
   };
 
@@ -288,6 +369,25 @@ export default function Solicitacoes() {
     loadItems();
     loadConfigSolicitacoes();
   }, []);
+
+  // Listener para quando uma despesa for marcada automaticamente ao criar serviço
+  useEffect(() => {
+    const handleDespesaMarcada = (event: CustomEvent) => {
+      const { servico, empresa } = event.detail;
+      toast.success(`Despesa marcada automaticamente no checklist: ${servico}${empresa ? ` (${empresa})` : ''}`);
+      
+      // Se o modal estiver aberto, recarregar as despesas
+      if (showDespesasModal) {
+        loadDespesas();
+      }
+    };
+
+    window.addEventListener('despesa:marcada-automaticamente', handleDespesaMarcada as EventListener);
+
+    return () => {
+      window.removeEventListener('despesa:marcada-automaticamente', handleDespesaMarcada as EventListener);
+    };
+  }, [showDespesasModal]);
 
   // Carregar configurações de solicitações
   const loadConfigSolicitacoes = async () => {
@@ -1316,8 +1416,18 @@ export default function Solicitacoes() {
               </Badge>
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 setShowDespesasModal(true);
+                // Verificar se é dia 1 e resetar automaticamente
+                try {
+                  const foiResetado = await resetarSeDia1();
+                  if (foiResetado) {
+                    toast.success("Checklist resetado automaticamente (dia 1 do mês)");
+                  }
+                } catch (error) {
+                  logger.error("Erro ao verificar/resetar no dia 1:", error);
+                  // Não bloquear a abertura do modal se houver erro
+                }
                 loadDespesas();
               }}
               variant="outline"
@@ -2730,18 +2840,20 @@ export default function Solicitacoes() {
 
       {/* Modal de Despesas T.I. - Checklist de SCs */}
       <Dialog open={showDespesasModal} onOpenChange={setShowDespesasModal}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-primary" />
-                Checklist de SCs - {getMesAtual().replace('_', '').toUpperCase()}
+                <Receipt className="w-5 h-5 text-blue-600" />
+                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-bold">
+                  Checklist de SCs - {getMesAtual().replace('_', '').toUpperCase()}
+                </span>
               </DialogTitle>
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="sm"
                 onClick={handleResetarChecks}
-                className="gap-2 text-muted-foreground hover:text-destructive"
+                className="gap-2"
               >
                 <X className="w-4 h-4" />
                 Resetar
@@ -2763,8 +2875,8 @@ export default function Solicitacoes() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-4">
                       <Wrench className="w-5 h-5 text-blue-600" />
-                      <h3 className="text-lg font-semibold">Recorrentes</h3>
-                      <Badge variant="secondary">
+                      <h3 className="text-lg font-bold text-blue-600">Recorrentes</h3>
+                      <Badge className="bg-blue-600 text-white hover:bg-blue-700">
                         {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length}/{despesasRecorrentes.length}
                       </Badge>
                     </div>
@@ -2773,17 +2885,18 @@ export default function Solicitacoes() {
                         Nenhuma despesa recorrente encontrada
                       </p>
                     ) : (
-                      <div className="space-y-2 max-h-[550px] overflow-y-auto">
-                        {despesasRecorrentes.map((despesa) => {
+                      <div className="max-h-[550px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                        <div className="grid grid-cols-2 gap-2">
+                          {despesasRecorrentes.map((despesa) => {
                           const marcada = isDespesaMarcada(despesa);
                           return (
                             <div
                               key={despesa.id}
                               className={cn(
-                                "flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:bg-accent",
+                                "flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer hover:shadow-md",
                                 marcada 
-                                  ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800" 
-                                  : "bg-background border-border"
+                                  ? "bg-green-100 dark:bg-green-900/30 border-green-500 dark:border-green-600 shadow-sm" 
+                                  : "bg-background border-orange-300 dark:border-orange-700 hover:border-orange-400"
                               )}
                               onClick={() => handleToggleDespesa(despesa.id, !marcada)}
                             >
@@ -2796,28 +2909,46 @@ export default function Solicitacoes() {
                                 className="shrink-0"
                               />
                               <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className={cn(
+                                    "font-medium text-sm",
+                                    marcada && "line-through text-muted-foreground"
+                                  )}>
+                                    {despesa.fornecedor}
+                                  </p>
+                                  {despesa.empresa && (
+                                    <Badge 
+                                      variant="outline"
+                                      className={cn(
+                                        "text-[14px] shrink-0 font-semibold px-2 py-0.5",
+                                        marcada && "opacity-50"
+                                      )}
+                                    >
+                                      {despesa.empresa}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className={cn(
-                                  "font-medium text-sm",
-                                  marcada && "line-through text-muted-foreground"
-                                )}>
-                                  {despesa.fornecedor}
-                                </p>
-                                <p className={cn(
-                                  "text-xs text-muted-foreground truncate",
+                                  "text-xs text-muted-foreground",
                                   marcada && "line-through"
                                 )}>
                                   {despesa.desc_servico}
                                 </p>
                               </div>
                               <Badge 
-                                variant={marcada ? "secondary" : "outline"}
-                                className="shrink-0"
+                                className={cn(
+                                  "shrink-0 font-semibold",
+                                  marcada 
+                                    ? "bg-green-600 text-white hover:bg-green-700" 
+                                    : "bg-orange-500 text-white hover:bg-orange-600"
+                                )}
                               >
                                 {formatCurrency(String(despesa.valor_medio || 0))}
                               </Badge>
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -2828,8 +2959,8 @@ export default function Solicitacoes() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-4">
                       <AlertCircle className="w-5 h-5 text-orange-600" />
-                      <h3 className="text-lg font-semibold">Esporádicas</h3>
-                      <Badge variant="secondary">
+                      <h3 className="text-lg font-bold text-orange-600">Esporádicas</h3>
+                      <Badge className="bg-orange-600 text-white hover:bg-orange-700">
                         {despesasEsporadicas.length}
                       </Badge>
                     </div>
@@ -2838,28 +2969,40 @@ export default function Solicitacoes() {
                         Nenhuma despesa esporádica encontrada
                       </p>
                     ) : (
-                      <div className="space-y-2 max-h-[550px] overflow-y-auto">
-                        {despesasEsporadicas.map((despesa) => {
+                      <div className="max-h-[550px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                        <div className="grid grid-cols-2 gap-2">
+                          {despesasEsporadicas.map((despesa) => {
                           const valorMes = getValorMesAtual(despesa);
                           return (
                             <div
                               key={despesa.id}
-                              className="flex items-center gap-3 p-3 rounded-lg border bg-background hover:bg-accent transition-colors"
+                              className="flex items-center gap-3 p-3 rounded-lg border-2 border-orange-300 dark:border-orange-700 bg-background hover:bg-orange-50 dark:hover:bg-orange-950/20 hover:border-orange-400 transition-colors"
                             >
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm">
-                                  {despesa.fornecedor}
-                                </p>
-                                <p className="text-xs text-muted-foreground truncate">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="font-medium text-sm">
+                                    {despesa.fornecedor}
+                                  </p>
+                                  {despesa.empresa && (
+                                    <Badge 
+                                      variant="outline"
+                                      className="text-[14px] shrink-0 font-semibold px-2 py-0.5"
+                                    >
+                                      {despesa.empresa}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
                                   {despesa.desc_servico}
                                 </p>
                               </div>
-                              <Badge variant="outline" className="shrink-0">
+                              <Badge className="bg-orange-500 text-white hover:bg-orange-600 shrink-0 font-semibold">
                                 {formatCurrency(String(valorMes))}
                               </Badge>
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -2867,24 +3010,24 @@ export default function Solicitacoes() {
               </div>
 
               {/* Resumo Visual */}
-              <Card className="bg-muted/50">
+              <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-2 border-blue-200 dark:border-blue-800">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-sm text-muted-foreground">
+                        <div className="w-4 h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
+                        <span className="text-sm font-semibold text-green-700 dark:text-green-400">
                           {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length} SCs criadas
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                        <span className="text-sm text-muted-foreground">
+                        <div className="w-4 h-4 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50"></div>
+                        <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
                           {despesasRecorrentes.filter(d => !isDespesaMarcada(d)).length} pendentes
                         </span>
                       </div>
                     </div>
-                    <p className="text-sm font-medium">
+                    <p className="text-base font-bold text-blue-600 dark:text-blue-400">
                       Progresso: {Math.round((despesasRecorrentes.filter(d => isDespesaMarcada(d)).length / Math.max(despesasRecorrentes.length, 1)) * 100)}%
                     </p>
                   </div>
@@ -2894,6 +3037,51 @@ export default function Solicitacoes() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog de Confirmação para Marcar Despesa */}
+      <AlertDialog open={confirmarMarcacao.open} onOpenChange={(open) => {
+        if (!open) {
+          setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, empresa: null });
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Marcação de Despesa</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Você está prestes a marcar a despesa como <strong>SC criada</strong> no mês atual.
+              </p>
+              <div className="bg-muted p-3 rounded-md mt-3 space-y-2">
+                <div>
+                  <p className="font-semibold text-sm mb-1">Fornecedor:</p>
+                  <p className="text-sm">{confirmarMarcacao.despesaNome}</p>
+                </div>
+                {confirmarMarcacao.descricao && (
+                  <div>
+                    <p className="font-semibold text-sm mt-2 mb-1">Descrição:</p>
+                    <p className="text-sm text-muted-foreground">{confirmarMarcacao.descricao}</p>
+                  </div>
+                )}
+                {confirmarMarcacao.empresa && (
+                  <div>
+                    <p className="font-semibold text-sm mt-2 mb-1">Empresa:</p>
+                    <p className="text-sm">{confirmarMarcacao.empresa}</p>
+                  </div>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                Esta ação indica que a Solicitação de Compra (SC) foi criada para este mês.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmarMarcarDespesa} className="bg-green-600 hover:bg-green-700">
+              Confirmar Marcação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

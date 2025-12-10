@@ -1,0 +1,175 @@
+{
+  "update_config_solicitacoes_updated_at": [
+    {
+      "file": "docs/sql/tabelas/supabase_config_solicitacoes_table.sql",
+      "lines": [21, 34],
+      "snippet": "CREATE OR REPLACE FUNCTION update_config_solicitacoes_updated_at()\nRETURNS TRIGGER AS $$\nBEGIN\n    NEW.updated_at = timezone('utc'::text, now());\n    RETURN NEW;\nEND;\n$$ language 'plpgsql';\n\n-- Cria um trigger para atualizar o updated_at automaticamente\nDROP TRIGGER IF EXISTS update_config_solicitacoes_updated_at_trigger ON public.config_solicitacoes;\nCREATE TRIGGER update_config_solicitacoes_updated_at_trigger \n    BEFORE UPDATE ON public.config_solicitacoes\n    FOR EACH ROW \n    EXECUTE FUNCTION update_config_solicitacoes_updated_at();",
+      "usage": "Função SQL definida e usada em trigger BEFORE UPDATE na tabela config_solicitacoes. O trigger executa automaticamente a função sempre que um registro é atualizado, atualizando o campo updated_at com o timestamp atual."
+    }
+  ],
+  "is_admin": [
+    {
+      "file": "docs/sql/funcoes/supabase_admin_functions.sql",
+      "lines": [66, 82],
+      "snippet": "DROP FUNCTION IF EXISTS public.is_admin();\n\n-- ============================================\n-- FUNÇÃO: Verificar se usuário é admin\n-- ============================================\n-- Função auxiliar para verificar se o usuário atual é admin\nCREATE OR REPLACE FUNCTION public.is_admin()\nRETURNS BOOLEAN AS $$\nBEGIN\n  RETURN EXISTS (\n    SELECT 1 \n    FROM public.user_profiles \n    WHERE user_id = auth.uid() \n    AND role = 'admin'\n  );\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;",
+      "usage": "Definição da função SQL is_admin(). Função SECURITY DEFINER que verifica se o usuário atual (auth.uid()) tem role 'admin' na tabela user_profiles."
+    },
+    {
+      "file": "docs/sql/funcoes/supabase_admin_functions.sql",
+      "lines": [98, 100],
+      "snippet": "  -- Verificar se o usuário atual é admin\n  IF NOT public.is_admin() THEN\n    RAISE EXCEPTION 'Apenas administradores podem alterar senhas';\n  END IF;",
+      "usage": "Chamada dentro da função update_user_password_by_admin para validar permissões antes de alterar senha de usuário."
+    },
+    {
+      "file": "docs/sql/funcoes/supabase_admin_functions.sql",
+      "lines": [169, 171],
+      "snippet": "  -- Verificar se o usuário atual é admin\n  IF NOT public.is_admin() THEN\n    RAISE EXCEPTION 'Apenas administradores podem excluir usuários';\n  END IF;",
+      "usage": "Chamada dentro da função delete_user_by_admin para validar permissões antes de excluir usuário."
+    },
+    {
+      "file": "docs/sql/funcoes/supabase_admin_functions.sql",
+      "lines": [237, 238],
+      "snippet": "  -- Apenas valida se o usuário atual é admin\n  -- A alteração real deve ser feita no frontend usando Admin API\n  RETURN public.is_admin();",
+      "usage": "Chamada dentro da função validate_admin_password_change que retorna o resultado de is_admin() como validação."
+    },
+    {
+      "file": "docs/sql/funcoes/supabase_admin_functions.sql",
+      "lines": [245, 245],
+      "snippet": "GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;",
+      "usage": "Concessão de permissão de execução da função para usuários autenticados."
+    },
+    {
+      "file": "docs/sql/funcoes/supabase_admin_functions.sql",
+      "lines": [285, 285],
+      "snippet": "SELECT public.is_admin();",
+      "usage": "Query SQL de exemplo/teste para verificar se o usuário atual é admin (comentário de documentação)."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [216, 231],
+      "snippet": "DROP FUNCTION IF EXISTS public.is_admin();\n\n-- Função: Verificar se usuário é admin\nCREATE OR REPLACE FUNCTION public.is_admin()\nRETURNS BOOLEAN AS $$\nBEGIN\n  RETURN EXISTS (\n    SELECT 1 \n    FROM public.user_profiles \n    WHERE user_id = auth.uid() \n    AND role = 'admin'\n  );\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;",
+      "usage": "Definição da função is_admin() no script de setup completo. Mesma implementação que em supabase_admin_functions.sql."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [268, 270],
+      "snippet": "  IF NOT public.is_admin() THEN\n    RAISE EXCEPTION 'Apenas administradores podem atualizar permissões';\n  END IF;",
+      "usage": "Chamada dentro da função update_user_page_permissions para validar permissões antes de atualizar permissões de página."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [287, 289],
+      "snippet": "  IF NOT public.is_admin() THEN\n    RAISE EXCEPTION 'Apenas administradores podem alterar senhas';\n  END IF;",
+      "usage": "Chamada dentro da função update_user_password_by_admin para validar permissões antes de alterar senha."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [347, 349],
+      "snippet": "  IF NOT public.is_admin() THEN\n    RAISE EXCEPTION 'Apenas administradores podem excluir usuários';\n  END IF;",
+      "usage": "Chamada dentro da função delete_user_by_admin para validar permissões antes de excluir usuário."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [400, 400],
+      "snippet": "GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;",
+      "usage": "Concessão de permissão de execução da função para usuários autenticados."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [453, 453],
+      "snippet": "AND routine_name IN ('is_admin', 'has_page_permission', 'update_user_password_by_admin', 'delete_user_by_admin')",
+      "usage": "Referência em query de verificação para listar funções criadas (documentação/exemplo)."
+    },
+    {
+      "file": "docs/md/seguranca/GUIA_CORRECAO_SEGURANCA.md",
+      "lines": [182, 182],
+      "snippet": "   ✅ FUNÇÃO: is_admin() está configurada",
+      "usage": "Referência em documentação de checklist de segurança."
+    },
+    {
+      "file": "docs/md/seguranca/GUIA_CORRECAO_SEGURANCA.md",
+      "lines": [277, 311],
+      "snippet": "### Função `is_admin()`\n\n```sql\nCREATE OR REPLACE FUNCTION public.is_admin()\nRETURNS BOOLEAN AS $$\nBEGIN\n  RETURN EXISTS (\n    SELECT 1 FROM public.user_profiles\n    WHERE user_id = auth.uid() \n    AND role = 'admin'\n  );\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n```\n\n**Características:**\n- ✅ `SECURITY DEFINER`: Executa com privilégios do dono\n- ✅ Verifica role do usuário atual\n- ✅ Usada em todas as políticas RLS\n- ✅ Performance: cache automático do Postgres\n\n---\n\n### Exemplo de Política RLS\n\n```sql\n-- Exemplo: user_profiles SELECT\nCREATE POLICY \"user_profiles_select_policy\"\nON user_profiles\nFOR SELECT\nTO authenticated\nUSING (\n  auth.uid() = user_id    -- Vê o próprio perfil\n  OR\n  public.is_admin()       -- OU é admin (vê todos)\n);\n```",
+      "usage": "Documentação explicando a função e exemplo de uso em políticas RLS (embora não encontrado uso real em políticas RLS no código, apenas exemplo na documentação)."
+    },
+    {
+      "file": "docs/md/seguranca/GUIA_CORRECAO_SEGURANCA.md",
+      "lines": [400, 402],
+      "snippet": "2. **Função is_admin() funciona?**\n   \n   SELECT public.is_admin();",
+      "usage": "Exemplo de query SQL para testar a função (documentação)."
+    }
+  ],
+  "update_nvr_config_updated_at": [
+    {
+      "file": "docs/sql/tabelas/supabase_nvr_config_table.sql",
+      "lines": [17, 27],
+      "snippet": "-- Cria uma função para atualizar o updated_at automaticamente\nCREATE OR REPLACE FUNCTION update_nvr_config_updated_at()\nRETURNS TRIGGER AS $$\nBEGIN\n    NEW.updated_at = timezone('utc'::text, now());\n    RETURN NEW;\nEND;\n$$ language 'plpgsql';\n\n-- Cria um trigger para atualizar o updated_at automaticamente\nCREATE TRIGGER update_nvr_config_updated_at BEFORE UPDATE ON public.nvr_config\n    FOR EACH ROW EXECUTE FUNCTION update_nvr_config_updated_at();",
+      "usage": "Função SQL definida e usada em trigger BEFORE UPDATE na tabela nvr_config. O trigger executa automaticamente a função sempre que um registro é atualizado, atualizando o campo updated_at com o timestamp atual."
+    }
+  ],
+  "confirm_user_email": [
+    {
+      "file": "docs/sql/funcoes/confirm_user_email.sql",
+      "lines": [8, 67],
+      "snippet": "CREATE OR REPLACE FUNCTION public.confirm_user_email(\n  user_email TEXT\n)\nRETURNS JSON AS $$\nDECLARE\n  target_user_id UUID;\nBEGIN\n  -- Verificar se o usuário atual é admin\n  IF NOT EXISTS (\n    SELECT 1 FROM public.user_profiles\n    WHERE user_id = auth.uid() AND role = 'admin'\n  ) THEN\n    RETURN json_build_object(\n      'success', false,\n      'message', 'Apenas administradores podem confirmar emails'\n    );\n  END IF;\n\n  -- Buscar o ID do usuário pelo email\n  SELECT id INTO target_user_id\n  FROM auth.users\n  WHERE email = LOWER(user_email);\n\n  -- Verificar se o usuário existe\n  IF target_user_id IS NULL THEN\n    RETURN json_build_object(\n      'success', false,\n      'message', 'Usuário não encontrado'\n    );\n  END IF;\n\n  -- Confirmar o email do usuário\n  UPDATE auth.users\n  SET \n    email_confirmed_at = COALESCE(email_confirmed_at, NOW()),\n    updated_at = NOW()\n  WHERE id = target_user_id\n    AND email_confirmed_at IS NULL; -- Só atualizar se ainda não estiver confirmado\n\n  RETURN json_build_object(\n    'success', true,\n    'user_id', target_user_id,\n    'email', LOWER(user_email),\n    'message', 'Email confirmado com sucesso'\n  );\n\nEXCEPTION\n  WHEN OTHERS THEN\n    RETURN json_build_object(\n      'success', false,\n      'message', SQLERRM\n    );\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\n-- ============================================\n-- GRANT PERMISSIONS\n-- ============================================\n\nGRANT EXECUTE ON FUNCTION public.confirm_user_email(TEXT) TO authenticated;",
+      "usage": "Definição da função SQL confirm_user_email(). Função SECURITY DEFINER que confirma o email de um usuário. Valida se o chamador é admin antes de executar."
+    },
+    {
+      "file": "src/pages/Configuracoes.tsx",
+      "lines": [1414, 1417],
+      "snippet": "            const { data: confirmResult, error: confirmError } = await supabase.rpc(\n              'confirm_user_email',\n              { user_email: emailLower }\n            );",
+      "usage": "Chamada RPC da função confirm_user_email() via Supabase client. Chamada após criar usuário e enviar email de confirmação, para confirmar automaticamente o email e permitir login imediato."
+    },
+    {
+      "file": "docs/sql/funcoes/README.md",
+      "lines": [10, 10],
+      "snippet": "- **confirm_user_email.sql** - Função para confirmar email do usuário",
+      "usage": "Referência em documentação README."
+    },
+    {
+      "file": "docs/sql/README.md",
+      "lines": [33, 33],
+      "snippet": "- `confirm_user_email.sql` - Função para confirmar email do usuário",
+      "usage": "Referência em documentação README."
+    },
+    {
+      "file": "docs/sql/README.md",
+      "lines": [94, 94],
+      "snippet": "   funcoes/confirm_user_email.sql",
+      "usage": "Referência em documentação README listando arquivos SQL."
+    }
+  ],
+  "has_page_permission": [
+    {
+      "file": "docs/sql/usuarios/supabase_user_permissions.sql",
+      "lines": [32, 67],
+      "snippet": "CREATE OR REPLACE FUNCTION public.has_page_permission(page_path TEXT)\nRETURNS BOOLEAN AS $$\nDECLARE\n  user_role TEXT;\n  user_permissions TEXT[];\nBEGIN\n  -- Obter role e permissões do usuário atual\n  SELECT role, COALESCE(page_permissions, ARRAY[]::TEXT[]) \n  INTO user_role, user_permissions\n  FROM public.user_profiles\n  WHERE user_id = auth.uid();\n  \n  -- Se não encontrar o usuário, negar acesso\n  IF user_role IS NULL THEN\n    RETURN FALSE;\n  END IF;\n  \n  -- Administradores têm acesso a todas as páginas\n  IF user_role = 'admin' THEN\n    RETURN TRUE;\n  END IF;\n  \n  -- Verificar se a página está na lista de permissões\n  -- Também permite acesso se o array estiver vazio (acesso total para usuários sem restrições)\n  IF array_length(user_permissions, 1) IS NULL OR array_length(user_permissions, 1) = 0 THEN\n    RETURN TRUE; -- Sem restrições = acesso total\n  END IF;\n  \n  RETURN page_path = ANY(user_permissions);\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\n-- ============================================\n-- GRANT PERMISSIONS\n-- ============================================\nGRANT EXECUTE ON FUNCTION public.has_page_permission(TEXT) TO authenticated;",
+      "usage": "Definição da função SQL has_page_permission(). Função SECURITY DEFINER que verifica se o usuário atual tem permissão para acessar uma página específica baseado em role e page_permissions."
+    },
+    {
+      "file": "docs/sql/usuarios/supabase_user_permissions.sql",
+      "lines": [86, 87],
+      "snippet": "-- SELECT public.has_page_permission('/home');\n-- SELECT public.has_page_permission('/senhas');",
+      "usage": "Exemplos de query SQL para testar a função (comentados na documentação)."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [217, 259],
+      "snippet": "DROP FUNCTION IF EXISTS public.has_page_permission(TEXT);\n\n-- Função: Verificar permissão de página\nCREATE OR REPLACE FUNCTION public.has_page_permission(page_path TEXT)\nRETURNS BOOLEAN AS $$\nDECLARE\n  user_role TEXT;\n  user_permissions TEXT[];\nBEGIN\n  SELECT role, COALESCE(page_permissions, NULL) \n  INTO user_role, user_permissions\n  FROM public.user_profiles\n  WHERE user_id = auth.uid();\n  \n  IF user_role IS NULL THEN\n    RETURN FALSE;\n  END IF;\n  \n  IF user_role = 'admin' THEN\n    RETURN TRUE;\n  END IF;\n  \n  IF user_permissions IS NULL OR array_length(user_permissions, 1) IS NULL OR array_length(user_permissions, 1) = 0 THEN\n    RETURN TRUE;\n  END IF;\n  \n  RETURN page_path = ANY(user_permissions);\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;",
+      "usage": "Definição da função has_page_permission() no script de setup completo. Mesma implementação que em supabase_user_permissions.sql."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [401, 401],
+      "snippet": "GRANT EXECUTE ON FUNCTION public.has_page_permission(TEXT) TO authenticated;",
+      "usage": "Concessão de permissão de execução da função para usuários autenticados."
+    },
+    {
+      "file": "docs/sql/setup/SETUP_COMPLETO_ADMIN.sql",
+      "lines": [453, 453],
+      "snippet": "AND routine_name IN ('is_admin', 'has_page_permission', 'update_user_password_by_admin', 'delete_user_by_admin')",
+      "usage": "Referência em query de verificação para listar funções criadas (documentação/exemplo)."
+    }
+  ]
+}
+

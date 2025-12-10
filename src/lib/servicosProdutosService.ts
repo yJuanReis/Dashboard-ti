@@ -346,6 +346,33 @@ export async function createServico(
       `Criou serviço: ${novoServico.servico || 'Sem serviço'}`
     ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
 
+    // Marcar automaticamente a despesa correspondente no checklist
+    try {
+      const { marcarDespesaPorServico } = await import('@/lib/despesasService');
+      const despesaMarcada = await marcarDespesaPorServico(
+        novoServico.servico,
+        novoServico.empresa
+      );
+      
+      if (despesaMarcada) {
+        logger.log(`✅ Despesa marcada automaticamente no checklist para o serviço: ${novoServico.servico}`);
+        // Disparar evento customizado para notificar o componente
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', {
+            detail: {
+              servico: novoServico.servico,
+              empresa: novoServico.empresa
+            }
+          }));
+        }
+      } else {
+        logger.log(`ℹ️ Nenhuma despesa correspondente encontrada para o serviço: ${novoServico.servico}`);
+      }
+    } catch (despesaError) {
+      // Não bloquear a criação do serviço se houver erro ao marcar despesa
+      logger.warn('⚠️ Erro ao marcar despesa automaticamente (não bloqueia criação do serviço):', despesaError);
+    }
+
     logger.log('✅ Serviço criado com sucesso:', novoServico);
     return novoServico;
   } catch (error) {

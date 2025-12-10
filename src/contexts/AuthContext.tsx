@@ -24,6 +24,7 @@ interface AuthContextType {
   loading: boolean;
   passwordTemporary: boolean | null; // null = não verificado ainda, true/false = resultado
   signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   checkPasswordTemporary: () => Promise<void>;
@@ -483,6 +484,221 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return shouldRequireCaptcha(email.trim().toLowerCase());
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      logger.log("Iniciando login com Google via popup...");
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          // Para onde o usuário volta após o login (dentro do popup)
+          // A página de callback fecha o popup automaticamente
+          redirectTo: `${window.location.origin}/auth/callback`,
+          // Opcional: solicitar escopos específicos do Google
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        logger.error("Erro ao iniciar login com Google:", error);
+        toast.error(`Erro ao fazer login com Google: ${error.message}`);
+        throw error;
+      }
+
+      if (!data?.url) {
+        const errorMsg = "Provider Google não está configurado corretamente. Verifique o Supabase Dashboard.";
+        logger.error(errorMsg);
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // Abrir popup para autenticação
+      const popup = window.open(
+        data.url,
+        'google-oauth',
+        'width=500,height=600,scrollbars=yes,resizable=yes'
+      );
+
+      if (!popup) {
+        const errorMsg = "Não foi possível abrir o popup. Verifique se os popups estão bloqueados.";
+        logger.error(errorMsg);
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // Monitorar o popup e verificar autenticação
+      let lastSessionCheck: Session | null = null;
+      let popupClosed = false;
+      let checkInterval: NodeJS.Timeout | null = null;
+      let authSubscription: { unsubscribe: () => void } | null = null;
+      
+      // Escutar mensagens do popup (quando ele fecha após login)
+      const messageHandler = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+          // Popup notificou que login foi bem-sucedido
+          if (popup && !popup.closed) {
+            popup.close();
+            popupClosed = true;
+          }
+          
+          if (checkInterval) clearInterval(checkInterval);
+          if (authSubscription) authSubscription.unsubscribe();
+          window.removeEventListener('message', messageHandler);
+          
+          // Verificar sessão e atualizar estado
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+              logger.log("Login com Google bem-sucedido via popup!");
+              toast.success("Login realizado com sucesso!");
+              setSession(session);
+              setUser(session.user);
+              
+              Promise.allSettled([
+                checkUserExists(session.user.id, session.user.email),
+                updateAdminRoleCache(session.user.id)
+              ]).catch(() => {});
+            }
+          });
+        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+          // Popup notificou erro
+          if (popup && !popup.closed) {
+            popup.close();
+            popupClosed = true;
+          }
+          
+          if (checkInterval) clearInterval(checkInterval);
+          if (authSubscription) authSubscription.unsubscribe();
+          window.removeEventListener('message', messageHandler);
+          
+          toast.error("Erro ao fazer login com Google.");
+        }
+      };
+      
+      window.addEventListener('message', messageHandler);
+      
+      // Usar o onAuthStateChange para detectar quando o login é concluído
+      authSubscription = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        if (event === 'SIGNED_IN' && newSession) {
+          // Login bem-sucedido!
+          if (newSession.access_token !== lastSessionCheck?.access_token) {
+            lastSessionCheck = newSession;
+            
+            // Fechar popup imediatamente
+            if (popup && !popup.closed) {
+              try {
+                popup.close();
+                popupClosed = true;
+              } catch (e) {
+                // Ignorar erro
+              }
+            }
+            
+            if (checkInterval) clearInterval(checkInterval);
+            if (authSubscription) authSubscription.unsubscribe();
+            window.removeEventListener('message', messageHandler);
+            
+            logger.log("Login com Google bem-sucedido via popup!");
+            toast.success("Login realizado com sucesso!");
+            
+            // Atualizar estado
+            setSession(newSession);
+            setUser(newSession.user);
+            
+            // Verificar e criar perfil se necessário
+            Promise.allSettled([
+              checkUserExists(newSession.user.id, newSession.user.email),
+              updateAdminRoleCache(newSession.user.id)
+            ]).catch(() => {});
+          }
+        }
+      });
+      
+      checkInterval = setInterval(async () => {
+        try {
+          // Verificar se o popup foi fechado manualmente
+          if (popup.closed && !popupClosed) {
+            popupClosed = true;
+            if (checkInterval) clearInterval(checkInterval);
+            if (authSubscription) authSubscription.unsubscribe();
+            window.removeEventListener('message', messageHandler);
+            
+            // Verificar se há sessão (pode ter logado antes de fechar)
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              logger.log("Popup fechado sem autenticação");
+              toast.info("Login cancelado.");
+            }
+            return;
+          }
+
+          // Verificar se a sessão mudou (backup)
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            return;
+          }
+
+          // Se há uma nova sessão que não tínhamos antes
+          if (session && session.access_token !== lastSessionCheck?.access_token) {
+            lastSessionCheck = session;
+            
+            // Fechar popup imediatamente
+            if (popup && !popup.closed) {
+              try {
+                popup.close();
+                popupClosed = true;
+              } catch (e) {
+                // Ignorar erro
+              }
+            }
+            
+            if (checkInterval) clearInterval(checkInterval);
+            if (authSubscription) authSubscription.unsubscribe();
+            window.removeEventListener('message', messageHandler);
+            
+            logger.log("Login detectado via verificação de sessão!");
+            toast.success("Login realizado com sucesso!");
+            
+            setSession(session);
+            setUser(session.user);
+            
+            Promise.allSettled([
+              checkUserExists(session.user.id, session.user.email),
+              updateAdminRoleCache(session.user.id)
+            ]).catch(() => {});
+          }
+        } catch (err) {
+          logger.error("Erro ao monitorar popup:", err);
+        }
+      }, 300); // Verificar a cada 300ms
+
+      // Timeout de segurança (3 minutos)
+      setTimeout(() => {
+        if (!popupClosed && popup && !popup.closed) {
+          popup.close();
+          if (checkInterval) clearInterval(checkInterval);
+          if (authSubscription) authSubscription.unsubscribe();
+          window.removeEventListener('message', messageHandler);
+          popupClosed = true;
+          toast.error("Tempo limite de login excedido.");
+        }
+      }, 3 * 60 * 1000);
+
+      logger.log("Popup de autenticação Google aberto");
+    } catch (error) {
+      const authError = error as AuthError | Error;
+      logger.error("Erro ao fazer login com Google:", authError);
+      const errorMessage = authError instanceof Error ? authError.message : "Erro ao fazer login com Google.";
+      toast.error(errorMessage);
+      throw error;
+    }
+  }, [checkUserExists, updateAdminRoleCache]);
+
   const signUp = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -542,6 +758,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         passwordTemporary,
         signIn,
+        signInWithGoogle,
         signOut,
         signUp,
         checkPasswordTemporary,

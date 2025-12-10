@@ -49,124 +49,53 @@ export default async function handler(
 
     const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out_', 'nov', 'dez'];
     const dataHoje = new Date();
+    const diaHoje = dataHoje.getDate();
     const mesAtual = meses[dataHoje.getMonth()];
+    const nomeMes = dataHoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-    // 2. Buscar Despesas Recorrentes
-    const { data: recorrentes, error: err1 } = await supabase
+    // Verificar se é dia 10 - se não for, não enviar email
+    if (diaHoje !== 10) {
+      return response.status(200).json({ 
+        success: true, 
+        message: `Não é dia 10. Email será enviado apenas no dia 10 de cada mês. Hoje é dia ${diaHoje}.`,
+        skipped: true
+      });
+    }
+
+    console.log(`📧 É dia 10! Enviando email com SCs pendentes para ${nomeMes}...`);
+
+    // Buscar apenas despesas recorrentes PENDENTES (não marcadas)
+    // Pendentes = valor do mês atual é null, undefined ou 0
+    const { data: pendentes, error: errPendentes } = await supabase
       .from('despesas_ti')
       .select('*')
       .eq('tipo_despesa', 'Recorrente')
+      .or(`${mesAtual}.is.null,${mesAtual}.eq.0`)
       .order('fornecedor');
 
-    if (err1) {
-      console.error('Erro ao buscar despesas recorrentes:', err1);
-      throw err1;
-    }
+    if (errPendentes) {
+      console.error('Erro ao buscar despesas pendentes:', errPendentes);
+      // Fallback: buscar todas e filtrar manualmente
+      const { data: todasRecorrentes, error: errTodas } = await supabase
+        .from('despesas_ti')
+        .select('*')
+        .eq('tipo_despesa', 'Recorrente')
+        .order('fornecedor');
 
-    // 3. Buscar Despesas Esporádicas do mês
-    const { data: esporadicas, error: err2 } = await supabase
-      .from('despesas_ti')
-      .select('*')
-      .eq('tipo_despesa', 'Esporadico')
-      .gt(mesAtual, 0);
+      if (errTodas) {
+        throw errTodas;
+      }
 
-    if (err2) {
-      console.error('Erro ao buscar despesas esporádicas:', err2);
-      throw err2;
-    }
-
-    // 4. Montar Email (HTML)
-    let totalEstimado = 0;
-    let html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-          h2 { color: #000; }
-          h3 { border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th { background: #f4f4f4; padding: 8px; text-align: left; }
-          td { padding: 8px; border-bottom: 1px solid #eee; }
-          .text-right { text-align: right; }
-          .total { text-align: right; margin-top: 30px; font-size: 1.2em; font-weight: bold; }
-          ul { list-style-type: disc; padding-left: 20px; }
-        </style>
-      </head>
-      <body>
-        <h2>📅 Lembrete de Despesas T.I. - Mês ${mesAtual.toUpperCase()}</h2>
-        <h3>🔄 Recorrentes</h3>
-        <table>
-          <tr>
-            <th>Fornecedor</th>
-            <th>Serviço</th>
-            <th class="text-right">Valor</th>
-          </tr>
-    `;
-
-    if (recorrentes && recorrentes.length > 0) {
-      recorrentes.forEach((item: any) => {
-        const valor = item.valor_medio || 0;
-        totalEstimado += valor;
-        html += `
-          <tr>
-            <td>${escapeHtml(item.fornecedor || 'N/A')}</td>
-            <td style="font-size: 12px;">${escapeHtml(item.desc_servico || 'N/A')}</td>
-            <td class="text-right">${BRL(valor)}</td>
-          </tr>
-        `;
+      // Filtrar manualmente as pendentes
+      const pendentesFiltradas = (todasRecorrentes || []).filter((item: any) => {
+        const valor = item[mesAtual];
+        return valor === null || valor === undefined || valor === 0;
       });
-    } else {
-      html += `
-        <tr>
-          <td colspan="3" style="text-align: center; color: #999;">Nenhuma despesa recorrente encontrada</td>
-        </tr>
-      `;
+
+      return await enviarEmailPendentes(pendentesFiltradas, mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
     }
 
-    html += `</table>`;
-
-    if (esporadicas && esporadicas.length > 0) {
-      html += `<h3 style="color: #d9534f; margin-top: 20px;">⚠️ Esporádicas Este Mês</h3><ul>`;
-      esporadicas.forEach((e: any) => {
-        // Tenta pegar o valor específico do mês, se não, usa a média
-        const valorMes = e[mesAtual] || e.valor_medio || 0;
-        totalEstimado += valorMes;
-        html += `<li><b>${escapeHtml(e.fornecedor || 'N/A')}</b>: ${escapeHtml(e.desc_servico || 'N/A')} (${BRL(valorMes)})</li>`;
-      });
-      html += `</ul>`;
-    }
-
-    html += `
-        <div class="total">Total Estimado: ${BRL(totalEstimado)}</div>
-      </body>
-      </html>
-    `;
-
-    // 5. Enviar Email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    });
-
-    await transporter.sendMail({
-      from: `"Sistema Financeiro" <${emailUser}>`,
-      to: emailTo,
-      subject: `[Despesas T.I.] Previsão para ${mesAtual.toUpperCase()}`,
-      html: html,
-    });
-
-    return response.status(200).json({ 
-      success: true, 
-      message: 'Email enviado com sucesso!',
-      total: BRL(totalEstimado),
-      recorrentes: recorrentes?.length || 0,
-      esporadicas: esporadicas?.length || 0
-    });
+    return await enviarEmailPendentes(pendentes || [], mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
 
   } catch (error: any) {
     console.error('Erro ao processar cron de despesas:', error);
@@ -175,6 +104,120 @@ export default async function handler(
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
+}
+
+// Função para enviar email com SCs pendentes
+async function enviarEmailPendentes(
+  pendentes: any[],
+  mesAtual: string,
+  nomeMes: string,
+  emailUser: string,
+  emailPass: string,
+  emailTo: string,
+  response: any
+) {
+  let totalPendente = 0;
+  
+  // Montar HTML do email
+  let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+        h2 { color: #d9534f; }
+        h3 { border-bottom: 2px solid #d9534f; padding-bottom: 5px; color: #d9534f; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th { background: #f8d7da; padding: 10px; text-align: left; font-weight: bold; }
+        td { padding: 10px; border-bottom: 1px solid #eee; }
+        .text-right { text-align: right; }
+        .empresa { background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        .alerta { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+        .total { text-align: right; margin-top: 30px; font-size: 1.3em; font-weight: bold; color: #d9534f; }
+        .sem-pendentes { text-align: center; padding: 40px; color: #28a745; font-size: 1.2em; }
+      </style>
+    </head>
+    <body>
+      <h2>⚠️ Alerta: SCs Pendentes - ${nomeMes}</h2>
+      <div class="alerta">
+        <strong>📋 Atenção!</strong><br>
+        As seguintes Solicitações de Compra (SCs) ainda <strong>NÃO foram lançadas</strong> este mês.
+        Por favor, verifique o checklist e crie as SCs necessárias.
+      </div>
+  `;
+
+  if (pendentes && pendentes.length > 0) {
+    html += `
+      <h3>📋 SCs Pendentes (${pendentes.length})</h3>
+      <table>
+        <tr>
+          <th>Fornecedor</th>
+          <th>Empresa</th>
+          <th>Serviço</th>
+          <th class="text-right">Valor Médio</th>
+        </tr>
+    `;
+
+    pendentes.forEach((item: any) => {
+      const valor = item.valor_medio || 0;
+      totalPendente += valor;
+      const empresa = item.empresa ? `<span class="empresa">${escapeHtml(item.empresa)}</span>` : '<span style="color: #999;">-</span>';
+      
+      html += `
+        <tr>
+          <td><strong>${escapeHtml(item.fornecedor || 'N/A')}</strong></td>
+          <td>${empresa}</td>
+          <td style="font-size: 12px;">${escapeHtml(item.desc_servico || 'N/A')}</td>
+          <td class="text-right"><strong>${BRL(valor)}</strong></td>
+        </tr>
+      `;
+    });
+
+    html += `</table>`;
+    html += `<div class="total">💰 Total Pendente: ${BRL(totalPendente)}</div>`;
+  } else {
+    html += `
+      <div class="sem-pendentes">
+        ✅ <strong>Parabéns!</strong><br>
+        Todas as SCs do mês já foram lançadas!
+      </div>
+    `;
+  }
+
+  html += `
+      <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+      <p style="color: #666; font-size: 12px;">
+        Este é um email automático enviado no dia 10 de cada mês.<br>
+        Para acessar o checklist, entre no sistema e vá em "Solicitações" > "Despesas T.I."
+      </p>
+    </body>
+    </html>
+  `;
+
+  // Enviar Email
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: emailUser,
+      pass: emailPass,
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"Sistema Financeiro - Dashboard TI" <${emailUser}>`,
+    to: emailTo,
+    subject: `⚠️ [Dashboard TI] SCs Pendentes - ${nomeMes}`,
+    html: html,
+  });
+
+  return response.status(200).json({ 
+    success: true, 
+    message: 'Email com SCs pendentes enviado com sucesso!',
+    totalPendente: BRL(totalPendente),
+    quantidadePendentes: pendentes?.length || 0,
+    mes: nomeMes
+  });
 }
 
 // Função auxiliar para escapar HTML e prevenir XSS
