@@ -13,7 +13,6 @@ import { NVRProvider } from "@/contexts/NVRContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/reset-de-senha";
-import AuthCallback from "./pages/AuthCallback";
 import Home from "./pages/Home";
 import Assinaturas from "./pages/Assinaturas";
 import Chamados from "./pages/Chamados";
@@ -52,7 +51,6 @@ const App = () => (
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/reset-de-senha" element={<ResetPassword />} />
-                <Route path="/auth/callback" element={<AuthCallback />} />
                 <Route
                   path="/*"
                   element={
