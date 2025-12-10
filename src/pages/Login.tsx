@@ -202,6 +202,10 @@ export default function Login() {
           max-width: 100%;
           min-height: 550px;
         }
+        
+        .container-auth * {
+          border-radius: inherit;
+        }
 
         .form-container {
           position: absolute;
@@ -211,24 +215,24 @@ export default function Login() {
         }
 
         .sign-in-container {
-          left: 0;
+          right: 0;
           width: 50%;
           z-index: 2;
         }
 
         .container-auth.right-panel-active .sign-in-container {
-          transform: translateX(100%);
+          transform: translateX(-100%);
         }
 
         .sign-up-container {
-          left: 0;
+          right: 0;
           width: 50%;
           opacity: 0;
           z-index: 1;
         }
 
         .container-auth.right-panel-active .sign-up-container {
-          transform: translateX(100%);
+          transform: translateX(-100%);
           opacity: 1;
           z-index: 5;
           animation: show 0.6s;
@@ -242,86 +246,63 @@ export default function Login() {
         .overlay-container {
           position: absolute;
           top: 0;
-          left: 50%;
+          left: 0;
           width: 50%;
           height: 100%;
           overflow: hidden;
+          border-radius: 25px 0 0 25px;
           transition: transform 0.6s ease-in-out;
           z-index: 100;
         }
 
         .container-auth.right-panel-active .overlay-container {
-          transform: translateX(-100%);
+          transform: translateX(100%);
+          border-radius: 0 25px 25px 0;
         }
 
         .overlay {
-          background: #4B5563;
-          background: -webkit-linear-gradient(to right, #2563EB, #9333EA);
-          background: linear-gradient(to right, #2563EB, #9333EA);
-          color: #FFFFFF;
-          position: relative;
-          left: -100%;
+          position: absolute;
+          top: 0;
+          left: 0;
           height: 100%;
-          width: 200%;
-          transform: translateX(0);
+          width: 100%;
           transition: transform 0.6s ease-in-out;
-        }
-        
-        .container-auth.right-panel-active .overlay {
-          transform: translateX(50%);
         }
 
         .overlay-panel {
           position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
-          flex-direction: column;
-          padding: 0 40px;
-          text-align: center;
-          top: 0;
-          height: 100%;
-          width: 50%;
-          transform: translateX(0);
-          transition: transform 0.6s ease-in-out;
-          z-index: 2;
         }
 
         .overlay-left {
-          transform: translateX(-20%);
+          background: url('/login.png');
+          background-repeat: no-repeat;
+          background-size: 108% 108%;
+          background-position: center;
+          border-radius: 25px 0 0 25px;
+          overflow: hidden;
+          position: relative;
+          width: 100%;
+          height: 100%;
         }
-
+        
         .container-auth.right-panel-active .overlay-left {
-          transform: translateX(0);
+          border-radius: 0 25px 25px 0;
         }
 
         .overlay-right {
           right: 0;
-          transform: translateX(0);
-          background: url('/login.png');
-          background-repeat: no-repeat;
-          background-size: 100% 100%;
-          background-position: center;
-        }
-        
-        .overlay-right::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.0);
-          z-index: 1;
-        }
-        
-        .overlay-right > * {
-          position: relative;
-          z-index: 2;
+          transform: translateX(20%);
         }
               
         .container-auth.right-panel-active .overlay-right {
-          transform: translateX(20%);
+          transform: translateX(0);
         }
 
         .classic-form {
@@ -578,29 +559,12 @@ export default function Login() {
           </form>
         </div>
 
-        {/* --- OVERLAY DE ANIMAÇÃO --- */}
+        {/* --- OVERLAY DE ANIMAÇÃO (Apenas Foto) --- */}
         <div className="overlay-container">
           <div className="overlay">
-            {/* Painel Esquerdo (Visível quando em modo Cadastro) */}
+            {/* Painel Esquerdo (Foto) */}
             <div className="overlay-panel overlay-left">
-              <h1 className="font-bold text-3xl text-white mb-4">Bem-vindo de volta!</h1>
-              <p className="text-sm font-light leading-6 mb-8">
-                Para se manter conectado conosco, faça login com suas informações pessoais
-              </p>
-              <button 
-                className="classic-btn ghost" 
-                id="signIn"
-                onClick={() => setIsSignUpMode(false)}
-                type="button"
-              >
-                Entrar
-              </button>
-            </div>
-            
-            {/* Painel Direito (Visível quando em modo Login) */}
-            <div className="overlay-panel overlay-right">
-
-
+              {/* Foto de fundo via CSS */}
             </div>
           </div>
         </div>

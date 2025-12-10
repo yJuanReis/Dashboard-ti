@@ -527,16 +527,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-      logger.log("Popup de autenticação Google aberto");
-    } catch (error) {
-      const authError = error as AuthError | Error;
-      logger.error("Erro ao fazer login com Google:", authError);
-      const errorMessage = authError instanceof Error ? authError.message : "Erro ao fazer login com Google.";
-      toast.error(errorMessage);
-      throw error;
-    }
-  }, [checkUserExists, updateAdminRoleCache]);
-
   const signUp = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signUp({
