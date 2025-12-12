@@ -443,20 +443,25 @@ function stringsSimilares(str1: string, str2: string): boolean {
 /**
  * Busca e marca automaticamente a despesa correspondente quando um serviço é criado
  * @param servicoNome Nome do serviço (campo servico da tabela servicos)
- * @param empresa Nome da empresa (campo empresa da tabela servicos)
+ * @param servicoDescricao Descrição do serviço (campo descricao da tabela servicos)
+ * @param empresa Nome da empresa/marina (campo empresa da tabela servicos)
  * @returns true se encontrou e marcou uma despesa, false caso contrário
  */
 export async function marcarDespesaPorServico(
   servicoNome: string | null | undefined,
+  servicoDescricao: string | null | undefined,
   empresa: string | null | undefined
 ): Promise<boolean> {
   try {
+    console.log('🟢 [DESPESA] marcarDespesaPorServico chamado com:', { servicoNome, servicoDescricao, empresa });
+    logger.log(`🟢 [DESPESA] marcarDespesaPorServico chamado com: servicoNome="${servicoNome}" servicoDescricao="${servicoDescricao}" empresa="${empresa}"`);
+    
     if (!servicoNome || !servicoNome.trim()) {
       logger.log('⚠️ Nome do serviço não fornecido, não será possível marcar despesa');
       return false;
     }
 
-    logger.log(`🔍 Buscando despesa correspondente ao serviço: "${servicoNome}" (marina: ${empresa || 'N/A'})`);
+    logger.log(`🔍 Buscando despesa correspondente ao serviço: "${servicoNome}" (descricao: "${servicoDescricao || 'N/A'}") (marina: ${empresa || 'N/A'})`);
 
     // Buscar todas as despesas recorrentes
     const { data: despesas, error } = await supabase
@@ -474,32 +479,80 @@ export async function marcarDespesaPorServico(
       return false;
     }
 
+    // Log de todas as despesas para debug
+    console.log('🔍 Despesas disponíveis no banco:');
+    despesas.forEach((d, idx) => {
+      console.log(`  [${idx}] fornecedor="${d.fornecedor}" | desc_servico="${d.desc_servico}" | marina="${d.marina}"`);
+    });
+
     // Procurar despesa correspondente
-    // Prioridade 1: Match exato de fornecedor e marina
-    // Prioridade 2: Match parcial de fornecedor e marina
-    // Prioridade 3: Match parcial de fornecedor apenas
+    // Prioridade 1: Match exato de fornecedor/desc_servico E marina
+    // Prioridade 2: Match parcial de fornecedor/desc_servico com marina coincidindo
+    // Prioridade 3: Match parcial de fornecedor/desc_servico apenas (sem considerar marina)
     let despesaEncontrada: DespesaTI | null = null;
 
-    // Tentar match exato primeiro
+    logger.log(`📋 Buscando entre ${despesas.length} despesas recorrentes`);
+
+    // Tentar match exato primeiro (com marina)
     for (const despesa of despesas) {
-      const fornecedorMatch = stringsSimilares(servicoNome, despesa.fornecedor);
-      const marinaMatch = !empresa || !despesa.marina || stringsSimilares(empresa, despesa.marina);
+      const servicoTrim = servicoNome.toLowerCase().trim();
+      const descricaoTrim = (servicoDescricao || '').toLowerCase().trim();
+      const fornecedorTrim = (despesa.fornecedor || '').toLowerCase().trim();
+      const descTrim = (despesa.desc_servico || '').toLowerCase().trim();
+      const empresaTrim = (empresa || '').toLowerCase().trim();
+      const marinaTrim = (despesa.marina || '').toLowerCase().trim();
+
+      logger.log(`  Comparando: servico="${servicoTrim}" descricao="${descricaoTrim}" vs fornecedor="${fornecedorTrim}" desc="${descTrim}" | empresa="${empresaTrim}" vs marina="${marinaTrim}"`);
+
+      // Fornecedor match: Tenta comparar com o nome do serviço OU a descrição do serviço
+      const fornecedorMatch = 
+        servicoTrim === fornecedorTrim || 
+        descTrim === servicoTrim ||
+        descricaoTrim === fornecedorTrim ||
+        descTrim === descricaoTrim ||
+        fornecedorTrim.includes(servicoTrim) ||
+        servicoTrim.includes(fornecedorTrim) ||
+        descTrim.includes(servicoTrim) ||
+        servicoTrim.includes(descTrim) ||
+        fornecedorTrim.includes(descricaoTrim) ||
+        descricaoTrim.includes(fornecedorTrim) ||
+        descTrim.includes(descricaoTrim) ||
+        descricaoTrim.includes(descTrim);
+      
+      // Marina match: se ambas têm valor, devem ser iguais; se uma está vazia, ignora
+      const marinaMatch = (!empresa || empresa.trim() === '') || (!despesa.marina || despesa.marina.trim() === '') || empresaTrim === marinaTrim;
       
       if (fornecedorMatch && marinaMatch) {
-        // Verificar também se a descrição do serviço corresponde
-        const descMatch = !despesa.desc_servico || stringsSimilares(servicoNome, despesa.desc_servico);
-        if (descMatch || !despesa.desc_servico) {
-          despesaEncontrada = despesa as DespesaTI;
-          logger.log(`✅ Despesa encontrada (match exato): ${despesa.fornecedor} - ${despesa.marina || 'N/A'}`);
-          break;
-        }
+        despesaEncontrada = despesa as DespesaTI;
+        logger.log(`✅ Despesa encontrada: ${despesa.fornecedor} - ${despesa.marina || 'N/A'}`);
+        break;
       }
     }
 
-    // Se não encontrou match exato, tentar match parcial apenas por fornecedor
+    // Se não encontrou, tentar match parcial apenas por fornecedor (sem considerar marina)
     if (!despesaEncontrada) {
+      logger.log(`⚠️ Tentando match parcial apenas por fornecedor/descrição...`);
       for (const despesa of despesas) {
-        if (stringsSimilares(servicoNome, despesa.fornecedor)) {
+        const servicoTrim = servicoNome.toLowerCase().trim();
+        const descricaoTrim = (servicoDescricao || '').toLowerCase().trim();
+        const fornecedorTrim = (despesa.fornecedor || '').toLowerCase().trim();
+        const descTrim = (despesa.desc_servico || '').toLowerCase().trim();
+
+        const fornecedorMatch = 
+          servicoTrim === fornecedorTrim || 
+          descTrim === servicoTrim ||
+          descricaoTrim === fornecedorTrim ||
+          descTrim === descricaoTrim ||
+          fornecedorTrim.includes(servicoTrim) ||
+          servicoTrim.includes(fornecedorTrim) ||
+          descTrim.includes(servicoTrim) ||
+          servicoTrim.includes(descTrim) ||
+          fornecedorTrim.includes(descricaoTrim) ||
+          descricaoTrim.includes(fornecedorTrim) ||
+          descTrim.includes(descricaoTrim) ||
+          descricaoTrim.includes(descTrim);
+
+        if (fornecedorMatch) {
           despesaEncontrada = despesa as DespesaTI;
           logger.log(`✅ Despesa encontrada (match parcial): ${despesa.fornecedor}`);
           break;

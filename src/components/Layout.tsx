@@ -523,44 +523,6 @@ export function Layout({ children }: LayoutProps) {
               </h1>
             </div>
 
-            {/* TI BR MARINAS centralizado - apenas na Home (oculto no mobile) */}
-            {isHomePage && (
-              <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
-                <button className="button-animated" data-text="TI BR MARINAS">
-                  <span className="actual-text">
-                    &nbsp;
-                    <span
-                      style={{
-                        fontWeight: 800,
-                        letterSpacing: "0.5px",
-                        fontSize: "1em",
-                        color: "hsl(var(--primary))",
-                        textShadow: "0 2px 8px hsla(var(--primary),0.35)",
-                      }}
-                    >
-                      TI
-                    </span>
-                    &nbsp;BR MARINAS&nbsp;
-                  </span>
-                  <span aria-hidden="true" className="hover-text">
-                    &nbsp;
-                    <span
-                      style={{
-                        fontWeight: 800,
-                        letterSpacing: "0.5px",
-                        fontSize: "1em",
-                        color: "hsl(var(--primary))",
-                        textShadow: "0 2px 8px hsla(var(--primary),0.35)",
-                      }}
-                    >
-                      TI
-                    </span>
-                    &nbsp;BR MARINAS&nbsp;
-                  </span>
-                </button>
-              </div>
-            )}
-
             {/* Filtros e controles à direita */}
             <div className="flex-1 min-w-0 flex items-center gap-2 justify-end">
 

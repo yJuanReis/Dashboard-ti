@@ -349,8 +349,11 @@ export async function createServico(
     // Marcar automaticamente a despesa correspondente no checklist
     try {
       const { marcarDespesaPorServico } = await import('@/lib/despesasService');
+      console.log('🟡 [SERVICE] Chamando marcarDespesaPorServico com:', { servico: novoServico.servico, descricao: novoServico.descricao, empresa: novoServico.empresa });
+      logger.log(`🟡 [SERVICE] Chamando marcarDespesaPorServico com: servico="${novoServico.servico}" descricao="${novoServico.descricao}" empresa="${novoServico.empresa}"`);
       const despesaMarcada = await marcarDespesaPorServico(
         novoServico.servico,
+        novoServico.descricao,
         novoServico.empresa
       );
       
@@ -359,7 +362,7 @@ export async function createServico(
         window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', {
           detail: {
             servico: novoServico.servico,
-            empresa: novoServico.empresa,
+            marina: novoServico.empresa,
             marcada: despesaMarcada
           }
         }));

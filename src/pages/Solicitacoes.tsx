@@ -143,6 +143,9 @@ export default function Solicitacoes() {
   const [showServicosModal, setShowServicosModal] = useState(false);
   const [showProdutosModal, setShowProdutosModal] = useState(false);
   const [showDespesasModal, setShowDespesasModal] = useState(false);
+  // Refs para agrupar eventos de marcação de despesas e debounce
+  const pendingDespesaEventsRef = useRef<Array<{ servico: string; marina?: string }>>([]);
+  const despesaDebounceRef = useRef<number | null>(null);
   const [despesasRecorrentes, setDespesasRecorrentes] = useState<DespesaTI[]>([]);
   const [despesasEsporadicas, setDespesasEsporadicas] = useState<DespesaTI[]>([]);
   const [loadingDespesas, setLoadingDespesas] = useState(false);
@@ -151,14 +154,15 @@ export default function Solicitacoes() {
     despesaId: string | null;
     despesaNome: string | null;
     descricao: string | null;
-    empresa: string | null;
+    marina: string | null;
   }>({
     open: false,
     despesaId: null,
     despesaNome: null,
     descricao: null,
-    empresa: null,
+    marina: null,
   });
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [servicosMesesExibidos, setServicosMesesExibidos] = useState(6);
   const [produtosMesesExibidos, setProdutosMesesExibidos] = useState(6);
   const [servicosMesesExpandidos, setServicosMesesExpandidos] = useState<Set<string>>(new Set());
@@ -269,13 +273,13 @@ export default function Solicitacoes() {
         totalEsporadicas: esporadicas.length,
         primeiraRecorrente: recorrentes[0] ? {
           fornecedor: recorrentes[0].fornecedor,
-          empresa: recorrentes[0].empresa,
-          temEmpresa: !!recorrentes[0].empresa
+          marina: recorrentes[0].marina,
+          temMarina: !!recorrentes[0].marina
         } : null,
         primeiraEsporadica: esporadicas[0] ? {
           fornecedor: esporadicas[0].fornecedor,
-          empresa: esporadicas[0].empresa,
-          temEmpresa: !!esporadicas[0].empresa
+          marina: esporadicas[0].marina,
+          temMarina: !!esporadicas[0].marina
         } : null
       });
       
@@ -320,7 +324,7 @@ export default function Solicitacoes() {
         despesaId: despesaId,
         despesaNome: despesa.fornecedor,
         descricao: despesa.desc_servico || null,
-        empresa: despesa.empresa || null,
+        marina: despesa.marina || null,
       });
     }
   };
@@ -341,26 +345,39 @@ export default function Solicitacoes() {
         })
       );
       toast.success("Despesa marcada com sucesso");
-      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, empresa: null });
+      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, marina: null });
     } catch (error) {
       logger.error("Erro ao atualizar despesa:", error);
       toast.error("Erro ao atualizar despesa");
-      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, empresa: null });
+      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, marina: null });
     }
   };
 
-  const handleResetarChecks = async () => {
-    const mesNome = getMesAtual().replace('_', '').toUpperCase();
-    if (!window.confirm(`Deseja resetar todos os checks do mês ${mesNome}?`)) {
-      return;
-    }
+  const handleResetarChecks = () => {
+    // Abre o AlertDialog de confirmação
+    setShowResetConfirm(true);
+  };
+
+  const performResetConfirmed = async () => {
     try {
+      setShowResetConfirm(false);
+      setLoadingDespesas(true);
+      const mesAtual = getMesAtual();
+      // Chama serviço para resetar no banco
       await resetarChecksMesAtual();
-      await loadDespesas(); // Recarregar para atualizar o estado
-      toast.success("Checks do mês resetados com sucesso");
+
+      // Atualiza estado local para refletir desmarcados imediatamente
+      setDespesasRecorrentes(prev => prev.map(d => ({ ...d, [mesAtual]: 0 })));
+
+      // Recarrega do servidor para garantir consistência
+      await loadDespesas();
+
+      toast.success('Todos os checks foram desmarcados para o mês atual');
     } catch (error) {
-      logger.error("Erro ao resetar checks:", error);
-      toast.error("Erro ao resetar checks");
+      logger.error('Erro ao resetar checks:', error);
+      toast.error('Erro ao resetar checks');
+    } finally {
+      setLoadingDespesas(false);
     }
   };
 
@@ -372,22 +389,55 @@ export default function Solicitacoes() {
 
   // Listener para quando uma despesa for marcada automaticamente ao criar serviço
   useEffect(() => {
+    // Debounced handler: agrupa múltiplos eventos e processa uma única vez
     const handleDespesaMarcada = (event: CustomEvent) => {
-      const { servico, empresa } = event.detail;
-      toast.success(`Despesa marcada automaticamente no checklist: ${servico}${empresa ? ` (${empresa})` : ''}`);
-      
-      // Se o modal estiver aberto, recarregar as despesas
-      if (showDespesasModal) {
-        loadDespesas();
+      const { servico, marina } = event.detail || {};
+      // Empilha o evento
+      pendingDespesaEventsRef.current.push({ servico, marina });
+
+      // Reinicia o debounce
+      if (despesaDebounceRef.current) {
+        window.clearTimeout(despesaDebounceRef.current);
       }
+
+      despesaDebounceRef.current = window.setTimeout(async () => {
+        try {
+          const eventos = pendingDespesaEventsRef.current.splice(0);
+          // Recarrega as despesas do servidor para garantir dados fresh
+          await loadDespesas();
+          // Abre modal para mostrar o checklist atualizado
+          setShowDespesasModal(true);
+
+          // Mostrar toast resumido (um ou vários eventos)
+          if (eventos.length === 1) {
+            const e = eventos[0];
+            toast.success(`Despesa marcada automaticamente no checklist: ${e.servico}${e.marina ? ` (${e.marina})` : ''}`);
+          } else if (eventos.length > 1) {
+            toast.success(`${eventos.length} despesas marcadas automaticamente no checklist`);
+          }
+        } catch (err) {
+          logger.error('Erro ao processar marcação automática de despesas:', err);
+          toast.error('Erro ao atualizar checklist de despesas');
+        } finally {
+          if (despesaDebounceRef.current) {
+            window.clearTimeout(despesaDebounceRef.current);
+            despesaDebounceRef.current = null;
+          }
+        }
+      }, 250);
     };
 
     window.addEventListener('despesa:marcada-automaticamente', handleDespesaMarcada as EventListener);
 
     return () => {
       window.removeEventListener('despesa:marcada-automaticamente', handleDespesaMarcada as EventListener);
+      if (despesaDebounceRef.current) {
+        window.clearTimeout(despesaDebounceRef.current);
+        despesaDebounceRef.current = null;
+      }
+      pendingDespesaEventsRef.current = [];
     };
-  }, [showDespesasModal]);
+  }, []);
 
   // Carregar configurações de solicitações
   const loadConfigSolicitacoes = async () => {
@@ -1068,6 +1118,52 @@ export default function Solicitacoes() {
     setEditingValues({});
   };
 
+  const [confirmarDelete, setConfirmarDelete] = useState<{ open: boolean; item: ServicoProduto | null }>({ open: false, item: null });
+
+  const performDeleteConfirmed = async () => {
+    const item = confirmarDelete.item;
+    try {
+      if (!item) return;
+
+      // Extrair dbId
+      let dbId = (item as any)._dbId;
+      if (!dbId && item.id) {
+        const match = item.id.match(/^(servico|produto)_(\d+)_/);
+        if (match) dbId = match[2];
+      }
+
+      if (!dbId) {
+        toast.error('Não foi possível identificar o ID do item para deletar');
+        setConfirmarDelete({ open: false, item: null });
+        return;
+      }
+
+      if (item.tipo === 'servico') {
+        const { deleteServico } = await import('@/lib/servicosProdutosService');
+        await deleteServico(dbId);
+      } else {
+        const { deleteProduto } = await import('@/lib/servicosProdutosService');
+        await deleteProduto(dbId);
+      }
+
+      toast.success('Item deletado com sucesso');
+      await loadItems();
+      setEditingRow(null);
+      setEditingValues({});
+    } catch (error) {
+      logger.error('Erro ao deletar item:', error);
+      toast.error('Erro ao deletar item');
+    } finally {
+      setConfirmarDelete({ open: false, item: null });
+    }
+  };
+
+  const handleDeleteItem = async (item: ServicoProduto) => {
+    // Abrir modal de confirmação em vez de usar window.confirm
+    if (!item) return;
+    setConfirmarDelete({ open: true, item });
+  };
+
   // Função para converter campos de texto para maiúsculas
   const convertTextFieldsToUpperCase = (data: any): any => {
     const fieldsToUpperCase = [
@@ -1322,26 +1418,30 @@ export default function Solicitacoes() {
           <div className="mb-6 flex gap-2 flex-wrap">
             <Button
               onClick={() => setShowServicosModal(true)}
-              variant="outline"
-              className="flex-1 gap-2 min-w-[150px]"
+              className="flex-1 min-w-[170px] flex items-center gap-3 px-4 py-2 rounded-lg shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-r from-blue-500 to-blue-600 text-white"
             >
-              <Wrench className="w-4 h-4 text-blue-600" />
-              <span className="text-sm">Serviços por Mês</span>
-              <Badge variant="secondary" className="ml-auto">
+              <span className="p-2 rounded-full bg-white/20">
+                <Wrench className="w-4 h-4 text-white" />
+              </span>
+              <span className="text-sm font-semibold">Serviços por Mês</span>
+              <Badge variant="outline" className="ml-auto bg-white/20 text-white border-transparent">
                 {servicosPorMes.length}
               </Badge>
             </Button>
+
             <Button
               onClick={() => setShowProdutosModal(true)}
-              variant="outline"
-              className="flex-1 gap-2 min-w-[150px]"
+              className="flex-1 min-w-[170px] flex items-center gap-3 px-4 py-2 rounded-lg shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-r from-purple-500 to-purple-600 text-white"
             >
-              <ShoppingCart className="w-4 h-4 text-purple-600" />
-              <span className="text-sm">Produtos por Mês</span>
-              <Badge variant="secondary" className="ml-auto">
+              <span className="p-2 rounded-full bg-white/20">
+                <ShoppingCart className="w-4 h-4 text-white" />
+              </span>
+              <span className="text-sm font-semibold">Produtos por Mês</span>
+              <Badge variant="outline" className="ml-auto bg-white/20 text-white border-transparent">
                 {produtosPorMes.length}
               </Badge>
             </Button>
+
             <Button
               onClick={async () => {
                 setShowDespesasModal(true);
@@ -1357,12 +1457,13 @@ export default function Solicitacoes() {
                 }
                 loadDespesas();
               }}
-              variant="outline"
-              className="flex-1 gap-2 min-w-[150px]"
+              className="flex-1 min-w-[170px] flex items-center gap-3 px-4 py-2 rounded-lg shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-r from-green-500 to-green-600 text-white"
             >
-              <Receipt className="w-4 h-4 text-green-600" />
-              <span className="text-sm">Despesas T.I.</span>
-              <Badge variant="secondary" className="ml-auto">
+              <span className="p-2 rounded-full bg-white/20">
+                <Receipt className="w-4 h-4 text-white" />
+              </span>
+              <span className="text-sm font-semibold">Despesas T.I.</span>
+              <Badge variant="outline" className="ml-auto bg-white/20 text-white border-transparent">
                 {despesasRecorrentes.length + despesasEsporadicas.length}
               </Badge>
             </Button>
@@ -1681,6 +1782,7 @@ export default function Solicitacoes() {
                     {isEditing && (
                       <div className="absolute left-1/2 -translate-x-1/2 -top-10 z-50 flex gap-2">
                         <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleSaveEdit(true); }} title="Salvar alterações"><Check className="h-4 w-4" /></Button>
+                        <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-yellow-500 hover:bg-yellow-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }} title="Deletar item"><Trash2 className="h-4 w-4" /></Button>
                         <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-red-500 hover:bg-red-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }} title="Cancelar edição"><X className="h-4 w-4" /></Button>
                       </div>
                     )}
@@ -2310,9 +2412,48 @@ export default function Solicitacoes() {
                       setCreateTipo(null);
                       setCreateFormData({});
                       setConfigsFiltradas([]);
-                      
+
                       console.log("🔵 [RECARREGAMENTO] Recarregando lista de itens...");
                       await loadItems();
+
+                      // Se criou um serviço, verificar se existe correspondência em despesas recorrentes
+                      if (createTipo === "servico") {
+                        try {
+                          // Recarrega despesas para garantir dados atualizados
+                          await loadDespesas();
+
+                          const servicoLower = (formDataToSave.servico || "").toString().toLowerCase().trim();
+                          const fornecedorLower = (formDataToSave.fornecedor || "").toString().toLowerCase().trim();
+                          const descricaoLower = (formDataToSave.descricao || "").toString().toLowerCase().trim();
+
+                          const matches = despesasRecorrentes.filter(d => {
+                            const forn = (d.fornecedor || "").toString().toLowerCase().trim();
+                            const desc = (d.desc_servico || "").toString().toLowerCase().trim();
+                            return (
+                              (forn && fornecedorLower && forn === fornecedorLower) ||
+                              (desc && descricaoLower && desc === descricaoLower) ||
+                              (desc && servicoLower && desc.includes(servicoLower))
+                            );
+                          });
+
+                          if (matches.length > 0) {
+                            for (const m of matches) {
+                              try {
+                                await toggleDespesaCheck(m.id, true);
+                                // Atualiza estado local rapidamente
+                                setDespesasRecorrentes(prev => prev.map(d => d.id === m.id ? { ...d, [getMesAtual()]: 1 } : d));
+                                // Notifica outros listeners (modal ou UI) com marina
+                                window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', { detail: { servico: formDataToSave.servico, marina: m.marina } }));
+                              } catch (err) {
+                                logger.error('Erro ao marcar despesa automaticamente:', err);
+                              }
+                            }
+                          }
+                        } catch (err) {
+                          logger.error('Erro ao processar marcação automática de despesas:', err);
+                        }
+                      }
+
                       console.log("✅ [SUCESSO] Processo completo finalizado!");
                     } catch (error) {
                       console.error("❌ [ERRO] Erro ao criar item:", error);
@@ -2591,15 +2732,7 @@ export default function Solicitacoes() {
                   Checklist de SCs - {getMesAtual().replace('_', '').toUpperCase()}
                 </span>
               </DialogTitle>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleResetarChecks}
-                className="gap-2"
-              >
-                <X className="w-4 h-4" />
-                Resetar
-              </Button>
+              {/* Botão de reset movido para o final do modal (melhor localização) */}
             </div>
           </DialogHeader>
 
@@ -2658,17 +2791,17 @@ export default function Solicitacoes() {
                                   )}>
                                     {despesa.fornecedor}
                                   </p>
-                                  {despesa.empresa && (
-                                    <Badge 
-                                      variant="outline"
-                                      className={cn(
-                                        "text-[14px] shrink-0 font-semibold px-2 py-0.5",
-                                        marcada && "opacity-50"
-                                      )}
-                                    >
-                                      {despesa.empresa}
-                                    </Badge>
-                                  )}
+                                  {despesa.marina && (
+                                            <Badge 
+                                              variant="outline"
+                                              className={cn(
+                                                "text-[14px] shrink-0 font-semibold px-2 py-0.5",
+                                                marcada && "opacity-50"
+                                              )}
+                                            >
+                                              {despesa.marina}
+                                            </Badge>
+                                          )}
                                 </div>
                                 <p className={cn(
                                   "text-xs text-muted-foreground",
@@ -2725,14 +2858,14 @@ export default function Solicitacoes() {
                                   <p className="font-medium text-sm">
                                     {despesa.fornecedor}
                                   </p>
-                                  {despesa.empresa && (
-                                    <Badge 
-                                      variant="outline"
-                                      className="text-[14px] shrink-0 font-semibold px-2 py-0.5"
-                                    >
-                                      {despesa.empresa}
-                                    </Badge>
-                                  )}
+                                  {despesa.marina && (
+                                                    <Badge 
+                                                      variant="outline"
+                                                      className="text-[14px] shrink-0 font-semibold px-2 py-0.5"
+                                                    >
+                                                      {despesa.marina}
+                                                    </Badge>
+                                                  )}
                                 </div>
                                 <p className="text-xs text-muted-foreground">
                                   {despesa.desc_servico}
@@ -2751,30 +2884,45 @@ export default function Solicitacoes() {
                 </Card>
               </div>
 
-              {/* Resumo Visual */}
-              <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-2 border-blue-200 dark:border-blue-800">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
-                        <span className="text-sm font-semibold text-green-700 dark:text-green-400">
-                          {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length} SCs criadas
-                        </span>
+              {/* Resumo Visual + botão de reset ao lado */}
+              <div className="flex items-start gap-4">
+                <Card className="flex-1 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-2 border-blue-200 dark:border-blue-800">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
+                          <span className="text-sm font-semibold text-green-700 dark:text-green-400">
+                            {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length} SCs criadas
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50"></div>
+                          <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                            {despesasRecorrentes.filter(d => !isDespesaMarcada(d)).length} pendentes
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50"></div>
-                        <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
-                          {despesasRecorrentes.filter(d => !isDespesaMarcada(d)).length} pendentes
-                        </span>
-                      </div>
+                      <p className="text-base font-bold text-blue-600 dark:text-blue-400">
+                        Progresso: {Math.round((despesasRecorrentes.filter(d => isDespesaMarcada(d)).length / Math.max(despesasRecorrentes.length, 1)) * 100)}%
+                      </p>
                     </div>
-                    <p className="text-base font-bold text-blue-600 dark:text-blue-400">
-                      Progresso: {Math.round((despesasRecorrentes.filter(d => isDespesaMarcada(d)).length / Math.max(despesasRecorrentes.length, 1)) * 100)}%
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                <div className="flex items-start">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleResetarChecks}
+                    className="gap-2 mt-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Resetar checks
+                  </Button>
+                </div>
+              </div>
+
             </div>
           )}
         </DialogContent>
@@ -2783,7 +2931,7 @@ export default function Solicitacoes() {
       {/* Dialog de Confirmação para Marcar Despesa */}
       <AlertDialog open={confirmarMarcacao.open} onOpenChange={(open) => {
         if (!open) {
-          setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, empresa: null });
+          setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, marina: null });
         }
       }}>
         <AlertDialogContent>
@@ -2804,10 +2952,10 @@ export default function Solicitacoes() {
                     <p className="text-sm text-muted-foreground">{confirmarMarcacao.descricao}</p>
                   </div>
                 )}
-                {confirmarMarcacao.empresa && (
+                {confirmarMarcacao.marina && (
                   <div>
-                    <p className="font-semibold text-sm mt-2 mb-1">Empresa:</p>
-                    <p className="text-sm">{confirmarMarcacao.empresa}</p>
+                    <p className="font-semibold text-sm mt-2 mb-1">Marina:</p>
+                    <p className="text-sm">{confirmarMarcacao.marina}</p>
                   </div>
                 )}
               </div>
@@ -2820,6 +2968,58 @@ export default function Solicitacoes() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmarMarcarDespesa} className="bg-green-600 hover:bg-green-700">
               Confirmar Marcação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Confirmação para Resetar Checks do Mês */}
+      <AlertDialog open={showResetConfirm} onOpenChange={(open) => {
+        if (!open) setShowResetConfirm(false);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resetar checks do mês</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá desmarcar todos os checks das despesas recorrentes para o mês atual. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={performResetConfirmed} className="bg-yellow-600 hover:bg-yellow-700">
+              Resetar todos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Confirmação para Deletar Item */}
+      <AlertDialog open={confirmarDelete.open} onOpenChange={(open) => {
+        if (!open) setConfirmarDelete({ open: false, item: null });
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Você está prestes a <strong>deletar</strong> este item. Esta ação não pode ser desfeita.</p>
+              {confirmarDelete.item && (
+                <div className="bg-muted p-3 rounded-md mt-3 space-y-2">
+                  <div>
+                    <p className="font-semibold text-sm mb-1">Serviço / Fornecedor:</p>
+                    <p className="text-sm">{confirmarDelete.item.servico || confirmarDelete.item.fornecedor || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm mt-2 mb-1">SC:</p>
+                    <p className="text-sm">{confirmarDelete.item.sc || '-'}</p>
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={performDeleteConfirmed} className="bg-red-600 hover:bg-red-700">
+              Deletar item
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

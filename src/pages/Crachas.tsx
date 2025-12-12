@@ -370,20 +370,13 @@ export default function Crachas() {
         {/* Preview Section */}
         <div>
           <Card>
-            <CardHeader className="p-4 md:p-6">
-              <div className="flex items-center justify-center">
-              <Badge className="bg-[rgb(243_232_255)] text-[rgb(126_34_206)] text-sm md:text-md selection:bg-[rgb(168_85_247)] selection:text-[rgb(255_255_255)]">
-                Preview
-              </Badge>
-              </div>
-            </CardHeader>
             <CardContent className="flex items-center justify-center p-4 md:p-8">
               {/* Esta estrutura recria o cracha.html e cracha-generator.css
                 usando Tailwind e classes dinâmicas para o posicionamento.
               */}
               <div
                 ref={crachaPreviewRef}
-                className="relative w-full max-w-[380px] mx-auto grid place-items-center"
+                className="relative w-full max-w-[470px] mx-auto grid place-items-center"
               >
                 {/* Layout Background (oculta/mostra baseado no layout) */}
                 <img
