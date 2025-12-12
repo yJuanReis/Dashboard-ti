@@ -354,17 +354,19 @@ export async function createServico(
         novoServico.empresa
       );
       
+      // Sempre disparar evento, informando se foi marcada ou não
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', {
+          detail: {
+            servico: novoServico.servico,
+            empresa: novoServico.empresa,
+            marcada: despesaMarcada
+          }
+        }));
+      }
+      
       if (despesaMarcada) {
         logger.log(`✅ Despesa marcada automaticamente no checklist para o serviço: ${novoServico.servico}`);
-        // Disparar evento customizado para notificar o componente
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', {
-            detail: {
-              servico: novoServico.servico,
-              empresa: novoServico.empresa
-            }
-          }));
-        }
       } else {
         logger.log(`ℹ️ Nenhuma despesa correspondente encontrada para o serviço: ${novoServico.servico}`);
       }
@@ -574,6 +576,90 @@ export async function updateProduto(
     return produtoAtualizado;
   } catch (error) {
     logger.error('❌ Erro ao atualizar produto:', error);
+    throw error;
+  }
+}
+
+/**
+ * Deleta um serviço do Supabase
+ */
+export async function deleteServico(id: string): Promise<void> {
+  try {
+    logger.log(`🗑️ Deletando serviço ${id}...`);
+    
+    // Buscar dados para auditoria
+    const { data: oldData } = await supabase
+      .from('servicos')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    const { error } = await supabase
+      .from('servicos')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('❌ Erro ao deletar serviço:', error);
+      throw error;
+    }
+
+    // Registrar auditoria
+    if (oldData) {
+      const { logDelete } = await import('@/lib/auditService');
+      await logDelete(
+        'servicos',
+        id,
+        oldData,
+        `Deletou serviço: ${oldData.servico || 'Sem serviço'}`
+      ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
+    }
+
+    logger.log('✅ Serviço deletado com sucesso');
+  } catch (error) {
+    logger.error('❌ Erro ao deletar serviço:', error);
+    throw error;
+  }
+}
+
+/**
+ * Deleta um produto do Supabase
+ */
+export async function deleteProduto(id: string): Promise<void> {
+  try {
+    logger.log(`🗑️ Deletando produto ${id}...`);
+    
+    // Buscar dados para auditoria
+    const { data: oldData } = await supabase
+      .from('produtos')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    const { error } = await supabase
+      .from('produtos')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      logger.error('❌ Erro ao deletar produto:', error);
+      throw error;
+    }
+
+    // Registrar auditoria
+    if (oldData) {
+      const { logDelete } = await import('@/lib/auditService');
+      await logDelete(
+        'produtos',
+        id,
+        oldData,
+        `Deletou produto: ${oldData.produto || 'Sem produto'}`
+      ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
+    }
+
+    logger.log('✅ Produto deletado com sucesso');
+  } catch (error) {
+    logger.error('❌ Erro ao deletar produto:', error);
     throw error;
   }
 }

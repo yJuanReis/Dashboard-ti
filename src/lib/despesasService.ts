@@ -20,7 +20,7 @@ export interface DespesaTI {
   desc_servico: string;
   tipo_despesa: 'Recorrente' | 'Esporadico';
   valor_medio: number;
-  empresa?: string | null; // Coluna na tabela se chama "empresa", não "marina"
+  marina?: string | null;
   jan?: number;
   fev?: number;
   mar?: number;
@@ -71,7 +71,7 @@ export async function fetchDespesasRecorrentes(): Promise<DespesaTI[]> {
     // Agora busca com select específico
     const { data, error } = await supabase
       .from('despesas_ti')
-      .select('id, fornecedor, desc_servico, tipo_despesa, valor_medio, empresa, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
+      .select('id, fornecedor, desc_servico, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
       .eq('tipo_despesa', 'Recorrente')
       .order('fornecedor', { ascending: true });
 
@@ -93,7 +93,7 @@ export async function fetchDespesasRecorrentes(): Promise<DespesaTI[]> {
       if (fallbackData && fallbackData.length > 0) {
         logger.log('📋 Primeira despesa (fallback):', { 
           fornecedor: fallbackData[0].fornecedor, 
-          empresa: fallbackData[0].empresa,
+          marina: fallbackData[0].marina,
           todasColunas: Object.keys(fallbackData[0])
         });
       }
@@ -104,16 +104,16 @@ export async function fetchDespesasRecorrentes(): Promise<DespesaTI[]> {
     if (data && data.length > 0) {
       logger.log('📋 Primeira despesa (exemplo):', { 
         fornecedor: data[0].fornecedor, 
-        empresa: data[0].empresa,
-        temEmpresa: !!data[0].empresa,
-        tipoEmpresa: typeof data[0].empresa
+        marina: data[0].marina,
+        temMarina: !!data[0].marina,
+        tipoMarina: typeof data[0].marina
       });
       
       // Log de algumas despesas para debug
-      const despesasComEmpresa = data.filter(d => d.empresa);
-      logger.log(`📊 Despesas com empresa: ${despesasComEmpresa.length} de ${data.length}`);
-      if (despesasComEmpresa.length > 0) {
-        logger.log('📋 Exemplo de despesa COM empresa:', despesasComEmpresa[0]);
+      const despesasComMarina = data.filter(d => d.marina);
+      logger.log(`📊 Despesas com marina: ${despesasComMarina.length} de ${data.length}`);
+      if (despesasComMarina.length > 0) {
+        logger.log('📋 Exemplo de despesa COM marina:', despesasComMarina[0]);
       }
     }
     return (data || []) as DespesaTI[];
@@ -132,7 +132,7 @@ export async function fetchDespesasEsporadicas(): Promise<DespesaTI[]> {
     
     const { data, error } = await supabase
       .from('despesas_ti')
-      .select('id, fornecedor, desc_servico, tipo_despesa, valor_medio, empresa, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
+      .select('id, fornecedor, desc_servico, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
       .eq('tipo_despesa', 'Esporadico')
       .order('fornecedor', { ascending: true });
 
@@ -154,7 +154,7 @@ export async function fetchDespesasEsporadicas(): Promise<DespesaTI[]> {
       if (fallbackData && fallbackData.length > 0) {
         logger.log('📋 Primeira despesa (fallback):', { 
           fornecedor: fallbackData[0].fornecedor, 
-          empresa: fallbackData[0].empresa,
+          marina: fallbackData[0].marina,
           todasColunas: Object.keys(fallbackData[0])
         });
       }
@@ -165,9 +165,9 @@ export async function fetchDespesasEsporadicas(): Promise<DespesaTI[]> {
     if (data && data.length > 0) {
       logger.log('📋 Primeira despesa (exemplo):', { 
         fornecedor: data[0].fornecedor, 
-        empresa: data[0].empresa,
-        temEmpresa: !!data[0].empresa,
-        tipoEmpresa: typeof data[0].empresa
+        marina: data[0].marina,
+        temMarina: !!data[0].marina,
+        tipoMarina: typeof data[0].marina
       });
       
       // Log de algumas despesas para debug
@@ -369,7 +369,7 @@ export async function fetchDespesasPendentes(): Promise<DespesaTI[]> {
 
     const { data, error } = await supabase
       .from('despesas_ti')
-      .select('id, fornecedor, desc_servico, tipo_despesa, valor_medio, empresa, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
+      .select('id, fornecedor, desc_servico, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
       .eq('tipo_despesa', 'Recorrente')
       .or(`${mesAtual}.is.null,${mesAtual}.eq.0`)
       .order('fornecedor', { ascending: true });
@@ -454,7 +454,7 @@ export async function marcarDespesaPorServico(
       return false;
     }
 
-    logger.log(`🔍 Buscando despesa correspondente ao serviço: "${servicoNome}" (empresa: ${empresa || 'N/A'})`);
+    logger.log(`🔍 Buscando despesa correspondente ao serviço: "${servicoNome}" (marina: ${empresa || 'N/A'})`);
 
     // Buscar todas as despesas recorrentes
     const { data: despesas, error } = await supabase
@@ -473,22 +473,22 @@ export async function marcarDespesaPorServico(
     }
 
     // Procurar despesa correspondente
-    // Prioridade 1: Match exato de fornecedor e empresa
-    // Prioridade 2: Match parcial de fornecedor e empresa
+    // Prioridade 1: Match exato de fornecedor e marina
+    // Prioridade 2: Match parcial de fornecedor e marina
     // Prioridade 3: Match parcial de fornecedor apenas
     let despesaEncontrada: DespesaTI | null = null;
 
     // Tentar match exato primeiro
     for (const despesa of despesas) {
       const fornecedorMatch = stringsSimilares(servicoNome, despesa.fornecedor);
-      const empresaMatch = !empresa || !despesa.empresa || stringsSimilares(empresa, despesa.empresa);
+      const marinaMatch = !empresa || !despesa.marina || stringsSimilares(empresa, despesa.marina);
       
-      if (fornecedorMatch && empresaMatch) {
+      if (fornecedorMatch && marinaMatch) {
         // Verificar também se a descrição do serviço corresponde
         const descMatch = !despesa.desc_servico || stringsSimilares(servicoNome, despesa.desc_servico);
         if (descMatch || !despesa.desc_servico) {
           despesaEncontrada = despesa as DespesaTI;
-          logger.log(`✅ Despesa encontrada (match exato): ${despesa.fornecedor} - ${despesa.empresa || 'N/A'}`);
+          logger.log(`✅ Despesa encontrada (match exato): ${despesa.fornecedor} - ${despesa.marina || 'N/A'}`);
           break;
         }
       }
@@ -522,12 +522,79 @@ export async function marcarDespesaPorServico(
     // Marcar a despesa
     logger.log(`📝 Marcando despesa ${despesaEncontrada.fornecedor} automaticamente...`);
     await toggleDespesaCheck(despesaEncontrada.id, true);
-    logger.log(`✅ Despesa marcada automaticamente: ${despesaEncontrada.fornecedor} (empresa: ${despesaEncontrada.empresa || 'N/A'})`);
+    logger.log(`✅ Despesa marcada automaticamente: ${despesaEncontrada.fornecedor} (marina: ${despesaEncontrada.marina || 'N/A'})`);
     
     return true;
   } catch (error) {
     logger.error('❌ Erro ao marcar despesa por serviço:', error);
     return false;
+  }
+}
+
+/**
+ * Busca despesas correspondentes a um serviço sem marcar automaticamente
+ * @param servicoNome Nome do serviço (campo servico da tabela servicos)
+ * @param empresa Nome da empresa (campo empresa da tabela servicos)
+ * @returns Array de despesas correspondentes encontradas
+ */
+export async function buscarDespesasCorrespondentes(
+  servicoNome: string | null | undefined,
+  empresa: string | null | undefined
+): Promise<DespesaTI[]> {
+  try {
+    if (!servicoNome || !servicoNome.trim()) {
+      logger.log('⚠️ Nome do serviço não fornecido');
+      return [];
+    }
+
+    logger.log(`🔍 Buscando despesas correspondentes ao serviço: "${servicoNome}" (marina: ${empresa || 'N/A'})`);
+
+    // Buscar todas as despesas recorrentes
+    const { data: despesas, error } = await supabase
+      .from('despesas_ti')
+      .select('*')
+      .eq('tipo_despesa', 'Recorrente');
+
+    if (error) {
+      logger.error('❌ Erro ao buscar despesas:', error);
+      return [];
+    }
+
+    if (!despesas || despesas.length === 0) {
+      logger.log('⚠️ Nenhuma despesa recorrente encontrada');
+      return [];
+    }
+
+    const despesasEncontradas: DespesaTI[] = [];
+
+    // Buscar todas as despesas que correspondem (exato ou parcial)
+    for (const despesa of despesas) {
+      const fornecedorMatch = stringsSimilares(servicoNome, despesa.fornecedor);
+      const marinaMatch = !empresa || !despesa.marina || stringsSimilares(empresa, despesa.marina);
+      
+      if (fornecedorMatch && marinaMatch) {
+        // Verificar também se a descrição do serviço corresponde
+        const descMatch = !despesa.desc_servico || stringsSimilares(servicoNome, despesa.desc_servico);
+        if (descMatch || !despesa.desc_servico) {
+          despesasEncontradas.push(despesa as DespesaTI);
+        }
+      }
+    }
+
+    // Se não encontrou com marina, buscar apenas por fornecedor
+    if (despesasEncontradas.length === 0) {
+      for (const despesa of despesas) {
+        if (stringsSimilares(servicoNome, despesa.fornecedor)) {
+          despesasEncontradas.push(despesa as DespesaTI);
+        }
+      }
+    }
+
+    logger.log(`✅ Encontradas ${despesasEncontradas.length} despesa(s) correspondente(s)`);
+    return despesasEncontradas;
+  } catch (error) {
+    logger.error('❌ Erro ao buscar despesas correspondentes:', error);
+    return [];
   }
 }
 

@@ -1080,16 +1080,18 @@ export function Layout({ children }: LayoutProps) {
                       <TipoGlider tipoTab={solicitacoesTipoTab} tipoTabRefs={solicitacoesTipoTabRefs} />
                     </div>
                   )}
-                  <div className="flex items-center gap-2 px-2 py-1 border rounded-md bg-background">
-                    <Switch
-                      id="duplicados-switch"
-                      checked={solicitacoesShowDuplicados}
-                      onCheckedChange={handleSolicitacoesToggleDuplicados}
-                    />
-                    <Label htmlFor="duplicados-switch" className="text-xs cursor-pointer whitespace-nowrap">
-                      Duplicados
-                    </Label>
-                  </div>
+                  {solicitacoesMainTab === "lista" && (
+                    <div className="flex items-center gap-2 px-2 py-1 border rounded-md bg-background">
+                      <Switch
+                        id="duplicados-switch"
+                        checked={solicitacoesShowDuplicados}
+                        onCheckedChange={handleSolicitacoesToggleDuplicados}
+                      />
+                      <Label htmlFor="duplicados-switch" className="text-xs cursor-pointer whitespace-nowrap">
+                        Duplicados
+                      </Label>
+                    </div>
+                  )}
                   <Button
                     onClick={() => {
                       const event = new CustomEvent("solicitacoes:openCreateDialog");

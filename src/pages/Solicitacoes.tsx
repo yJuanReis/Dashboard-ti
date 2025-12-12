@@ -578,6 +578,49 @@ export default function Solicitacoes() {
     }
   }, [activeTipoTab, loading, items.length]);
 
+  // Função auxiliar para extrair apenas números de uma string
+  const extractNumbers = (value: string): string => {
+    return value.replace(/\D/g, '');
+  };
+
+  // Função para verificar se uma SC é duplicada (mesma SC na mesma empresa)
+  const idsDuplicados = useMemo(() => {
+    // Criar um mapa de SCs por empresa
+    const scPorEmpresa = new Map<string, Set<string>>();
+    
+    items.forEach((item) => {
+      if (!item.sc || !item.empresa) return;
+      
+      const normalizedSC = extractNumbers(item.sc);
+      if (!normalizedSC) return;
+      
+      const empresa = item.empresa.trim();
+      const key = `${empresa}|${normalizedSC}`;
+      
+      if (!scPorEmpresa.has(key)) {
+        scPorEmpresa.set(key, new Set());
+      }
+      scPorEmpresa.get(key)!.add(item.id);
+    });
+    
+    // Criar um Set com IDs de itens que têm SC duplicada
+    const idsDuplicadosSet = new Set<string>();
+    scPorEmpresa.forEach((ids) => {
+      if (ids.size > 1) {
+        // Se há mais de um item com a mesma SC na mesma empresa, todos são duplicados
+        ids.forEach(id => idsDuplicadosSet.add(id));
+      }
+    });
+    
+    return idsDuplicadosSet;
+  }, [items]);
+
+  // Função auxiliar para verificar se um item é duplicado
+  const isSCDuplicada = (itemId: string, sc: string, empresa: string): boolean => {
+    if (!sc || !empresa) return false;
+    return idsDuplicados.has(itemId);
+  };
+
   // Filtrar e ordenar
   const filteredAndSortedItems = [...items]
     .filter((item) => {
@@ -597,7 +640,11 @@ export default function Solicitacoes() {
       // Filtro por serviço (apenas para tipo servico)
       const matchesServico = activeTipoTab === "produto" || servicoFilter === "todos" || item.servico === servicoFilter;
       
-      return matchesTipo && matchesAno && matchesSearch && matchesServico;
+      // Filtro de duplicados: se showDuplicados estiver ativo, mostrar apenas duplicados
+      // Se não estiver ativo, mostrar todos (incluindo duplicados)
+      const matchesDuplicados = !showDuplicados || (showDuplicados && isSCDuplicada(item.id, item.sc || "", item.empresa || ""));
+      
+      return matchesTipo && matchesAno && matchesSearch && matchesServico && matchesDuplicados;
     })
     .sort((a, b) => {
       // Se não houver ordenação manual, ordenar por created_at (mais recente primeiro)
@@ -1149,17 +1196,12 @@ export default function Solicitacoes() {
     );
   };
 
-  // Função auxiliar para extrair apenas números de uma string
-  const extractNumbers = (value: string): string => {
-    return value.replace(/\D/g, '');
-  };
-
-  // Função para verificar se uma SC já existe
+  // Função para verificar se uma SC já existe (simples: compara só números)
   const scExists = (sc: string): boolean => {
     if (!sc) return false;
     const normalizedSC = extractNumbers(sc);
     if (!normalizedSC) return false;
-    
+
     return items.some((item) => {
       if (!item.sc) return false;
       const itemNormalized = extractNumbers(item.sc);
@@ -1167,140 +1209,10 @@ export default function Solicitacoes() {
     });
   };
 
-  // Detectar duplicatas em SC e OC (apenas números, ignorando símbolos)
-  const getDuplicates = useMemo(() => {
-    // Mapear valor original -> valor numérico normalizado
-    const scOriginalToNormalized = new Map<string, string>();
-    const ocOriginalToNormalized = new Map<string, string>();
-    
-    // Contadores baseados em valores numéricos normalizados
-    const scCounts = new Map<string, number>();
-    const ocCounts = new Map<string, number>();
-
-    items.forEach((item) => {
-      if (item.sc) {
-        const normalized = extractNumbers(item.sc);
-        if (normalized) {
-          scOriginalToNormalized.set(item.sc, normalized);
-          scCounts.set(normalized, (scCounts.get(normalized) || 0) + 1);
-        }
-      }
-      if (item.oc) {
-        const normalized = extractNumbers(item.oc);
-        if (normalized) {
-          ocOriginalToNormalized.set(item.oc, normalized);
-          ocCounts.set(normalized, (ocCounts.get(normalized) || 0) + 1);
-        }
-      }
-    });
-
-    // Identificar valores numéricos duplicados
-    const duplicateNormalizedSCs = new Set<string>();
-    const duplicateNormalizedOCs = new Set<string>();
-
-    scCounts.forEach((count, normalized) => {
-      if (count > 1) duplicateNormalizedSCs.add(normalized);
-    });
-    ocCounts.forEach((count, normalized) => {
-      if (count > 1) duplicateNormalizedOCs.add(normalized);
-    });
-
-    // Criar sets com valores originais que correspondem aos normalizados duplicados
-    const duplicateSCs = new Set<string>();
-    const duplicateOCs = new Set<string>();
-
-    scOriginalToNormalized.forEach((normalized, original) => {
-      if (duplicateNormalizedSCs.has(normalized)) {
-        duplicateSCs.add(original);
-      }
-    });
-    ocOriginalToNormalized.forEach((normalized, original) => {
-      if (duplicateNormalizedOCs.has(normalized)) {
-        duplicateOCs.add(original);
-      }
-    });
-
-    return { duplicateSCs, duplicateOCs, duplicateNormalizedSCs, duplicateNormalizedOCs };
-  }, [items]);
-
-  // Filtrar apenas itens com duplicatas quando showDuplicados estiver ativo
-  // E agrupar itens com o mesmo valor duplicado lado a lado
+  // Simplified: no duplicate detection. Just paginate the filtered/sorted items.
   const itemsParaExibir = useMemo(() => {
-    let filtered = filteredAndSortedItems;
-    
-    if (showDuplicados) {
-      // Filtrar apenas itens com duplicatas
-      const itemsComDuplicatas = filteredAndSortedItems.filter((item) => {
-        if (item.sc) {
-          const normalized = extractNumbers(item.sc);
-          if (normalized && getDuplicates.duplicateNormalizedSCs.has(normalized)) {
-            return true;
-          }
-        }
-        if (item.oc) {
-          const normalized = extractNumbers(item.oc);
-          if (normalized && getDuplicates.duplicateNormalizedOCs.has(normalized)) {
-            return true;
-          }
-        }
-        return false;
-      });
-
-      // Agrupar itens duplicados para exibir lado a lado
-      const grouped: ServicoProduto[] = [];
-      const processed = new Set<string>();
-
-      // Primeiro, agrupar por SC duplicado
-      itemsComDuplicatas.forEach((item) => {
-        if (processed.has(item.id)) return;
-
-        if (item.sc) {
-          const normalizedSC = extractNumbers(item.sc);
-          if (normalizedSC && getDuplicates.duplicateNormalizedSCs.has(normalizedSC)) {
-            // Encontrar todos os itens com o mesmo SC normalizado
-            const duplicates = itemsComDuplicatas.filter((other) => {
-              if (processed.has(other.id)) return false;
-              const otherNormalized = extractNumbers(other.sc || "");
-              return otherNormalized === normalizedSC;
-            });
-            
-            // Adicionar todos os duplicados do grupo
-            duplicates.forEach((dup) => {
-              grouped.push(dup);
-              processed.add(dup.id);
-            });
-          }
-        }
-      });
-
-      // Depois, agrupar por OC duplicado (apenas os que ainda não foram processados)
-      itemsComDuplicatas.forEach((item) => {
-        if (processed.has(item.id)) return;
-
-        if (item.oc) {
-          const normalizedOC = extractNumbers(item.oc);
-          if (normalizedOC && getDuplicates.duplicateNormalizedOCs.has(normalizedOC)) {
-            // Encontrar todos os itens com o mesmo OC normalizado
-            const duplicates = itemsComDuplicatas.filter((other) => {
-              if (processed.has(other.id)) return false;
-              const otherNormalized = extractNumbers(other.oc || "");
-              return otherNormalized === normalizedOC;
-            });
-            
-            // Adicionar todos os duplicados do grupo
-            duplicates.forEach((dup) => {
-              grouped.push(dup);
-              processed.add(dup.id);
-            });
-          }
-        }
-      });
-
-      filtered = grouped;
-    }
-    
-    return filtered.slice(0, displayedCount);
-  }, [filteredAndSortedItems, showDuplicados, getDuplicates, displayedCount]);
+    return filteredAndSortedItems.slice(0, displayedCount);
+  }, [filteredAndSortedItems, displayedCount]);
 
   // Resetar contador quando filtros mudarem
   useEffect(() => {
@@ -1588,360 +1500,175 @@ export default function Solicitacoes() {
                 <TableHead className="text-center bg-slate-100 dark:bg-slate-800 min-w-[120px]">Situação</TableHead>
               </TableRow>
             </TableHeader>
-             <TableBody>
-               {itemsParaExibir.map((item, index) => {
-                 const isServico = item.tipo === "servico";
-                 const isEditing = editingRow === item.id;
-                 
-                 // Determinar cor baseada na situação
-                 const situacaoBgClass = item.situacao === "paga" 
-                   ? "bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/40"
-                   : item.situacao === "cancelado"
-                   ? "bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/40"
-                   : item.situacao === "?"
-                   ? "bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/40"
-                   : index % 2 === 0 ? "bg-card" : "bg-muted/30";
-                 
-                 return (
-                   <TableRow
-                     key={item.id}
-                     data-row-id={item.id}
-                     className={cn(
-                       situacaoBgClass,
-                       !item.situacao && "hover:bg-muted/50",
-                       "transition-colors",
-                       isEditing ? "ring-2 ring-primary cursor-default relative" : "cursor-pointer"
-                     )}
-                     onDoubleClick={(e) => {
-                       if (!isEditing) {
-                         handleDoubleClick(item);
-                       }
-                     }}
-                     onClick={(e) => {
-                       // Prevenir que clique simples interfira quando está editando
-                       if (isEditing) {
-                         e.stopPropagation();
-                       }
-                     }}
-                   >
-                     {activeTipoTab === "produto" ? (
-                       <>
-                         <TableCell className="text-center text-xs md:text-sm min-w-[120px] px-1">
-                           {isEditing ? (
-                             <Input
-                               value={editingValues.fornecedor || ""}
-                               onChange={(e) => handleFieldChange("fornecedor", e.target.value)}
-                               onKeyDown={handleKeyDown}
-                               onBlur={handleBlur}
-                               className="h-8 text-xs md:text-sm text-center"
-                               autoFocus={index === 0}
-                               onClick={(e) => e.stopPropagation()}
-                               onMouseDown={(e) => e.stopPropagation()}
-                             />
-                           ) : (
-                             item.fornecedor || "-"
-                           )}
-                         </TableCell>
-                         <TableCell className="text-center text-xs md:text-sm font-medium min-w-[150px] px-1">
-                           {isEditing ? (
-                             <Input
-                               value={editingValues.produto || ""}
-                               onChange={(e) => handleFieldChange("produto", e.target.value)}
-                               onKeyDown={handleKeyDown}
-                               onBlur={handleBlur}
-                               className="h-8 text-xs md:text-sm text-center"
-                               onClick={(e) => e.stopPropagation()}
-                               onMouseDown={(e) => e.stopPropagation()}
-                             />
-                           ) : (
-                             item.produto || "-"
-                           )}
-                         </TableCell>
-                         <TableCell className="text-center text-xs md:text-sm min-w-[200px] px-1">
-                           {isEditing ? (
-                             <Input
-                               value={editingValues.informacoes || ""}
-                               onChange={(e) => handleFieldChange("informacoes", e.target.value)}
-                               onKeyDown={handleKeyDown}
-                               onBlur={handleBlur}
-                               className="h-8 text-xs md:text-sm text-center"
-                               onClick={(e) => e.stopPropagation()}
-                               onMouseDown={(e) => e.stopPropagation()}
-                             />
-                           ) : (
-                             item.informacoes || "-"
-                           )}
-                         </TableCell>
-                       </>
-                     ) : (
-                       <>
-                         <TableCell className="text-center text-xs md:text-sm font-medium min-w-[120px]">
-                           {isEditing ? (
-                             <Input
-                               value={editingValues.servico || ""}
-                               onChange={(e) => handleFieldChange("servico", e.target.value)}
-                               onKeyDown={handleKeyDown}
-                               onBlur={handleBlur}
-                               className="h-8 text-xs md:text-sm text-center w-full"
-                               autoFocus={index === 0}
-                               onClick={(e) => e.stopPropagation()}
-                               onMouseDown={(e) => e.stopPropagation()}
-                             />
-                           ) : (
-                             <div className="break-words whitespace-normal text-left px-1">
-                               {item.servico || "-"}
-                             </div>
-                           )}
-                         </TableCell>
-                         <TableCell className="text-center text-xs md:text-sm min-w-[250px]">
-                           {isEditing ? (
-                             <Input
-                               value={editingValues.descricao || ""}
-                               onChange={(e) => handleFieldChange("descricao", e.target.value)}
-                               onKeyDown={handleKeyDown}
-                               onBlur={handleBlur}
-                               className="h-8 text-xs md:text-sm text-center w-full"
-                               onClick={(e) => e.stopPropagation()}
-                               onMouseDown={(e) => e.stopPropagation()}
-                             />
-                           ) : (
-                             <div className="break-words whitespace-normal text-left px-1">
-                               {item.descricao || "-"}
-                             </div>
-                           )}
-                         </TableCell>
-                       </>
-                     )}
-                     <TableCell className="text-right text-xs md:text-sm min-w-[100px] px-1">
-                       {isEditing ? (
-                         <Input
-                           value={editingValues.empresa || ""}
-                           onChange={(e) => handleFieldChange("empresa", e.target.value)}
-                           onKeyDown={handleKeyDown}
-                           onBlur={handleBlur}
-                           className="h-8 text-xs md:text-sm text-right w-full"
-                           onClick={(e) => e.stopPropagation()}
-                           onMouseDown={(e) => e.stopPropagation()}
-                         />
-                       ) : (
-                         item.empresa || "-"
-                       )}
-                     </TableCell>
-                     <TableCell className="text-left text-xs md:text-sm font-mono min-w-[90px] px-1">
-                       {isEditing ? (
-                         <Input
-                           value={editingValues.sc || ""}
-                           onChange={(e) => handleFieldChange("sc", e.target.value)}
-                           onKeyDown={handleKeyDown}
-                           onBlur={handleBlur}
-                           className="h-8 text-xs md:text-sm text-left font-mono w-full"
-                           onClick={(e) => e.stopPropagation()}
-                           onMouseDown={(e) => e.stopPropagation()}
-                         />
-                       ) : (
-                         <span
-                           className={cn(
-                             item.sc && extractNumbers(item.sc) && getDuplicates.duplicateNormalizedSCs.has(extractNumbers(item.sc)) && "text-yellow-600 dark:text-yellow-400 font-bold"
-                           )}
-                         >
-                           {item.sc || "-"}
-                         </span>
-                       )}
-                     </TableCell>
-                     <TableCell className="text-center text-xs md:text-sm min-w-[110px] px-1">
-                       {isEditing ? (
-                         <Input
-                           value={isServico ? (editingValues.data_solicitacao || "") : (editingValues.data_sc || "")}
-                           onChange={(e) => handleFieldChange(isServico ? "data_solicitacao" : "data_sc", e.target.value)}
-                           onKeyDown={handleKeyDown}
-                           onBlur={handleBlur}
-                           className="h-8 text-xs md:text-sm text-center w-full"
-                           onClick={(e) => e.stopPropagation()}
-                           onMouseDown={(e) => e.stopPropagation()}
-                         />
-                       ) : (
-                         isServico ? (item.data_solicitacao || "-") : (item.data_sc || "-")
-                       )}
-                     </TableCell>
-                     <TableCell className="text-center text-xs md:text-sm font-mono min-w-[100px] px-1">
-                       {isEditing ? (
-                         <Input
-                           value={editingValues.nota_fiscal || ""}
-                           onChange={(e) => handleFieldChange("nota_fiscal", e.target.value)}
-                           onKeyDown={handleKeyDown}
-                           onBlur={handleBlur}
-                           className="h-8 text-xs md:text-sm text-center font-mono"
-                           onClick={(e) => e.stopPropagation()}
-                           onMouseDown={(e) => e.stopPropagation()}
-                         />
-                       ) : (
-                         item.nota_fiscal || "-"
-                       )}
-                     </TableCell>
-                     <TableCell className="text-center text-xs md:text-sm min-w-[110px] px-1">
-                       {isEditing ? (
-                         <div className="flex gap-1 items-center">
-                           <Input
-                             value={editingValues.vencimento || ""}
-                             onChange={(e) => {
-                               const formatted = handleDateInput(e.target.value);
-                               handleFieldChange("vencimento", formatted);
-                             }}
-                             onKeyDown={handleKeyDown}
-                             onBlur={handleBlur}
-                             placeholder="dd/mm/aaaa"
-                             maxLength={10}
-                             className="h-8 text-xs md:text-sm text-center flex-1"
-                             onClick={(e) => e.stopPropagation()}
-                             onMouseDown={(e) => e.stopPropagation()}
-                           />
-                           <Popover>
-                             <PopoverTrigger asChild>
-                               <Button
-                                 type="button"
-                                 variant="ghost"
-                                 size="icon"
-                                 className="h-8 w-8 shrink-0"
-                                 onClick={(e) => e.stopPropagation()}
-                                 onMouseDown={(e) => e.stopPropagation()}
-                               >
-                                 <CalendarIcon className="h-3 w-3" />
-                               </Button>
-                             </PopoverTrigger>
-                             <PopoverContent className="w-auto p-0" align="end">
-                               <Calendar
-                                 mode="single"
-                                 selected={parseDateBR(editingValues.vencimento as string || "")}
-                                 onSelect={(date) => {
-                                   if (date) {
-                                     const formatted = formatDateBR(date);
-                                     handleFieldChange("vencimento", formatted);
-                                   }
-                                 }}
-                                 initialFocus
-                                 locale={ptBR}
-                               />
-                             </PopoverContent>
-                           </Popover>
-                         </div>
-                       ) : (
-                         item.vencimento || "-"
-                       )}
-                     </TableCell>
-                     <TableCell className="text-center text-xs md:text-sm font-medium min-w-[90px] px-1">
-                       {isEditing ? (
-                         <Input
-                           value={editingValues.valor || ""}
-                           onChange={(e) => {
-                             const formatted = handleCurrencyInput(e.target.value);
-                             handleFieldChange("valor", formatted);
-                           }}
-                           onKeyDown={handleKeyDown}
-                           onBlur={(e) => {
-                             // Garante formatação correta ao perder o foco
-                             if (e.target.value) {
-                               const formatted = formatCurrency(e.target.value);
-                               handleFieldChange("valor", formatted);
-                             }
-                             handleBlur(e);
-                           }}
-                           placeholder="R$ 0,00"
-                           className="h-8 text-xs md:text-sm text-center"
-                           onClick={(e) => e.stopPropagation()}
-                           onMouseDown={(e) => e.stopPropagation()}
-                         />
-                       ) : (
-                         item.valor ? formatCurrency(item.valor) : "-"
-                       )}
-                     </TableCell>
-                     <TableCell className="text-center text-xs md:text-sm font-mono min-w-[90px] px-1">
-                       {isEditing ? (
-                         <Input
-                           value={editingValues.oc || ""}
-                           onChange={(e) => handleFieldChange("oc", e.target.value)}
-                           onKeyDown={handleKeyDown}
-                           onBlur={handleBlur}
-                           className="h-8 text-xs md:text-sm text-center font-mono"
-                           onClick={(e) => e.stopPropagation()}
-                           onMouseDown={(e) => e.stopPropagation()}
-                         />
-                       ) : (
-                         <span
-                           className={cn(
-                             item.oc && extractNumbers(item.oc) && getDuplicates.duplicateNormalizedOCs.has(extractNumbers(item.oc)) && "text-yellow-600 dark:text-yellow-400 font-bold"
-                           )}
-                         >
-                           {item.oc || "-"}
-                         </span>
-                       )}
-                     </TableCell>
-                     <TableCell className="text-center text-xs md:text-sm min-w-[120px] px-1">
-                       {isEditing ? (
-                         <Select
-                           value={editingValues.situacao || "vazio"}
-                           onValueChange={(value) => {
-                             const situacaoValue = value === "vazio" ? "" : value;
-                             handleFieldChange("situacao", situacaoValue);
-                           }}
-                           onOpenChange={(open) => {
-                             setIsSelectOpen(open);
-                           }}
-                         >
-                           <SelectTrigger 
-                             className="h-8 text-xs md:text-sm w-full"
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               e.preventDefault();
-                             }}
-                             onMouseDown={(e) => {
-                               e.stopPropagation();
-                             }}
-                           >
-                             <SelectValue placeholder="Selecione..." />
-                           </SelectTrigger>
-                           <SelectContent 
-                             onClick={(e) => e.stopPropagation()}
-                             onMouseDown={(e) => e.stopPropagation()}
-                           >
-                             <SelectItem value="vazio">-</SelectItem>
-                             <SelectItem value="paga">Paga</SelectItem>
-                             <SelectItem value="?">?</SelectItem>
-                             <SelectItem value="cancelado">Cancelado</SelectItem>
-                           </SelectContent>
-                         </Select>
-                       ) : (
-                         item.situacao || "-"
-                       )}
-                     </TableCell>
-                     {/* Botão flutuante para confirmar/cancelar edição - centralizado na linha e acima */}
-                     {isEditing && (
-                       <div className="absolute left-1/2 -translate-x-1/2 -top-10 z-50 flex gap-2">
-                         <Button
-                           type="button"
-                           size="sm"
-                           className="h-8 w-8 p-0 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white border-2 border-white dark:border-gray-800"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             handleSaveEdit(true);
-                           }}
-                           title="Salvar alterações"
-                         >
-                           <Check className="h-4 w-4" />
-                         </Button>
-                         <Button
-                           type="button"
-                           size="sm"
-                           className="h-8 w-8 p-0 rounded-full shadow-lg bg-red-500 hover:bg-red-600 text-white border-2 border-white dark:border-gray-800"
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             handleCancelEdit();
-                           }}
-                           title="Cancelar edição"
-                         >
-                           <X className="h-4 w-4" />
-                         </Button>
-                       </div>
-                     )}
+            <TableBody>
+              {itemsParaExibir.map((item, index) => {
+                const isServico = item.tipo === "servico";
+                const isEditing = editingRow === item.id;
+
+                const situacaoBgClass = item.situacao === "paga"
+                  ? "bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/40"
+                  : item.situacao === "cancelado"
+                  ? "bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/40"
+                  : item.situacao === "?"
+                  ? "bg-yellow-100 dark:bg-yellow-900/30 hover:bg-yellow-200 dark:hover:bg-yellow-900/40"
+                  : index % 2 === 0 ? "bg-card" : "bg-muted/30";
+
+                return (
+                  <TableRow
+                    key={item.id}
+                    data-row-id={item.id}
+                    className={cn(
+                      situacaoBgClass,
+                      !item.situacao && "hover:bg-muted/50",
+                      "transition-colors",
+                      isEditing ? "ring-2 ring-primary cursor-default relative" : "cursor-pointer"
+                    )}
+                    onDoubleClick={(e) => {
+                      if (!isEditing) handleDoubleClick(item);
+                    }}
+                    onClick={(e) => { if (isEditing) e.stopPropagation(); }}
+                  >
+                    {activeTipoTab === "produto" ? (
+                      <>
+                        <TableCell className="text-center text-xs md:text-sm min-w-[120px] px-1">
+                          {isEditing ? (
+                            <Input value={editingValues.fornecedor || ""} onChange={(e) => handleFieldChange("fornecedor", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                          ) : (
+                            item.fornecedor || "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-xs md:text-sm font-medium min-w-[150px] px-1">
+                          {isEditing ? (
+                            <Input value={editingValues.produto || ""} onChange={(e) => handleFieldChange("produto", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                          ) : (
+                            item.produto || "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-xs md:text-sm min-w-[200px] px-1">
+                          {isEditing ? (
+                            <Input value={editingValues.informacoes || ""} onChange={(e) => handleFieldChange("informacoes", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                          ) : (
+                            item.informacoes || "-"
+                          )}
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell className="text-center text-xs md:text-sm font-medium min-w-[120px]">
+                          {isEditing ? (
+                            <Input value={editingValues.servico || ""} onChange={(e) => handleFieldChange("servico", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center w-full" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                          ) : (
+                            <div className="break-words whitespace-normal text-left px-1">{item.servico || "-"}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center text-xs md:text-sm min-w-[250px]">
+                          {isEditing ? (
+                            <Input value={editingValues.descricao || ""} onChange={(e) => handleFieldChange("descricao", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center w-full" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                          ) : (
+                            <div className="break-words whitespace-normal text-left px-1">{item.descricao || "-"}</div>
+                          )}
+                        </TableCell>
+                      </>
+                    )}
+
+                    <TableCell className="text-right text-xs md:text-sm min-w-[100px] px-1">
+                      {isEditing ? (
+                        <Input value={editingValues.empresa || ""} onChange={(e) => handleFieldChange("empresa", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-right w-full" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                      ) : (
+                        item.empresa || "-"
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-left text-xs md:text-sm font-mono min-w-[90px] px-1">
+                      {isEditing ? (
+                        <Input value={editingValues.sc || ""} onChange={(e) => handleFieldChange("sc", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-left font-mono w-full" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                      ) : (
+                        <span 
+                          className={cn(
+                            isSCDuplicada(item.id, item.sc || "", item.empresa || "") && "bg-yellow-300 dark:bg-yellow-600 px-1 py-0.5 rounded font-semibold"
+                          )}
+                        >
+                          {item.sc || "-"}
+                        </span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center text-xs md:text-sm min-w-[110px] px-1">
+                      {isEditing ? (
+                        <Input value={isServico ? (editingValues.data_solicitacao || "") : (editingValues.data_sc || "")} onChange={(e) => handleFieldChange(isServico ? "data_solicitacao" : "data_sc", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center w-full" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                      ) : (
+                        isServico ? (item.data_solicitacao || "-") : (item.data_sc || "-")
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center text-xs md:text-sm font-mono min-w-[100px] px-1">
+                      {isEditing ? (
+                        <Input value={editingValues.nota_fiscal || ""} onChange={(e) => handleFieldChange("nota_fiscal", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center font-mono" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                      ) : (
+                        item.nota_fiscal || "-"
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center text-xs md:text-sm min-w-[110px] px-1">
+                      {isEditing ? (
+                        <div className="flex gap-1 items-center">
+                          <Input value={editingValues.vencimento || ""} onChange={(e) => { const formatted = handleDateInput(e.target.value); handleFieldChange("vencimento", formatted); }} onKeyDown={handleKeyDown} onBlur={handleBlur} placeholder="dd/mm/aaaa" maxLength={10} className="h-8 text-xs md:text-sm text-center flex-1" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()}>
+                                <CalendarIcon className="h-3 w-3" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="end">
+                              <Calendar mode="single" selected={parseDateBR(editingValues.vencimento as string || "")} onSelect={(date) => { if (date) { const formatted = formatDateBR(date); handleFieldChange("vencimento", formatted); } }} initialFocus locale={ptBR} />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      ) : (
+                        item.vencimento || "-"
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center text-xs md:text-sm font-medium min-w-[90px] px-1">
+                      {isEditing ? (
+                        <Input value={editingValues.valor || ""} onChange={(e) => { const formatted = handleCurrencyInput(e.target.value); handleFieldChange("valor", formatted); }} onKeyDown={handleKeyDown} onBlur={(e) => { if (e.target.value) { const formatted = formatCurrency(e.target.value); handleFieldChange("valor", formatted); } handleBlur(e); }} placeholder="R$ 0,00" className="h-8 text-xs md:text-sm text-center" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                      ) : (
+                        item.valor ? formatCurrency(item.valor) : "-"
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center text-xs md:text-sm font-mono min-w-[90px] px-1">
+                      {isEditing ? (
+                        <Input value={editingValues.oc || ""} onChange={(e) => handleFieldChange("oc", e.target.value)} onKeyDown={handleKeyDown} onBlur={handleBlur} className="h-8 text-xs md:text-sm text-center font-mono" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()} />
+                      ) : (
+                        <span>{item.oc || "-"}</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="text-center text-xs md:text-sm min-w-[120px] px-1">
+                      {isEditing ? (
+                        <Select value={editingValues.situacao || "vazio"} onValueChange={(value) => { const situacaoValue = value === "vazio" ? "" : value; handleFieldChange("situacao", situacaoValue); }} onOpenChange={(open) => { setIsSelectOpen(open); }}>
+                          <SelectTrigger className="h-8 text-xs md:text-sm w-full" onClick={(e)=>{ e.stopPropagation(); e.preventDefault(); }} onMouseDown={(e)=>e.stopPropagation()}>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>e.stopPropagation()}>
+                            <SelectItem value="vazio">-</SelectItem>
+                            <SelectItem value="paga">Paga</SelectItem>
+                            <SelectItem value="?">?</SelectItem>
+                            <SelectItem value="cancelado">Cancelado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        item.situacao || "-"
+                      )}
+                    </TableCell>
+
+                    {isEditing && (
+                      <div className="absolute left-1/2 -translate-x-1/2 -top-10 z-50 flex gap-2">
+                        <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleSaveEdit(true); }} title="Salvar alterações"><Check className="h-4 w-4" /></Button>
+                        <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-red-500 hover:bg-red-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }} title="Cancelar edição"><X className="h-4 w-4" /></Button>
+                      </div>
+                    )}
                   </TableRow>
                 );
               })}
@@ -2218,14 +1945,14 @@ export default function Solicitacoes() {
                         const scValue = e.target.value;
                         setCreateFormData({ ...createFormData, sc: scValue });
                         // Validar em tempo real
-                        if (scValue && scExists(scValue)) {
+                        if (scValue && scExists(scValue, createFormData.ano, createFormData.empresa)) {
                           toast.error("Esta SC já existe!");
                         }
                       }}
                       required
-                      className={createFormData.sc && scExists(createFormData.sc) ? "border-red-500 focus-visible:ring-red-500" : ""}
+                      className={createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) ? "border-red-500 focus-visible:ring-red-500" : ""}
                     />
-                    {createFormData.sc && scExists(createFormData.sc) && (
+                    {createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) && (
                       <p className="text-xs text-red-500">Esta SC já existe no sistema</p>
                     )}
                   </div>
@@ -2370,13 +2097,13 @@ export default function Solicitacoes() {
                         const scValue = e.target.value;
                         setCreateFormData({ ...createFormData, sc: scValue });
                         // Validar em tempo real
-                        if (scValue && scExists(scValue)) {
+                        if (scValue && scExists(scValue, createFormData.ano, createFormData.empresa)) {
                           toast.error("Esta SC já existe!");
                         }
                       }}
-                      className={createFormData.sc && scExists(createFormData.sc) ? "border-red-500 focus-visible:ring-red-500" : ""}
+                      className={createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) ? "border-red-500 focus-visible:ring-red-500" : ""}
                     />
-                    {createFormData.sc && scExists(createFormData.sc) && (
+                    {createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) && (
                       <p className="text-xs text-red-500">Esta SC já existe no sistema</p>
                     )}
                   </div>
@@ -2528,7 +2255,7 @@ export default function Solicitacoes() {
                     // Validar se SC já existe
                     if (createFormData.sc) {
                       console.log("🔵 [VALIDAÇÃO SC] Verificando se SC já existe...");
-                      if (scExists(createFormData.sc)) {
+                      if (scExists(createFormData.sc, createFormData.ano, createFormData.empresa)) {
                         console.error("❌ [VALIDAÇÃO SC] SC já existe:", createFormData.sc);
                         toast.error("Esta SC já existe! Não é possível criar itens duplicados.");
                         return;
