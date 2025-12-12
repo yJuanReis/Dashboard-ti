@@ -1196,8 +1196,9 @@ export default function Solicitacoes() {
     );
   };
 
-  // Função para verificar se uma SC já existe (simples: compara só números)
-  const scExists = (sc: string): boolean => {
+  // Função para verificar se uma SC já existe (comparando números)
+  // Aceita opcionalmente `ano` e `empresa` para checagens mais específicas
+  const scExists = (sc: string, ano?: number | string | null, empresa?: string | null): boolean => {
     if (!sc) return false;
     const normalizedSC = extractNumbers(sc);
     if (!normalizedSC) return false;
@@ -1205,7 +1206,21 @@ export default function Solicitacoes() {
     return items.some((item) => {
       if (!item.sc) return false;
       const itemNormalized = extractNumbers(item.sc);
-      return itemNormalized === normalizedSC;
+      if (itemNormalized !== normalizedSC) return false;
+
+      // Se ano foi fornecido, exigir que o ano do item corresponda
+      if (ano !== undefined && ano !== null) {
+        const itemAno = item.ano ? String(item.ano) : '';
+        if (String(ano) !== itemAno) return false;
+      }
+
+      // Se empresa foi fornecida, exigir correspondência (ignorando caixa)
+      if (empresa) {
+        const itemEmpresa = item.empresa ? item.empresa.toLowerCase().trim() : '';
+        if (itemEmpresa && itemEmpresa !== empresa.toLowerCase().trim()) return false;
+      }
+
+      return true;
     });
   };
 

@@ -39,7 +39,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLogout } from "@/hooks/use-logout";
 import { supabase } from "@/lib/supabaseClient";
 import { updateUserPasswordByAdmin, deleteUserByAdmin } from "@/lib/adminService";
-import { generateRandomPassword } from "@/lib/passwordGenerator";
 import { logUpdate } from "@/lib/auditService";
 import { logger } from "@/lib/logger";
 import zxcvbn from "zxcvbn";

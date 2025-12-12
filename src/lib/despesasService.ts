@@ -21,6 +21,8 @@ export interface DespesaTI {
   tipo_despesa: 'Recorrente' | 'Esporadico';
   valor_medio: number;
   marina?: string | null;
+  // Alias para compatibilidade com o código que usa 'empresa'
+  empresa?: string | null;
   jan?: number;
   fev?: number;
   mar?: number;
