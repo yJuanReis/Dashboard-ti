@@ -322,19 +322,27 @@ export function AppSidebar({}: AppSidebarProps) {
     return location.pathname === path;
   };
 
-  // Adiciona badges dinamicamente baseado na configuração de manutenção do banco
+
+
+
+
+
+
   const navigationItems: NavigationItem[] = useMemo(() => {
-    const maintenanceKeys = Object.keys(pagesMaintenance);
-    logger.log('[AppSidebar] Recalculando navigationItems, páginas em manutenção:', maintenanceKeys);
+    // 1. Pre-calculate a normalized lookup map to avoid looping inside the map
+    // This reduces complexity from O(N * M) to O(N + M)
+    const maintenanceLookup = new Map();
+    
+    Object.entries(pagesMaintenance).forEach(([path, config]) => {
+      maintenanceLookup.set(path.toLowerCase().trim(), config);
+    });
+
     return NAVIGATION_CONFIG.map(item => {
-      // Normalizar path para comparação
       const normalizedItemUrl = item.url.toLowerCase().trim();
-      const maintenanceConfig = Object.entries(pagesMaintenance).find(([path]) => {
-        return path.toLowerCase().trim() === normalizedItemUrl;
-      })?.[1];
-      
+      const maintenanceConfig = maintenanceLookup.get(normalizedItemUrl);
+
+      // If config exists, add badge
       if (maintenanceConfig) {
-        logger.log(`[AppSidebar] Adicionando badge para ${item.url}:`, maintenanceConfig);
         return {
           ...item,
           badge: {
@@ -343,10 +351,15 @@ export function AppSidebar({}: AppSidebarProps) {
           }
         };
       }
-      // Se não tem maintenanceConfig, retornar sem badge
-      return { ...item };
+
+      // Otherwise return item as is
+      return item;
     });
   }, [pagesMaintenance, maintenanceUpdateTrigger]);
+
+
+
+
 
   // Filtrar itens de navegação baseado em permissões
   const filteredNavigationItems: NavigationItem[] = useMemo(() => {
@@ -1079,7 +1092,7 @@ export function AppSidebar({}: AppSidebarProps) {
                 )}
                 <Button
                   onClick={handleAlterarSenha}
-                  disabled={loading || estaBloqueado || forcaSenha.score < 2 || novaSenha !== confirmarSenha}
+                  disabled={loading || estaBloqueado} // Permitir clique para validar
                   className="w-full"
                 >
                   {loading ? "A alterar..." : "Alterar Senha"}

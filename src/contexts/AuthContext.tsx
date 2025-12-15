@@ -486,57 +486,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return shouldRequireCaptcha(email.trim().toLowerCase());
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
-    try {
-      logger.log("Iniciando login com Google...");
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          // Para onde o usuário volta após o login
-          redirectTo: `${window.location.origin}/home`,
-          // Opcional: solicitar escopos específicos do Google
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
+const signInWithGoogle = useCallback(async () => {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/home`,
+        queryParams: {
+          // 'hd' força o Google a aceitar apenas emails deste domínio
+          hd: 'brmarinas.com.br',
+          // Opcional: força a caixa de seleção de conta aparecer sempre
+          prompt: 'select_account' 
+        }
+      },
+    });
 
-      if (error) {
-        logger.error("Erro ao iniciar login com Google:", error);
-        toast.error("Erro ao iniciar login com Google. Tente novamente.");
-        throw error;
-      }
+    if (error) throw error;
+    
+  } catch (error) {
+    console.error('Erro ao iniciar login com Google:', error.message);
+    // Aqui você pode adicionar um toast/alerta para o usuário
+  }
+}, []);
 
-      // O redirecionamento acontece automaticamente
-      // O onAuthStateChange no useEffect vai detectar quando o usuário voltar
-      logger.log("Redirecionando para Google OAuth...");
-      
-      // Se não houver URL de redirecionamento, pode ser que o provider não esteja habilitado
-      if (!data?.url) {
-        const errorMsg = "Provider Google não está configurado corretamente. Verifique o Supabase Dashboard.";
-        logger.error(errorMsg);
-        toast.error("Google OAuth não está configurado. Entre em contato com o administrador.");
-        throw new Error(errorMsg);
-      }
-
-      // Nota: Erros do tipo ERR_BLOCKED_BY_CLIENT que aparecem no console são normais 
-      // e não afetam o funcionamento. Eles ocorrem quando extensões do navegador 
-      // (como bloqueadores de anúncios) bloqueiam requisições de telemetria do Google.
-      // Esses erros não chegam ao nosso código e podem ser ignorados com segurança.
-    } catch (error) {
-      const authError = error as AuthError | Error;
-      logger.error("Erro ao fazer login com Google:", authError);
-      
-      // Não exibir toast duplicado se já foi exibido acima
-      if (!(authError instanceof Error && authError.message.includes('Provider Google não está configurado'))) {
-        toast.error("Erro ao fazer login com Google. Tente novamente.");
-      }
-      
-      throw error;
-    }
-  }, []);
 
   const signUp = async (email: string, password: string) => {
     try {

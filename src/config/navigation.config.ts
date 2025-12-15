@@ -14,6 +14,8 @@ import {
   Phone,
   Settings,
   ShoppingCart,
+  Shield,
+  Database,
 } from "lucide-react";
 
 export type AppRole = "admin" | "user";
@@ -115,11 +117,21 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: ShoppingCart,
   },
   {
+    title: "Logs de Auditoria",
+    url: "/logs",
+    icon: Shield,
+  },
+
+ {    title: "Teste de Segurança",
+    url: "/teste-de-seguranca",
+    icon: Database,
+  },
+
+
+  {
     title: "Configurações",
     url: "/configuracoes",
     icon: Settings,
     roles: ["admin"],
   },
 ];
-
-

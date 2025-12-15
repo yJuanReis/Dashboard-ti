@@ -1,7 +1,7 @@
 import React, { ReactNode, useRef, useMemo } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home, Package } from "lucide-react";
+import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home, Package, ArrowLeft } from "lucide-react";
 import { useIsMobile, useIsLandscapeMobile } from "@/hooks/use-mobile";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { MobileBottomBar } from "@/components/MobileBottomBar";
@@ -220,7 +220,16 @@ export function Layout({ children }: LayoutProps) {
   const isRamaisPage = location.pathname.toLowerCase().includes("ramais");
   const isSolicitacoesPage = location.pathname.toLowerCase().includes("solicitacoes");
   const isAuditLogsPage = location.pathname.toLowerCase().includes("logs");
-  
+  const isConfiguracoesPage = location.pathname.toLowerCase().includes("configuracoes"); // Linha nova
+  const isChamadosPage = location.pathname.toLowerCase().includes("chamados");
+  const isServidoresPage = location.pathname.toLowerCase().includes("servidores");
+  const isGestaoRedePage = location.pathname.toLowerCase().includes("gestaorede");
+  const isTermosPage = location.pathname.toLowerCase().includes("termos");
+  const isAssinaturasPage = location.pathname.toLowerCase().includes("assinaturas");
+  const isCrachasPage = location.pathname.toLowerCase().includes("crachas");
+  const isTesteDeSegurancaPage = location.pathname.toLowerCase().includes("teste-de-seguranca");
+
+
   const MARINA_OPTIONS = [
     "BRACUHY",
     "BOA VISTA",
@@ -231,6 +240,7 @@ export function Layout({ children }: LayoutProps) {
     "PIRATAS",
     "RIBEIRA",
     "VEROLME",
+    "PICCOLA"
   ];
 
   // Obter o nome da página atual baseado na rota
@@ -502,12 +512,14 @@ export function Layout({ children }: LayoutProps) {
                   onClick={() => navigate(-1)}
                   className="h-8 w-8 flex items-center justify-center rounded-md hover:bg-secondary text-foreground border border-border"
                   aria-label="Voltar para a página anterior"
+                
                 >
                   <span className="text-lg leading-none">←</span>
                 </button>
               )}
+
               {/* Botão Home nas páginas de Senhas, Controle NVR e Controle HD */}
-              {(isSenhasPage || isNvrPage || isHdPage) && (
+              {(isSenhasPage || isTesteDeSegurancaPage || isNvrPage || isHdPage || isSolicitacoesPage || isConfiguracoesPage || isAuditLogsPage || isRamaisPage || isImpressorasPage || isChamadosPage || isServidoresPage || isGestaoRedePage || isTermosPage || isAssinaturasPage || isCrachasPage) && (
                 <button
                   type="button"
                   onClick={() => navigate("/home")}

@@ -68,13 +68,22 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/crachas', nome: 'Crachás', icon: '🪪' },
   { path: '/assinaturas', nome: 'Assinaturas', icon: '✉️' },
   { path: '/controle-nvr', nome: 'Controle NVR', icon: '📹' },
-  { path: '/Controle-hds', nome: 'Controle de HDs', icon: '💾' }, // Nota: case-sensitive
+  { path: '/controle-hds', nome: 'Controle de HDs', icon: '💾' },
   { path: '/termos', nome: 'Termo de Responsabilidade', icon: '📄' },
   { path: '/gestaorede', nome: 'Gestão de Rede', icon: '🌐' },
   { path: '/servidores', nome: 'Servidores', icon: '🖥️' },
   { path: '/chamados', nome: 'Chamados', icon: '🔧' },
-  { path: '/security-test', nome: 'Security Test', icon: '🔒' },
-  // Nota: /configuracoes não está aqui pois só admins podem acessar
+  
+  // ADIÇÕES VALIDADAS:
+  { path: '/ramais', nome: 'Ramais', icon: '☎️' },
+  { path: '/impressoras', nome: 'Impressoras', icon: '🖨️' },
+  { path: '/solicitacoes', nome: 'Solicitações', icon: '📝' },
+  
+  // CORREÇÃO DE PATH (para bater com App.tsx):
+  { path: '/teste-de-seguranca', nome: 'Security Test', icon: '🔒' }, 
+  
+  { path: '/logs', nome: 'Logs de Segurança', icon: '📜' },
+  { path: '/configuracoes', nome: 'Configurações', icon: '⚙️' },
 ];
 
 // Páginas que devem estar ocultas por padrão são gerenciadas em src/config/pagesMaintenance.ts
@@ -1018,7 +1027,7 @@ export default function Configuracoes() {
   // const [mostrarLogs, setMostrarLogs] = useState(false);
   // const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
 
-  // Função para criar usuário e enviar email de reset password
+// Função para criar usuário e enviar email de reset password
   const handleEnviarResetPassword = useCallback(async () => {
     if (!novoUsuario.email) {
       setStatusMessage("Preencha o email");
@@ -1032,7 +1041,26 @@ export default function Configuracoes() {
 
     try {
       const emailLower = novoUsuario.email.toLowerCase().trim();
+
+      // =====================================================================
+      // [NOVO] PASSO 0: Autorizar o email na tabela de segurança
+      // =====================================================================
+      console.log("Autorizando email na tabela de segurança:", emailLower);
       
+      const { error: authEmailError } = await supabase
+        .from('authorized_emails')
+        .upsert(
+          { email: emailLower }, 
+          { onConflict: 'email' } // Se já existir, não dá erro, só atualiza/ignora
+        );
+
+      if (authEmailError) {
+        // Se der erro de permissão (RLS) ou outro, avisamos mas tentamos continuar
+        console.error("Erro ao autorizar email:", authEmailError);
+        // Opcional: toast.warning("Aviso: Não foi possível adicionar à lista de emails autorizados.");
+      }
+      // =====================================================================
+
       // 1. Verificar se o usuário já existe
       const { data: existingProfile, error: profileError } = await supabase
         .from("user_profiles")
@@ -1053,7 +1081,7 @@ export default function Configuracoes() {
         console.log("Criando novo usuário...");
         
         // 2. Definir senha padrão para novo usuário
-        const novaSenha = '12345a';
+        const novaSenha = '12345a.'; // a esenha tem um "ponto" no final para cumprir requisitos de complexidade. ficando com 12345a. ele entra como caracter especial.
         console.log("Senha padrão atribuída para novo usuário (não será exibida)");
 
         // 3. Criar usuário diretamente no banco usando função RPC
@@ -1089,7 +1117,7 @@ export default function Configuracoes() {
       // 5. Se usuário já existia, atualizar senha e perfil
       if (!isNewUser) {
         // Definir nova senha padrão para usuário existente
-        const novaSenha = '12345a';
+        const novaSenha = '12345a.'; // a esenha tem um "ponto" no final para cumprir requisitos de complexidade. ficando com 12345a. ele entra como caracter especial.
         console.log("Senha padrão atribuída para usuário existente (não será exibida)");
 
         // Atualizar senha do usuário usando função admin
@@ -1143,19 +1171,19 @@ export default function Configuracoes() {
         const resp = await fetch('/api/send-invite', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: emailLower, password: '12345a', site: window.location.origin })
+          body: JSON.stringify({ email: emailLower, password: '12345a.', site: window.location.origin })
         });
 
         if (resp.ok) {
           toast.success('Email de credenciais disparado pelo servidor');
         } else {
           // Fallback: abrir cliente de email local
-          abrirClienteEmailComSenha(emailLower, '12345a');
+          abrirClienteEmailComSenha(emailLower, '12345a.');
           toast('Cliente de email aberto para enviar credenciais', { icon: '✉️' });
         }
       } catch (err) {
         // Se houver erro de rede, abrir mailto como fallback
-        abrirClienteEmailComSenha(emailLower, '12345a');
+        abrirClienteEmailComSenha(emailLower, '12345a.');
         toast('Cliente de email aberto para enviar credenciais', { icon: '✉️' });
       }
 
@@ -1524,17 +1552,6 @@ export default function Configuracoes() {
     <div className="min-h-screen bg-background p-3 md:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="page-header flex items-center gap-2 md:gap-4 mb-4 md:mb-6 lg:mb-8">
-          <Link to={createPageUrl("Home")}>
-            <Button variant="outline" size="icon" className="h-8 w-8 md:h-10 md:w-10">
-              <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">Configurações</h1>
-          </div>
-        </div>
-
         <div className="grid lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
           {/* Main Column */}
           <div className="lg:col-span-2 space-y-6">
@@ -1782,13 +1799,13 @@ export default function Configuracoes() {
                           <p className="text-sm text-success">{mensagemSucesso}</p>
                         </div>
                       )}
-                      <Button
-                        onClick={handleAlterarSenha}
-                        disabled={loading || estaBloqueado || forcaSenha.score < 2 || novaSenha !== confirmarSenha}
-                        className="w-full"
-                      >
-                        {loading ? "A alterar..." : "Alterar Senha"}
-                      </Button>
+                    <Button
+                      onClick={handleAlterarSenha}
+                      disabled={loading || estaBloqueado} // Permitir clique para validar
+                      className="w-full"
+                    >
+                      {loading ? "A alterar..." : "Alterar Senha"}
+                    </Button>
                     </div>
                     <div className="border-t pt-4">
                       <div className="space-y-2">
@@ -1817,7 +1834,7 @@ export default function Configuracoes() {
             {realRole === 'admin' && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-1">
                     <ShieldAlert className="w-5 h-5" />
                     Controle de Usuários
                   </CardTitle>
@@ -2226,7 +2243,7 @@ export default function Configuracoes() {
                     <Button
                       onClick={() => {
                         sessionStorage.setItem('securityTestFromConfig', 'true');
-                        navigate('/security-test');
+                        navigate('/teste-de-seguranca');
                       }}
                       className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
                     >
@@ -2242,7 +2259,7 @@ export default function Configuracoes() {
                   </div>
                   <div className="pt-2 border-t">
                     <Button
-                      onClick={() => navigate('/audit-logs')}
+                      onClick={() => navigate('/logs')}
                       className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                     >
                       <Database className="w-4 h-4 mr-2" />

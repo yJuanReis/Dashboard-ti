@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +120,7 @@ type SortDirection = "asc" | "desc";
 
 export default function Solicitacoes() {
   const { isMobile } = useSidebar();
+  const location = useLocation();
   const [items, setItems] = useState<ServicoProduto[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -383,6 +385,20 @@ export default function Solicitacoes() {
     loadItems();
     loadConfigSolicitacoes();
   }, []);
+
+  // Abrir diálogo de criação automaticamente se query param ?new=1 estiver presente
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get("new") === "1") {
+        setCreateTipo(null); // força a escolha entre serviço/produto
+        setShowCreateDialog(true);
+      }
+    } catch (err) {
+      // se location não estiver disponível por algum motivo, ignora
+      console.warn('Erro ao processar query params para abrir modal:', err);
+    }
+  }, [location.search]);
 
   // Listener para quando uma despesa for marcada automaticamente ao criar serviço
   useEffect(() => {

@@ -64,7 +64,7 @@ const App = () => (
                               <Route path="/assinaturas" element={<PagePermissionGuard><Assinaturas /></PagePermissionGuard>} />
                               <Route path="/chamados" element={<PagePermissionGuard><Chamados /></PagePermissionGuard>} />
                               <Route path="/configuracoes" element={<AdminOnlyRoute><Configuracoes /></AdminOnlyRoute>} />
-                              <Route path="/logs" element={<AdminOnlyRoute><AuditLogs /></AdminOnlyRoute>} />
+                              <Route path="/logs" element={<PagePermissionGuard><AuditLogs /></PagePermissionGuard>} />
                               <Route path="/controle-nvr" element={<PagePermissionGuard><ControleNVR /></PagePermissionGuard>} />
                               <Route path="/crachas" element={<PagePermissionGuard><Crachas /></PagePermissionGuard>} />
                               <Route path="/controle-hds" element={<PagePermissionGuard><EvolucaoHDs /></PagePermissionGuard>} />
