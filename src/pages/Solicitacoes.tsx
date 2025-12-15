@@ -359,27 +359,24 @@ export default function Solicitacoes() {
   };
 
   const performResetConfirmed = async () => {
-    try {
-      setShowResetConfirm(false);
-      setLoadingDespesas(true);
-      const mesAtual = getMesAtual();
-      // Chama serviço para resetar no banco
-      await resetarChecksMesAtual();
+      try {
+        setShowResetConfirm(false);
+        setLoadingDespesas(true);
+        
+        // Chama serviço para resetar no banco
+        await resetarChecksMesAtual();
 
-      // Atualiza estado local para refletir desmarcados imediatamente
-      setDespesasRecorrentes(prev => prev.map(d => ({ ...d, [mesAtual]: 0 })));
+        // Recarrega do servidor para garantir consistência e atualizar a tela
+        await loadDespesas();
 
-      // Recarrega do servidor para garantir consistência
-      await loadDespesas();
-
-      toast.success('Todos os checks foram desmarcados para o mês atual');
-    } catch (error) {
-      logger.error('Erro ao resetar checks:', error);
-      toast.error('Erro ao resetar checks');
-    } finally {
-      setLoadingDespesas(false);
-    }
-  };
+        toast.success('Todos os checks foram desmarcados para o mês atual');
+      } catch (error) {
+        logger.error('Erro ao resetar checks:', error);
+        toast.error('Erro ao resetar checks');
+      } finally {
+        setLoadingDespesas(false);
+      }
+    };
 
   // Carregar dados
   useEffect(() => {
@@ -1319,6 +1316,127 @@ export default function Solicitacoes() {
       return true;
     });
   };
+
+
+const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 1. Validação Básica
+    if (!createTipo) {
+      toast.error("Selecione um tipo (Serviço ou Produto)");
+      return;
+    }
+
+    // 2. Validação de Campos Obrigatórios (Apenas para Serviços)
+    if (createTipo === "servico") {
+      if (!createFormData.servico || !createFormData.descricao || !createFormData.empresa || !createFormData.sc) {
+        toast.error("Preencha todos os campos obrigatórios: Serviço, Descrição, Empresa e SC");
+        return;
+      }
+    }
+
+    // 3. Validação de Duplicidade (SC)
+    if (createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa)) {
+      toast.error("Esta SC já existe no sistema!");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // 4. Preparar dados para salvar
+      let formDataToSave = { ...createFormData };
+      
+      // Converter valor monetário
+      if (formDataToSave.valor) {
+        formDataToSave.valor = currencyToString(formDataToSave.valor);
+      }
+      
+      // Converter textos para Maiúsculas
+      formDataToSave = convertTextFieldsToUpperCase(formDataToSave);
+
+      // 5. Salvar no Banco
+      if (createTipo === "servico") {
+        await createServico(formDataToSave);
+        toast.success("Serviço criado com sucesso!");
+
+        // --- LÓGICA DE CHECKLIST AUTOMÁTICO ---
+        try {
+          // A. Verificar se a data da SC é do mês atual
+          const hoje = new Date();
+          const dataSC = parseDateBR(formDataToSave.data_solicitacao);
+          
+          // Só prossegue se a data for válida e for do mesmo mês/ano atual
+          if (dataSC && 
+              dataSC.getMonth() === hoje.getMonth() && 
+              dataSC.getFullYear() === hoje.getFullYear()) {
+            
+            // B. Recarregar despesas para garantir dados frescos
+            const { recorrentes, esporadicas } = await fetchTodasDespesas();
+            const todasDespesas = [...recorrentes, ...esporadicas];
+            
+            // Normalizar textos da SC para comparação
+            const scServico = (formDataToSave.servico || "").toLowerCase().trim();
+            const scDescricao = (formDataToSave.descricao || "").toLowerCase().trim();
+            const scEmpresa = (formDataToSave.empresa || "").toLowerCase().trim();
+
+            // C. Encontrar correspondências
+            const matches = todasDespesas.filter(despesa => {
+              const dbDescricao = (despesa.desc_servico || "").toLowerCase().trim();
+              const dbMarina = (despesa.marina || "").toLowerCase().trim();
+              const dbFornecedor = (despesa.fornecedor || "").toLowerCase().trim();
+
+              // 1. A Marina DEVE bater (se a despesa tiver marina definida)
+              if (dbMarina && dbMarina !== scEmpresa) {
+                return false;
+              }
+
+              // 2. O Nome ou Descrição deve bater
+              // Verifica se o serviço da SC contém a descrição da despesa OU vice-versa
+              const matchServico = scServico && dbDescricao && (scServico.includes(dbDescricao) || dbDescricao.includes(scServico));
+              // Verifica se a descrição da SC contém o fornecedor da despesa
+              const matchFornecedor = scDescricao && dbFornecedor && scDescricao.includes(dbFornecedor);
+              
+              return matchServico || matchFornecedor;
+            });
+
+            // D. Marcar os checks encontrados
+            if (matches.length > 0) {
+              for (const match of matches) {
+                 await toggleDespesaCheck(match.id, true);
+              }
+              toast.success(`${matches.length} item(s) marcado(s) no checklist automaticamente!`);
+              // Atualizar lista de despesas na memória
+              await loadDespesas();
+            }
+          }
+        } catch (err) {
+          console.error("Erro na verificação automática de despesas:", err);
+        }
+        // --- FIM DA LÓGICA DE CHECKLIST ---
+
+      } else {
+        await createProduto(formDataToSave);
+        toast.success("Produto criado com sucesso!");
+      }
+
+      // 6. Limpeza e Reload
+      setShowCreateDialog(false);
+      setCreateTipo(null);
+      setCreateFormData({});
+      setConfigsFiltradas([]);
+      await loadItems();
+
+    } catch (error) {
+      console.error("Erro ao criar item:", error);
+      toast.error("Erro ao criar item");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
 
   // Simplified: no duplicate detection. Just paginate the filtered/sorted items.
   const itemsParaExibir = useMemo(() => {
@@ -2337,138 +2455,15 @@ export default function Solicitacoes() {
                 >
                   Cancelar
                 </Button>
-                <Button 
-                  type="button"
-                  onClick={async (e) => {
-                    console.log("🔵 [BOTÃO CLICADO] Iniciando processo de criação...");
-                    console.log("🔵 [DEBUG] createTipo:", createTipo);
-                    console.log("🔵 [DEBUG] createFormData:", createFormData);
-                    
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    if (!createTipo) {
-                      console.error("❌ [ERRO] createTipo está vazio/null");
-                      toast.error("Selecione um tipo (Serviço ou Produto)");
-                      return;
-                    }
-                    
-                    // Validação para serviço
-                    if (createTipo === "servico") {
-                      console.log("🔵 [VALIDAÇÃO] Validando campos de serviço...");
-                      if (!createFormData.servico || !createFormData.descricao || !createFormData.empresa || !createFormData.sc) {
-                        console.error("❌ [VALIDAÇÃO FALHOU] Campos obrigatórios faltando:", {
-                          servico: !!createFormData.servico,
-                          descricao: !!createFormData.descricao,
-                          empresa: !!createFormData.empresa,
-                          sc: !!createFormData.sc
-                        });
-                        toast.error("Preencha todos os campos obrigatórios: Serviço, Descrição, Empresa e SC");
-                        return;
-                      }
-                      console.log("✅ [VALIDAÇÃO] Campos de serviço OK");
-                    }
 
-                    // Validar se SC já existe
-                    if (createFormData.sc) {
-                      console.log("🔵 [VALIDAÇÃO SC] Verificando se SC já existe...");
-                      if (scExists(createFormData.sc, createFormData.ano, createFormData.empresa)) {
-                        console.error("❌ [VALIDAÇÃO SC] SC já existe:", createFormData.sc);
-                        toast.error("Esta SC já existe! Não é possível criar itens duplicados.");
-                        return;
-                      }
-                      console.log("✅ [VALIDAÇÃO SC] SC não existe, pode continuar");
-                    }
 
-                    // Converter valor formatado para string simples antes de salvar
-                    let formDataToSave = { ...createFormData };
-                    if (formDataToSave.valor) {
-                      console.log("🔵 [CONVERSÃO] Convertendo valor:", formDataToSave.valor);
-                      formDataToSave.valor = currencyToString(formDataToSave.valor);
-                      console.log("🔵 [CONVERSÃO] Valor convertido:", formDataToSave.valor);
-                    }
+            <Button 
+              type="button"
+              onClick={handleCreateSubmit}
+            >
+              Criar {createTipo === "servico" ? "Serviço" : "Produto"}
+            </Button>
 
-                    // Converter campos de texto para maiúsculas
-                    formDataToSave = convertTextFieldsToUpperCase(formDataToSave);
-
-                    console.log("🔵 [DADOS FINAIS] Dados que serão salvos:", formDataToSave);
-
-                    try {
-                      console.log("🔵 [CRIAÇÃO] Iniciando criação no banco...");
-                      if (createTipo === "servico") {
-                        console.log("🔵 [CRIAÇÃO] Criando serviço...");
-                        const resultado = await createServico(formDataToSave);
-                        console.log("✅ [CRIAÇÃO] Serviço criado com sucesso:", resultado);
-                        toast.success("Serviço criado com sucesso!");
-                      } else {
-                        console.log("🔵 [CRIAÇÃO] Criando produto...");
-                        const resultado = await createProduto(formDataToSave);
-                        console.log("✅ [CRIAÇÃO] Produto criado com sucesso:", resultado);
-                        toast.success("Produto criado com sucesso!");
-                      }
-                      
-                      console.log("🔵 [LIMPEZA] Fechando dialog e limpando dados...");
-                      setShowCreateDialog(false);
-                      setCreateTipo(null);
-                      setCreateFormData({});
-                      setConfigsFiltradas([]);
-
-                      console.log("🔵 [RECARREGAMENTO] Recarregando lista de itens...");
-                      await loadItems();
-
-                      // Se criou um serviço, verificar se existe correspondência em despesas recorrentes
-                      if (createTipo === "servico") {
-                        try {
-                          // Recarrega despesas para garantir dados atualizados
-                          await loadDespesas();
-
-                          const servicoLower = (formDataToSave.servico || "").toString().toLowerCase().trim();
-                          const fornecedorLower = (formDataToSave.fornecedor || "").toString().toLowerCase().trim();
-                          const descricaoLower = (formDataToSave.descricao || "").toString().toLowerCase().trim();
-
-                          const matches = despesasRecorrentes.filter(d => {
-                            const forn = (d.fornecedor || "").toString().toLowerCase().trim();
-                            const desc = (d.desc_servico || "").toString().toLowerCase().trim();
-                            return (
-                              (forn && fornecedorLower && forn === fornecedorLower) ||
-                              (desc && descricaoLower && desc === descricaoLower) ||
-                              (desc && servicoLower && desc.includes(servicoLower))
-                            );
-                          });
-
-                          if (matches.length > 0) {
-                            for (const m of matches) {
-                              try {
-                                await toggleDespesaCheck(m.id, true);
-                                // Atualiza estado local rapidamente
-                                setDespesasRecorrentes(prev => prev.map(d => d.id === m.id ? { ...d, [getMesAtual()]: 1 } : d));
-                                // Notifica outros listeners (modal ou UI) com marina
-                                window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', { detail: { servico: formDataToSave.servico, marina: m.marina } }));
-                              } catch (err) {
-                                logger.error('Erro ao marcar despesa automaticamente:', err);
-                              }
-                            }
-                          }
-                        } catch (err) {
-                          logger.error('Erro ao processar marcação automática de despesas:', err);
-                        }
-                      }
-
-                      console.log("✅ [SUCESSO] Processo completo finalizado!");
-                    } catch (error) {
-                      console.error("❌ [ERRO] Erro ao criar item:", error);
-                      console.error("❌ [ERRO] Detalhes do erro:", {
-                        message: error instanceof Error ? error.message : String(error),
-                        stack: error instanceof Error ? error.stack : undefined,
-                        error: error
-                      });
-                      logger.error("Erro ao criar item:", error);
-                      toast.error("Erro ao criar item");
-                    }
-                  }}
-                >
-                  Criar {createTipo === "servico" ? "Serviço" : "Produto"}
-                </Button>
               </DialogFooter>
             </form>
           )}
@@ -2764,6 +2759,8 @@ export default function Solicitacoes() {
                         <div className="grid grid-cols-2 gap-2">
                           {despesasRecorrentes.map((despesa) => {
                           const marcada = isDespesaMarcada(despesa);
+
+                            if (marcada) console.log("⚠️ ITEM MARCADO:", despesa.servico, "| Mês:", getMesAtual(), "| Valor na coluna:", (despesa as any)[getMesAtual()]);
                           return (
                             <div
                               key={despesa.id}
