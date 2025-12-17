@@ -446,6 +446,17 @@ export async function marcarDespesaPorServico(
     const inputEmpresa = clean(empresa);
 
     // 3. Iterar para encontrar match
+    // ORDENAÇÃO IMPORTANTE:
+    // Itens com MARINA definida devem vir PRIMEIRO para terem prioridade no match.
+    // Itens sem marina (genéricos) ficam por último como fallback.
+    despesas.sort((a, b) => {
+      const temMarinaA = !!a.marina;
+      const temMarinaB = !!b.marina;
+      if (temMarinaA && !temMarinaB) return -1; // a vem antes
+      if (!temMarinaA && temMarinaB) return 1;  // b vem antes
+      return 0;
+    });
+
     for (const despesa of despesas) {
       // Dados do banco
       const dbServico = clean(despesa.servico);
@@ -464,16 +475,22 @@ export async function marcarDespesaPorServico(
         (dbDescricao && dbDescricao.includes(inputServico));
       
       // Lógica de Match de Empresa (Marina)
-      // Se a despesa tem marina definida, a empresa do serviço DEVE ser igual.
-      // Se a despesa não tem marina (null/vazio), ela aceita qualquer empresa (genérica).
-      // Se o serviço não tem empresa informada, assumimos que pode dar match se a despesa for genérica.
-      const marinaMatch = 
-        (!dbMarina) || // Despesa genérica aceita tudo
-        (inputEmpresa === dbMarina); // Se despesa tem marina, tem que bater exato
+      let marinaMatch = false;
+
+      if (dbMarina) {
+        // Se a despesa tem marina definida (específica),
+        // EXIGE que a empresa recebida seja compatível.
+        marinaMatch = (inputEmpresa === dbMarina);
+      } else {
+        // Se a despesa NÃO tem marina (genérica/fallback),
+        // aceita o match apenas pelo nome do serviço.
+        marinaMatch = true;
+      }
 
       if (servicoMatch && marinaMatch) {
         despesaEncontrada = despesa as DespesaTI;
-        // Priorizamos match exato, se encontrou paramos o loop
+        // Assim que encontrar o primeiro match (que será o mais específico devido à ordenação),
+        // encerra a busca.
         break; 
       }
     }

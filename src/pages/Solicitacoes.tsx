@@ -1376,62 +1376,6 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
       if (createTipo === "servico") {
         await createServico(formDataToSave);
         toast.success("Serviço criado com sucesso!");
-
-        // --- LÓGICA DE CHECKLIST AUTOMÁTICO ---
-        try {
-          // A. Verificar se a data da SC é do mês atual
-          const hoje = new Date();
-          const dataSC = parseDateBR(formDataToSave.data_solicitacao);
-          
-          // Só prossegue se a data for válida e for do mesmo mês/ano atual
-          if (dataSC && 
-              dataSC.getMonth() === hoje.getMonth() && 
-              dataSC.getFullYear() === hoje.getFullYear()) {
-            
-            // B. Recarregar despesas para garantir dados frescos
-            const { recorrentes, esporadicas } = await fetchTodasDespesas();
-            const todasDespesas = [...recorrentes, ...esporadicas];
-            
-            // Normalizar textos da SC para comparação
-            const scServico = (formDataToSave.servico || "").toLowerCase().trim();
-            const scDescricao = (formDataToSave.descricao || "").toLowerCase().trim();
-            const scEmpresa = (formDataToSave.empresa || "").toLowerCase().trim();
-
-            // C. Encontrar correspondências
-            const matches = todasDespesas.filter(despesa => {
-              const dbDescricao = (despesa.desc_servico || "").toLowerCase().trim();
-              const dbMarina = (despesa.marina || "").toLowerCase().trim();
-              const dbFornecedor = (despesa.fornecedor || "").toLowerCase().trim();
-
-              // 1. A Marina DEVE bater (se a despesa tiver marina definida)
-              if (dbMarina && dbMarina !== scEmpresa) {
-                return false;
-              }
-
-              // 2. O Nome ou Descrição deve bater
-              // Verifica se o serviço da SC contém a descrição da despesa OU vice-versa
-              const matchServico = scServico && dbDescricao && (scServico.includes(dbDescricao) || dbDescricao.includes(scServico));
-              // Verifica se a descrição da SC contém o fornecedor da despesa
-              const matchFornecedor = scDescricao && dbFornecedor && scDescricao.includes(dbFornecedor);
-              
-              return matchServico || matchFornecedor;
-            });
-
-            // D. Marcar os checks encontrados
-            if (matches.length > 0) {
-              for (const match of matches) {
-                 await toggleDespesaCheck(match.id, true);
-              }
-              toast.success(`${matches.length} item(s) marcado(s) no checklist automaticamente!`);
-              // Atualizar lista de despesas na memória
-              await loadDespesas();
-            }
-          }
-        } catch (err) {
-          console.error("Erro na verificação automática de despesas:", err);
-        }
-        // --- FIM DA LÓGICA DE CHECKLIST ---
-
       } else {
         await createProduto(formDataToSave);
         toast.success("Produto criado com sucesso!");
@@ -1911,15 +1855,14 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       ) : (
                         item.situacao || "-"
                       )}
+                      {isEditing && (
+                        <div className="absolute left-1/2 -translate-x-1/2 -top-10 z-50 flex gap-2">
+                          <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleSaveEdit(true); }} title="Salvar alterações"><Check className="h-4 w-4" /></Button>
+                          <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-yellow-500 hover:bg-yellow-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }} title="Deletar item"><Trash2 className="h-4 w-4" /></Button>
+                          <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-red-500 hover:bg-red-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }} title="Cancelar edição"><X className="h-4 w-4" /></Button>
+                        </div>
+                      )}
                     </TableCell>
-
-                    {isEditing && (
-                      <div className="absolute left-1/2 -translate-x-1/2 -top-10 z-50 flex gap-2">
-                        <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleSaveEdit(true); }} title="Salvar alterações"><Check className="h-4 w-4" /></Button>
-                        <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-yellow-500 hover:bg-yellow-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }} title="Deletar item"><Trash2 className="h-4 w-4" /></Button>
-                        <Button type="button" size="sm" className="h-8 w-8 p-0 rounded-full shadow-lg bg-red-500 hover:bg-red-600 text-white border-2 border-white dark:border-gray-800" onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }} title="Cancelar edição"><X className="h-4 w-4" /></Button>
-                      </div>
-                    )}
                   </TableRow>
                 );
               })}

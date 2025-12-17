@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchNVRs } from "@/lib/nvrService";
-import { fetchRamais, type Ramal } from "@/lib/ramaisService";
-import { fetchImpressoras, type Impressora } from "@/lib/impressorasService";
+// Tentativa de correção de imports:
+// Se '../lib' falhar, pode ser que o ambiente espere '@/' ou outra estrutura.
+// Mantendo '../lib' pois é o correto fisicamente (src/pages -> src/lib).
+import { fetchNVRs } from "../lib/nvrService";
+import { fetchRamais, type Ramal } from "../lib/ramaisService";
+import { fetchImpressoras, type Impressora } from "../lib/impressorasService";
+import { fetchServicos, fetchProdutos } from "../lib/servicosProdutosService";
+
 import { 
   BarChart, 
   Bar, 
@@ -30,7 +35,7 @@ import {
   X,
   ChevronDown,
   HelpCircle,
-  TrendingUp // Adicionado
+  TrendingUp 
 } from "lucide-react";
 
 // --- MOCKS E UTILITÁRIOS (Para substituir dependências externas) ---
@@ -57,6 +62,22 @@ const formatDistanceToNow = (date: string | Date) => {
   if (diffInSeconds < 3600) return `há ${Math.floor(diffInSeconds / 60)} minutos`;
   if (diffInSeconds < 86400) return `há ${Math.floor(diffInSeconds / 3600)} horas`;
   return `há ${Math.floor(diffInSeconds / 86400)} dias`;
+};
+
+// Função auxiliar para converter string de moeda (BRL) em number
+const parseCurrency = (value: string | undefined): number => {
+  if (!value) return 0;
+  // Remove "R$", espaços e pontos de milhar. Troca vírgula por ponto.
+  const cleanValue = value.replace(/[R$\s.]/g, '').replace(',', '.');
+  return parseFloat(cleanValue) || 0;
+};
+
+// Função auxiliar para fazer o parse de datas (aceita YYYY-MM-DD ou ISO)
+const parseDate = (dateStr: string | undefined): Date | null => {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  return date;
 };
 
 // --- TYPES ---
@@ -93,6 +114,7 @@ interface Log {
 const mockSupabase = {
   from: (table: string) => ({
     select: async (query?: string, options?: any) => {
+      // Pequeno delay para simular rede
       await new Promise(resolve => setTimeout(resolve, 500));
       
       if (table === 'nvrs') {
@@ -397,16 +419,67 @@ export default function Home() {
         console.error('Erro ao buscar NVRs para armazenamento crítico:', err);
       }
 
-      // 6. Dados Mockados para o Gráfico
-      const mockFinancialData = [
-        { name: 'Jan', servicos: 4000, produtos: 2400 },
-        { name: 'Fev', servicos: 3000, produtos: 1398 },
-        { name: 'Mar', servicos: 2000, produtos: 9800 },
-        { name: 'Abr', servicos: 2780, produtos: 3908 },
-        { name: 'Mai', servicos: 1890, produtos: 4800 },
-        { name: 'Jun', servicos: 2390, produtos: 3800 },
-      ];
-      setFinancialData(mockFinancialData);
+      // =================================================================
+      // 6. DADOS FINANCEIROS REAIS (NOVA IMPLEMENTAÇÃO)
+      // =================================================================
+      try {
+        // Busca paralela de serviços e produtos
+        const [servicosData, produtosData] = await Promise.all([
+           fetchServicos(),
+           fetchProdutos()
+        ]);
+
+        // Define os últimos 6 meses para o eixo X do gráfico
+        const today = new Date();
+        const last12Months = Array.from({ length: 12 }, (_, i) => {
+           const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+           return {
+              monthIdx: d.getMonth(),
+              year: d.getFullYear(),
+              // Nome do mês abreviado (Jan, Fev...)
+              name: d.toLocaleString('pt-BR', { month: 'short' }).replace('.', ''), 
+              servicos: 0,
+              produtos: 0
+           };
+        }).reverse(); // Reverte para ficar em ordem cronológica (ex: Jun -> Nov)
+
+        // Função auxiliar para somar valor ao mês correto
+        const addToMonth = (dateStr: string | undefined, valueStr: string | undefined, type: 'servicos' | 'produtos') => {
+           const date = parseDate(dateStr);
+           if (!date) return; // Se a data for inválida ou não existir, ignora
+
+           const monthIdx = date.getMonth();
+           const year = date.getFullYear();
+           const value = parseCurrency(valueStr);
+
+           // Encontra o mês correspondente no array last12Months
+           const monthData = last12Months.find(m => m.monthIdx === monthIdx && m.year === year);
+           if (monthData) {
+              monthData[type] += value;
+           }
+        };
+
+        // Processa Serviços (USA EXCLUSIVAMENTE data_solicitacao)
+        servicosData.forEach(s => {
+            addToMonth(s.data_solicitacao, s.valor, 'servicos');
+        });
+
+        // Processa Produtos (USA EXCLUSIVAMENTE data_sc)
+        produtosData.forEach(p => {
+            addToMonth(p.data_sc, p.valor, 'produtos');
+        });
+        
+        // Capitaliza a primeira letra do mês (jan -> Jan)
+        const formattedData = last12Months.map(m => ({
+            ...m,
+            name: m.name.charAt(0).toUpperCase() + m.name.slice(1)
+        }));
+
+        setFinancialData(formattedData);
+
+      } catch (err) {
+        console.error("Erro ao buscar dados financeiros reais:", err);
+      }
 
     } catch (error) {
       console.error("Erro ao carregar dados do dashboard:", error);
