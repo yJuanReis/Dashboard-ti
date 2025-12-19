@@ -82,35 +82,17 @@ export default async function handler(
 
     console.log(`📧 É dia 10! Enviando email com SCs pendentes para ${nomeMes}...`);
 
-    // Buscar apenas despesas recorrentes PENDENTES (não marcadas)
-    // Pendentes = valor do mês atual é null, undefined ou 0
+    // Buscar apenas despesas recorrentes PENDENTES (status_mes_atual = 'PENDENTE')
     const { data: pendentes, error: errPendentes } = await supabase
-      .from('despesas_ti')
+      .from('despesas_recorrentes')
       .select('*')
-      .eq('tipo_despesa', 'Recorrente')
-      .or(`${mesAtual}.is.null,${mesAtual}.eq.0`)
-      .order('servico');
+      .eq('status_mes_atual', 'PENDENTE')
+      .eq('ativo', true)
+      .order('apelido');
 
     if (errPendentes) {
       console.error('Erro ao buscar despesas pendentes:', errPendentes);
-      // Fallback: buscar todas e filtrar manualmente
-      const { data: todasRecorrentes, error: errTodas } = await supabase
-        .from('despesas_ti')
-        .select('*')
-        .eq('tipo_despesa', 'Recorrente')
-        .order('servico');
-
-      if (errTodas) {
-        throw errTodas;
-      }
-
-      // Filtrar manualmente as pendentes
-      const pendentesFiltradas = (todasRecorrentes || []).filter((item: any) => {
-        const valor = item[mesAtual];
-        return valor === null || valor === undefined || valor === 0;
-      });
-
-      return await enviarEmailPendentes(mapDespesasCompatibilidade(pendentesFiltradas), mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
+      throw errPendentes;
     }
 
     return await enviarEmailPendentes(mapDespesasCompatibilidade(pendentes || []), mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
@@ -205,9 +187,9 @@ async function enviarEmailPendentes(
       `;
 
       row.forEach((item: any, colIndex: number) => {
-        const servico = escapeHtml(item.servico || item.fornecedor || 'N/A');
-        const descricao = escapeHtml(item.desc_servico || item.descricao || 'Sem descrição');
-        const empresa = escapeHtml(item.empresa || item.marina || 'N/A');
+        const servico = escapeHtml(item.apelido || 'N/A');
+        const descricao = escapeHtml(item.descricao_padrao || item.match_texto || 'Sem descrição');
+        const empresa = escapeHtml(item.match_empresa || 'N/A');
 
         html += `
                   <!-- Card ${colIndex + 1} -->
