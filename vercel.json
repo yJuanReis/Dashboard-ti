@@ -50,7 +50,7 @@
   ],
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ],
@@ -60,4 +60,4 @@
       "schedule": "0 9 10 * *"
     }
   ]
-}   
+}

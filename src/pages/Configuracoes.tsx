@@ -2252,6 +2252,66 @@ export default function Configuracoes() {
                     </Button>
                   </div>
                   <div className="pt-4 border-t">
+                    <Button
+                      onClick={async () => {
+                        if (!window.confirm('Tem certeza que deseja testar o envio do email de SCs pendentes?\n\nIsso enviará um email real para o endereço configurado.')) {
+                          return;
+                        }
+
+                        try {
+                          const response = await fetch('/api/cron/despesas?test=true', {
+                            method: 'GET',
+                            headers: {
+                              'Authorization': 'Bearer fc06ce1da1ec5d28b1d76e5caad371f6f79e4bec1e3ea07e623eac49cf320dbe'
+                            }
+                          });
+
+                          // Verificar se a resposta é válida antes de tentar fazer JSON.parse()
+                          if (!response.ok) {
+                            const text = await response.text();
+                            console.error('Resposta de erro da API:', {
+                              status: response.status,
+                              statusText: response.statusText,
+                              headers: Object.fromEntries(response.headers.entries()),
+                              body: text.substring(0, 500) // Limitar para debug
+                            });
+                            toast.error(`Erro HTTP ${response.status}: ${response.statusText}`);
+                            return;
+                          }
+
+                          // Verificar se o Content-Type é JSON
+                          const contentType = response.headers.get('content-type');
+                          if (!contentType || !contentType.includes('application/json')) {
+                            const text = await response.text();
+                            console.error('Resposta não é JSON:', {
+                              contentType,
+                              body: text.substring(0, 500)
+                            });
+                            toast.error('Resposta inválida do servidor (não é JSON)');
+                            return;
+                          }
+
+                          const result = await response.json();
+
+                          if (result.success) {
+                            toast.success('Email de teste enviado com sucesso!');
+                          } else if (result.message?.includes('Não é dia 10')) {
+                            toast.info('Email de teste enviado (fora do dia 10, mas funcionou)!');
+                          } else {
+                            toast.error('Erro ao enviar email de teste: ' + (result.message || 'Erro desconhecido'));
+                          }
+                        } catch (error) {
+                          console.error('Erro ao testar email:', error);
+                          toast.error('Erro ao conectar com o servidor de email: ' + (error.message || 'Erro desconhecido'));
+                        }
+                      }}
+                      className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700"
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Testar Email SCs Pendentes
+                    </Button>
+                  </div>
+                  <div className="pt-4 border-t">
                     <CardTitle className="flex items-center gap-2">
                       <Database className="w-5 h-5 text-muted-foreground" />
                       Logs do Sistema

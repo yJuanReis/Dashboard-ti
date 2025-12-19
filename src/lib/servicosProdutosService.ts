@@ -306,7 +306,15 @@ export async function createServico(
   try {
     console.log('🟡 [SERVICE] Iniciando criação de serviço...', servico);
     logger.log('➕ Criando novo serviço...', servico);
-    
+
+    // Verificar duplicidade de SC por empresa
+    if (servico.sc && servico.empresa) {
+      const scDuplicada = await checkSCDuplicadaPorEmpresa(servico.sc, servico.empresa);
+      if (scDuplicada) {
+        throw new Error(`Esta SC já foi lançada na ${servico.empresa}. Cada empresa deve ter SCs únicas.`);
+      }
+    }
+
     console.log('🟡 [SERVICE] Enviando dados para Supabase...');
     const { data, error } = await supabase
       .from('servicos')
@@ -395,7 +403,15 @@ export async function createProduto(
   try {
     console.log('🟣 [PRODUTO] Iniciando criação de produto...', produto);
     logger.log('➕ Criando novo produto...', produto);
-    
+
+    // Verificar duplicidade de SC por empresa
+    if (produto.sc && produto.empresa) {
+      const scDuplicada = await checkSCDuplicadaPorEmpresa(produto.sc, produto.empresa);
+      if (scDuplicada) {
+        throw new Error(`Esta SC já foi lançada na ${produto.empresa}. Cada empresa deve ter SCs únicas.`);
+      }
+    }
+
     console.log('🟣 [PRODUTO] Enviando dados para Supabase...');
     const { data, error } = await supabase
       .from('produtos')
@@ -631,7 +647,7 @@ export async function deleteServico(id: string): Promise<void> {
 export async function deleteProduto(id: string): Promise<void> {
   try {
     logger.log(`🗑️ Deletando produto ${id}...`);
-    
+
     // Buscar dados para auditoria
     const { data: oldData } = await supabase
       .from('produtos')
@@ -667,3 +683,93 @@ export async function deleteProduto(id: string): Promise<void> {
   }
 }
 
+/**
+ * Verifica se uma SC já existe para uma empresa específica
+ * Retorna true se a SC já existe na empresa, false caso contrário
+ */
+export async function checkSCDuplicadaPorEmpresa(
+  sc: string,
+  empresa: string,
+  excludeId?: string // ID do item atual para excluir da verificação (usado em edição)
+): Promise<boolean> {
+  try {
+    if (!sc || !sc.trim() || !empresa || !empresa.trim()) {
+      return false;
+    }
+
+    const normalizedSC = sc.trim().replace(/\D/g, ''); // Remove tudo exceto números
+    const normalizedEmpresa = empresa.trim().toUpperCase();
+
+    if (!normalizedSC) {
+      return false;
+    }
+
+    logger.log(`🔍 Verificando duplicidade de SC ${normalizedSC} para empresa ${normalizedEmpresa}`);
+
+    // Buscar serviços com a mesma SC e empresa
+    let queryServicos = supabase
+      .from('servicos')
+      .select('id, sc, empresa')
+      .eq('empresa', normalizedEmpresa);
+
+    // Se for edição, excluir o item atual
+    if (excludeId) {
+      queryServicos = queryServicos.neq('id', excludeId);
+    }
+
+    const { data: servicos, error: errorServicos } = await queryServicos;
+
+    if (errorServicos) {
+      logger.error('❌ Erro ao buscar serviços para verificação de duplicidade:', errorServicos);
+      throw errorServicos;
+    }
+
+    // Verificar duplicidade em serviços
+    const servicoDuplicado = servicos?.some(servico => {
+      if (!servico.sc) return false;
+      const servicoNormalizedSC = servico.sc.replace(/\D/g, '');
+      return servicoNormalizedSC === normalizedSC;
+    });
+
+    if (servicoDuplicado) {
+      logger.log(`⚠️ SC ${normalizedSC} já existe em serviços para empresa ${normalizedEmpresa}`);
+      return true;
+    }
+
+    // Buscar produtos com a mesma SC e empresa
+    let queryProdutos = supabase
+      .from('produtos')
+      .select('id, sc, empresa')
+      .eq('empresa', normalizedEmpresa);
+
+    // Se for edição, excluir o item atual
+    if (excludeId) {
+      queryProdutos = queryProdutos.neq('id', excludeId);
+    }
+
+    const { data: produtos, error: errorProdutos } = await queryProdutos;
+
+    if (errorProdutos) {
+      logger.error('❌ Erro ao buscar produtos para verificação de duplicidade:', errorProdutos);
+      throw errorProdutos;
+    }
+
+    // Verificar duplicidade em produtos
+    const produtoDuplicado = produtos?.some(produto => {
+      if (!produto.sc) return false;
+      const produtoNormalizedSC = produto.sc.replace(/\D/g, '');
+      return produtoNormalizedSC === normalizedSC;
+    });
+
+    if (produtoDuplicado) {
+      logger.log(`⚠️ SC ${normalizedSC} já existe em produtos para empresa ${normalizedEmpresa}`);
+      return true;
+    }
+
+    logger.log(`✅ SC ${normalizedSC} está disponível para empresa ${normalizedEmpresa}`);
+    return false;
+  } catch (error) {
+    logger.error('❌ Erro ao verificar duplicidade de SC:', error);
+    throw error;
+  }
+}

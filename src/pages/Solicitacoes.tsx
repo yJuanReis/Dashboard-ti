@@ -68,7 +68,6 @@ import {
   AlertCircle,
   TrendingUp,
   Building2,
-  Receipt,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -88,16 +87,6 @@ import {
   fetchConfigByServico,
   type ConfigSolicitacao,
 } from "@/lib/configSolicitacoesService";
-import {
-  fetchTodasDespesas,
-  getValorMesAtual,
-  getMesAtual,
-  isDespesaMarcada,
-  toggleDespesaCheck,
-  resetarChecksMesAtual,
-  resetarSeDia1,
-  type DespesaTI,
-} from "@/lib/despesasService";
 import { useSidebar } from "@/components/ui/sidebar";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
@@ -144,31 +133,11 @@ export default function Solicitacoes() {
   const blurTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showServicosModal, setShowServicosModal] = useState(false);
   const [showProdutosModal, setShowProdutosModal] = useState(false);
-  const [showDespesasModal, setShowDespesasModal] = useState(false);
-  // Refs para agrupar eventos de marcação de despesas e debounce
-  const pendingDespesaEventsRef = useRef<Array<{ servico: string; marina?: string }>>([]);
-  const despesaDebounceRef = useRef<number | null>(null);
-  const [despesasRecorrentes, setDespesasRecorrentes] = useState<DespesaTI[]>([]);
-  const [despesasEsporadicas, setDespesasEsporadicas] = useState<DespesaTI[]>([]);
-  const [loadingDespesas, setLoadingDespesas] = useState(false);
-  const [confirmarMarcacao, setConfirmarMarcacao] = useState<{
-    open: boolean;
-    despesaId: string | null;
-    despesaNome: string | null;
-    descricao: string | null;
-    marina: string | null;
-  }>({
-    open: false,
-    despesaId: null,
-    despesaNome: null,
-    descricao: null,
-    marina: null,
-  });
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [servicosMesesExibidos, setServicosMesesExibidos] = useState(6);
   const [produtosMesesExibidos, setProdutosMesesExibidos] = useState(6);
   const [servicosMesesExpandidos, setServicosMesesExpandidos] = useState<Set<string>>(new Set());
   const [produtosMesesExpandidos, setProdutosMesesExpandidos] = useState<Set<string>>(new Set());
+  const [isCreating, setIsCreating] = useState(false);
 
   // Função para converter data brasileira (dd/mm/yyyy) para Date
   const parseDateBR = (dateStr: string): Date | undefined => {
@@ -250,6 +219,17 @@ export default function Solicitacoes() {
     return numValue.toFixed(2).replace(".", ",");
   };
 
+  // Função para normalizar nome da empresa (remover acentos e converter para maiúsculo)
+  const normalizeEmpresa = (empresa: string): string => {
+    if (!empresa) return "";
+    return empresa
+      .toUpperCase()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+      .replace(/\s+/g, ' '); // Normaliza espaços
+  };
+
 
   const loadItems = async () => {
     try {
@@ -264,123 +244,11 @@ export default function Solicitacoes() {
     }
   };
 
-  const loadDespesas = async () => {
-    try {
-      setLoadingDespesas(true);
-      const { recorrentes, esporadicas } = await fetchTodasDespesas();
-      
-      // Debug: verificar se a marina está vindo
-      logger.log('🔍 Debug - Despesas carregadas:', {
-        totalRecorrentes: recorrentes.length,
-        totalEsporadicas: esporadicas.length,
-        primeiraRecorrente: recorrentes[0] ? {
-          fornecedor: recorrentes[0].fornecedor,
-          marina: recorrentes[0].marina,
-          temMarina: !!recorrentes[0].marina
-        } : null,
-        primeiraEsporadica: esporadicas[0] ? {
-          fornecedor: esporadicas[0].fornecedor,
-          marina: esporadicas[0].marina,
-          temMarina: !!esporadicas[0].marina
-        } : null
-      });
-      
-      setDespesasRecorrentes(recorrentes);
-      setDespesasEsporadicas(esporadicas);
-    } catch (error) {
-      logger.error("Erro ao carregar despesas:", error);
-      toast.error("Erro ao carregar despesas");
-    } finally {
-      setLoadingDespesas(false);
-    }
-  };
 
-  const handleToggleDespesa = async (despesaId: string, marcado: boolean) => {
-    // Se for desmarcar, não pede confirmação
-    if (!marcado) {
-      try {
-        await toggleDespesaCheck(despesaId, marcado);
-        // Atualizar o estado local
-        setDespesasRecorrentes(prev => 
-          prev.map(d => {
-            if (d.id === despesaId) {
-              const mesAtual = getMesAtual();
-              return { ...d, [mesAtual]: 0 };
-            }
-            return d;
-          })
-        );
-        toast.success("Despesa desmarcada");
-      } catch (error) {
-        logger.error("Erro ao atualizar despesa:", error);
-        toast.error("Erro ao atualizar despesa");
-      }
-      return;
-    }
 
-    // Se for marcar, pede confirmação
-    const despesa = despesasRecorrentes.find(d => d.id === despesaId);
-    if (despesa) {
-      setConfirmarMarcacao({
-        open: true,
-        despesaId: despesaId,
-        despesaNome: despesa.fornecedor,
-        descricao: despesa.desc_servico || null,
-        marina: despesa.marina || null,
-      });
-    }
-  };
 
-  const confirmarMarcarDespesa = async () => {
-    if (!confirmarMarcacao.despesaId) return;
 
-    try {
-      await toggleDespesaCheck(confirmarMarcacao.despesaId, true);
-      // Atualizar o estado local
-      setDespesasRecorrentes(prev => 
-        prev.map(d => {
-          if (d.id === confirmarMarcacao.despesaId) {
-            const mesAtual = getMesAtual();
-            return { ...d, [mesAtual]: 1 };
-          }
-          return d;
-        })
-      );
-      toast.success("Despesa marcada com sucesso");
-      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, marina: null });
-    } catch (error) {
-      logger.error("Erro ao atualizar despesa:", error);
-      toast.error("Erro ao atualizar despesa");
-      setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, marina: null });
-    }
-  };
-
-  const handleResetarChecks = () => {
-    // Abre o AlertDialog de confirmação
-    setShowResetConfirm(true);
-  };
-
-  const performResetConfirmed = async () => {
-      try {
-        setShowResetConfirm(false);
-        setLoadingDespesas(true);
-        
-        // Chama serviço para resetar no banco
-        await resetarChecksMesAtual();
-
-        // Recarrega do servidor para garantir consistência e atualizar a tela
-        await loadDespesas();
-
-        toast.success('Todos os checks foram desmarcados para o mês atual');
-      } catch (error) {
-        logger.error('Erro ao resetar checks:', error);
-        toast.error('Erro ao resetar checks');
-      } finally {
-        setLoadingDespesas(false);
-      }
-    };
-
-  // Carregar dados
+  // Carregar dados iniciais
   useEffect(() => {
     loadItems();
     loadConfigSolicitacoes();
@@ -391,109 +259,21 @@ export default function Solicitacoes() {
     try {
       const q = new URLSearchParams(location.search);
       if (q.get("new") === "1") {
-        setCreateTipo(null); // força a escolha entre serviço/produto
+        setCreateTipo(null);
         setShowCreateDialog(true);
       }
     } catch (err) {
-      // se location não estiver disponível por algum motivo, ignora
-      console.warn('Erro ao processar query params para abrir modal:', err);
+      console.warn('Erro ao processar query params:', err);
     }
   }, [location.search]);
 
-  // Listener para quando uma despesa for marcada automaticamente ao criar serviço
-  useEffect(() => {
-    // Debounced handler: agrupa múltiplos eventos e processa uma única vez
-    const handleDespesaMarcada = (event: CustomEvent) => {
-      const { servico, marina } = event.detail || {};
-      // Empilha o evento
-      pendingDespesaEventsRef.current.push({ servico, marina });
-
-      // Reinicia o debounce
-      if (despesaDebounceRef.current) {
-        window.clearTimeout(despesaDebounceRef.current);
-      }
-
-      despesaDebounceRef.current = window.setTimeout(async () => {
-        try {
-          const eventos = pendingDespesaEventsRef.current.splice(0);
-          // Recarrega as despesas do servidor para garantir dados fresh
-          await loadDespesas();
-          // Abre modal para mostrar o checklist atualizado
-          setShowDespesasModal(true);
-
-          // Mostrar toast resumido (um ou vários eventos)
-          if (eventos.length === 1) {
-            const e = eventos[0];
-            toast.success(`Despesa marcada automaticamente no checklist: ${e.servico}${e.marina ? ` (${e.marina})` : ''}`);
-          } else if (eventos.length > 1) {
-            toast.success(`${eventos.length} despesas marcadas automaticamente no checklist`);
-          }
-        } catch (err) {
-          logger.error('Erro ao processar marcação automática de despesas:', err);
-          toast.error('Erro ao atualizar checklist de despesas');
-        } finally {
-          if (despesaDebounceRef.current) {
-            window.clearTimeout(despesaDebounceRef.current);
-            despesaDebounceRef.current = null;
-          }
-        }
-      }, 250);
-    };
-
-    window.addEventListener('despesa:marcada-automaticamente', handleDespesaMarcada as EventListener);
-
-    return () => {
-      window.removeEventListener('despesa:marcada-automaticamente', handleDespesaMarcada as EventListener);
-      if (despesaDebounceRef.current) {
-        window.clearTimeout(despesaDebounceRef.current);
-        despesaDebounceRef.current = null;
-      }
-      pendingDespesaEventsRef.current = [];
-    };
-  }, []);
-
-  // Carregar configurações de solicitações
+  // Carregar configurações de solicitações (removido - não será mais usado)
   const loadConfigSolicitacoes = async () => {
-    try {
-      const configs = await fetchConfigSolicitacoes();
-      setConfigSolicitacoes(configs);
-      
-      const servicos = await fetchServicosUnicos();
-      setServicosUnicosConfig(servicos);
-    } catch (error) {
-      logger.error("Erro ao carregar configurações de solicitações:", error);
-    }
+    // Removido: lógica de auto-preenchimento inteligente
   };
 
-  // Filtrar configurações quando o serviço mudar
-  useEffect(() => {
-    if (createFormData.servico) {
-      const filtradas = configSolicitacoes.filter(
-        (config) => config.servico === createFormData.servico
-      );
-      setConfigsFiltradas(filtradas);
-      
-      // Se houver apenas uma opção, preencher automaticamente
-      if (filtradas.length === 1) {
-        setCreateFormData({
-          ...createFormData,
-          descricao: filtradas[0].descricao,
-          empresa: filtradas[0].empresa,
-        });
-      } else if (filtradas.length > 1 && !createFormData.descricao && !createFormData.empresa) {
-        // Se houver múltiplas opções, limpar descrição e empresa para o usuário escolher
-        setCreateFormData({
-          ...createFormData,
-          descricao: "",
-          empresa: "",
-        });
-      }
-    } else {
-      setConfigsFiltradas([]);
-    }
-  }, [createFormData.servico]);
+  // Removido: lógica de filtragem de configurações inteligentes
 
-  // Obter serviços únicos para filtro (apenas para tipo servico)
   const servicosUnicos = useMemo(() => {
     if (activeTipoTab === "servico") {
       return Array.from(new Set(items.filter((i) => i.tipo === "servico").map((i) => i.servico).filter(Boolean))).sort();
@@ -501,7 +281,6 @@ export default function Solicitacoes() {
     return [];
   }, [items, activeTipoTab]);
   
-  // Obter anos únicos baseado no tipo ativo
   const anosDisponiveis = useMemo(() => 
     Array.from(
       new Set(
@@ -518,47 +297,39 @@ export default function Solicitacoes() {
   useEffect(() => {
     const handleSearchFromHeader = (event: Event) => {
       const custom = event as CustomEvent<string>;
-      const value = typeof custom.detail === "string" ? custom.detail : "";
-      setSearchTerm(value);
+      setSearchTerm(custom.detail || "");
     };
 
     const handleServicoFilterFromHeader = (event: Event) => {
       const custom = event as CustomEvent<string>;
-      const value = typeof custom.detail === "string" ? custom.detail : "todos";
-      setServicoFilter(value);
+      setServicoFilter(custom.detail || "todos");
     };
 
     const handleAnoFilterFromHeader = (event: Event) => {
       const custom = event as CustomEvent<string>;
-      const value = typeof custom.detail === "string" ? custom.detail : "todos";
-      setAnoFilter(value);
+      setAnoFilter(custom.detail || "todos");
     };
 
     const handleToggleDuplicados = (event: Event) => {
       const custom = event as CustomEvent<boolean>;
-      const value = typeof custom.detail === "boolean" ? custom.detail : false;
-      setShowDuplicados(value);
+      setShowDuplicados(custom.detail || false);
     };
 
     const handleTipoTabFromHeader = (event: Event) => {
       const custom = event as CustomEvent<"servico" | "produto">;
-      const tipo = custom.detail === "produto" ? "produto" : "servico";
-      setActiveTipoTab(tipo);
+      setActiveTipoTab(custom.detail === "produto" ? "produto" : "servico");
     };
 
     const handleMainTabFromHeader = (event: Event) => {
       const custom = event as CustomEvent<"lista" | "central">;
-      const tab = custom.detail === "central" ? "central" : "lista";
-      setActiveMainTab(tab);
+      setActiveMainTab(custom.detail === "central" ? "central" : "lista");
     };
 
-    const handleOpenCreateDialog = (event?: Event) => {
-      console.log("🟢 [DIALOG] Abrindo dialog de criação...");
+    const handleOpenCreateDialog = () => {
       setCreateTipo(null);
       setCreateFormData({});
       setConfigsFiltradas([]);
       setShowCreateDialog(true);
-      console.log("🟢 [DIALOG] Dialog aberto");
     };
 
     const handleClearFilters = () => {
@@ -567,17 +338,9 @@ export default function Solicitacoes() {
       setAnoFilter("todos");
     };
 
-    // Enviar opções de serviço e ano para o Layout
     const sendOptionsToLayout = () => {
-      const servicosEvent = new CustomEvent("solicitacoes:setServicoOptions", { 
-        detail: servicosUnicos
-      });
-      window.dispatchEvent(servicosEvent);
-      
-      const anosEvent = new CustomEvent("solicitacoes:setAnoOptions", { 
-        detail: anosDisponiveis.map(a => a?.toString() || "").filter(Boolean)
-      });
-      window.dispatchEvent(anosEvent);
+      window.dispatchEvent(new CustomEvent("solicitacoes:setServicoOptions", { detail: servicosUnicos }));
+      window.dispatchEvent(new CustomEvent("solicitacoes:setAnoOptions", { detail: anosDisponiveis.map(a => a?.toString() || "").filter(Boolean) }));
     };
 
     window.addEventListener("solicitacoes:setSearch", handleSearchFromHeader);
@@ -589,7 +352,6 @@ export default function Solicitacoes() {
     window.addEventListener("solicitacoes:openCreateDialog", handleOpenCreateDialog);
     window.addEventListener("solicitacoes:clearFilters", handleClearFilters);
 
-    // Enviar opções quando os dados mudarem
     if (items.length > 0) {
       sendOptionsToLayout();
     }
@@ -606,160 +368,102 @@ export default function Solicitacoes() {
     };
   }, [items, servicosUnicos, anosDisponiveis]);
 
-  // Notificar o Layout sobre o tipo atual quando mudar
   useEffect(() => {
-    const event = new CustomEvent("solicitacoes:tipoTabChanged", { detail: activeTipoTab });
-    window.dispatchEvent(event);
+    window.dispatchEvent(new CustomEvent("solicitacoes:tipoTabChanged", { detail: activeTipoTab }));
   }, [activeTipoTab]);
 
-  // Notificar o Layout sobre a aba principal atual quando mudar
   useEffect(() => {
-    const event = new CustomEvent("solicitacoes:mainTabChanged", { detail: activeMainTab });
-    window.dispatchEvent(event);
+    window.dispatchEvent(new CustomEvent("solicitacoes:mainTabChanged", { detail: activeMainTab }));
   }, [activeMainTab]);
 
-  // Selecionar automaticamente o ano mais recente quando mudar o tipo ou quando carregar os dados
   useEffect(() => {
     if (!loading && items.length > 0 && anoFilter === "todos") {
-      const anosDoTipo = Array.from(
-        new Set(
-          items
-            .filter((i) => i.tipo === activeTipoTab)
-            .map((i) => i.ano)
-            .filter(Boolean)
-        )
-      ).sort((a, b) => (b || 0) - (a || 0));
-      
+      const anosDoTipo = Array.from(new Set(items.filter((i) => i.tipo === activeTipoTab).map((i) => i.ano).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0));
       if (anosDoTipo.length > 0) {
         const anoMaisRecente = anosDoTipo[0]?.toString();
         if (anoMaisRecente) {
           setAnoFilter(anoMaisRecente);
-          const event = new CustomEvent("solicitacoes:setAnoFilter", { detail: anoMaisRecente });
-          window.dispatchEvent(event);
+          window.dispatchEvent(new CustomEvent("solicitacoes:setAnoFilter", { detail: anoMaisRecente }));
         }
       }
     }
   }, [activeTipoTab, loading, items.length]);
 
-  // Função auxiliar para extrair apenas números de uma string
+  // Enviar estado de loading para o Layout
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("solicitacoes:loadingChanged", { detail: loading }));
+  }, [loading]);
+
+  // Ouvir evento de loadItems do Layout
+  useEffect(() => {
+    const handleLoadItemsFromHeader = () => {
+      loadItems();
+    };
+
+    window.addEventListener("solicitacoes:loadItems", handleLoadItemsFromHeader);
+    return () => {
+      window.removeEventListener("solicitacoes:loadItems", handleLoadItemsFromHeader);
+    };
+  }, []);
+
   const extractNumbers = (value: string): string => {
     return value.replace(/\D/g, '');
   };
 
-  // Função para verificar se uma SC é duplicada (mesma SC na mesma empresa)
   const idsDuplicados = useMemo(() => {
-    // Criar um mapa de SCs por empresa
     const scPorEmpresa = new Map<string, Set<string>>();
-    
     items.forEach((item) => {
       if (!item.sc || !item.empresa) return;
-      
       const normalizedSC = extractNumbers(item.sc);
       if (!normalizedSC) return;
-      
-      const empresa = item.empresa.trim();
+      const empresa = normalizeEmpresa(item.empresa);
       const key = `${empresa}|${normalizedSC}`;
-      
-      if (!scPorEmpresa.has(key)) {
-        scPorEmpresa.set(key, new Set());
-      }
+      if (!scPorEmpresa.has(key)) scPorEmpresa.set(key, new Set());
       scPorEmpresa.get(key)!.add(item.id);
     });
-    
-    // Criar um Set com IDs de itens que têm SC duplicada
+
     const idsDuplicadosSet = new Set<string>();
     scPorEmpresa.forEach((ids) => {
-      if (ids.size > 1) {
-        // Se há mais de um item com a mesma SC na mesma empresa, todos são duplicados
-        ids.forEach(id => idsDuplicadosSet.add(id));
-      }
+      if (ids.size > 1) ids.forEach(id => idsDuplicadosSet.add(id));
     });
-    
     return idsDuplicadosSet;
   }, [items]);
 
-  // Função auxiliar para verificar se um item é duplicado
   const isSCDuplicada = (itemId: string, sc: string, empresa: string): boolean => {
     if (!sc || !empresa) return false;
     return idsDuplicados.has(itemId);
   };
 
-  // Filtrar e ordenar
   const filteredAndSortedItems = [...items]
     .filter((item) => {
-      // Filtro por tipo (aba principal)
       const matchesTipo = item.tipo === activeTipoTab;
-      
-      // Filtro por ano (do header)
       const matchesAno = anoFilter === "todos" || item.ano?.toString() === anoFilter;
-      
-      // Busca textual
-      const matchesSearch =
-        !searchTerm ||
-        `${item.servico || ""} ${item.produto || ""} ${item.descricao || ""} ${item.informacoes || ""} ${item.empresa || ""} ${item.sc || ""} ${item.situacao || ""} ${item.nota_fiscal || ""} ${item.oc || ""} ${item.fornecedor || ""}`
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-      
-      // Filtro por serviço (apenas para tipo servico)
+      const matchesSearch = !searchTerm || `${item.servico || ""} ${item.produto || ""} ${item.descricao || ""} ${item.informacoes || ""} ${item.empresa || ""} ${item.sc || ""} ${item.situacao || ""} ${item.nota_fiscal || ""} ${item.oc || ""} ${item.fornecedor || ""}`.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesServico = activeTipoTab === "produto" || servicoFilter === "todos" || item.servico === servicoFilter;
-      
-      // Filtro de duplicados: se showDuplicados estiver ativo, mostrar apenas duplicados
-      // Se não estiver ativo, mostrar todos (incluindo duplicados)
       const matchesDuplicados = !showDuplicados || (showDuplicados && isSCDuplicada(item.id, item.sc || "", item.empresa || ""));
-      
       return matchesTipo && matchesAno && matchesSearch && matchesServico && matchesDuplicados;
     })
     .sort((a, b) => {
-      // Se não houver ordenação manual, ordenar por created_at (mais recente primeiro)
       if (!sortField) {
-        // Priorizar created_at se disponível
-        if (a.created_at && b.created_at) {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        }
-        if (a.created_at) return -1; // a tem created_at, b não - a vem primeiro
-        if (b.created_at) return 1;  // b tem created_at, a não - b vem primeiro
-        
-        // Fallback: usar data de solicitação
+        if (a.created_at && b.created_at) return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (a.created_at) return -1;
+        if (b.created_at) return 1;
         const dataA = a.data_solicitacao || a.data_sc || "";
         const dataB = b.data_solicitacao || b.data_sc || "";
-        
-        // Função auxiliar para converter data brasileira (dd/mm/yyyy) para timestamp
         const parseDate = (dateStr: string): number => {
           if (!dateStr) return 0;
-          
-          // Tentar formato brasileiro dd/mm/yyyy ou dd/mm/yy
           const parts = dateStr.split('/');
           if (parts.length === 3) {
-            const day = parseInt(parts[0], 10);
-            const month = parseInt(parts[1], 10) - 1; // Mês é 0-indexed
             let year = parseInt(parts[2], 10);
-            
-            // Se o ano tem 2 dígitos, assumir 2000+
-            if (year < 100) {
-              year += 2000;
-            }
-            
-            const date = new Date(year, month, day);
-            if (!isNaN(date.getTime())) {
-              return date.getTime();
-            }
+            if (year < 100) year += 2000;
+            const date = new Date(year, parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+            if (!isNaN(date.getTime())) return date.getTime();
           }
-          
-          // Tentar formato ISO (yyyy-mm-dd)
           const isoDate = new Date(dateStr);
-          if (!isNaN(isoDate.getTime())) {
-            return isoDate.getTime();
-          }
-          
-          // Se não conseguir parsear, retornar 0 (será ordenado por último)
+          if (!isNaN(isoDate.getTime())) return isoDate.getTime();
           return 0;
         };
-        
-        const timestampA = parseDate(dataA);
-        const timestampB = parseDate(dataB);
-        
-        // Ordenar do mais recente para o mais antigo (desc)
-        return timestampB - timestampA;
+        return parseDate(dataB) - parseDate(dataA);
       }
 
       let fieldA: any = a[sortField];
@@ -780,7 +484,6 @@ export default function Solicitacoes() {
         return sortDirection === "asc" ? compare : -compare;
       }
 
-      // Para campos específicos de serviço/produto
       if (sortField === "servico" || sortField === "produto") {
         fieldA = sortField === "servico" ? (a.servico || "") : (a.produto || "");
         fieldB = sortField === "servico" ? (b.servico || "") : (b.produto || "");
@@ -792,17 +495,13 @@ export default function Solicitacoes() {
         fieldB = fieldB || "";
       }
 
-      const compare = String(fieldA).localeCompare(String(fieldB), "pt-BR", {
-        numeric: true,
-      });
+      const compare = String(fieldA).localeCompare(String(fieldB), "pt-BR", { numeric: true });
       return sortDirection === "asc" ? compare : -compare;
     });
 
-  // Calcular estatísticas
   const stats = useMemo(() => {
     const servicos = items.filter((i) => i.tipo === "servico");
     const produtos = items.filter((i) => i.tipo === "produto");
-    
     const calcularValor = (item: ServicoProduto) => {
       if (!item.valor) return 0;
       const valorStr = item.valor.replace(/[^\d,.-]/g, "").replace(",", ".");
@@ -812,50 +511,29 @@ export default function Solicitacoes() {
     const valorTotal = items.reduce((sum, i) => sum + calcularValor(i), 0);
     const valorServicos = servicos.reduce((sum, i) => sum + calcularValor(i), 0);
     const valorProdutos = produtos.reduce((sum, i) => sum + calcularValor(i), 0);
-
     const comValor = items.filter(i => calcularValor(i) > 0);
     const mediaValor = comValor.length > 0 ? valorTotal / comValor.length : 0;
-    const mediaServicos = servicos.filter(i => calcularValor(i) > 0).length > 0 
-      ? valorServicos / servicos.filter(i => calcularValor(i) > 0).length 
-      : 0;
-    const mediaProdutos = produtos.filter(i => calcularValor(i) > 0).length > 0
-      ? valorProdutos / produtos.filter(i => calcularValor(i) > 0).length
-      : 0;
-
+    
     const paga = items.filter(i => i.situacao === "paga").length;
     const cancelada = items.filter(i => i.situacao === "cancelado").length;
     const pendente = items.filter(i => !i.situacao || i.situacao === "?").length;
-    
-    const valorPaga = items
-      .filter(i => i.situacao === "paga")
-      .reduce((sum, i) => sum + calcularValor(i), 0);
-    const valorPendente = items
-      .filter(i => !i.situacao || i.situacao === "?")
-      .reduce((sum, i) => sum + calcularValor(i), 0);
-    const valorCancelada = items
-      .filter(i => i.situacao === "cancelado")
-      .reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorPaga = items.filter(i => i.situacao === "paga").reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorPendente = items.filter(i => !i.situacao || i.situacao === "?").reduce((sum, i) => sum + calcularValor(i), 0);
+    const valorCancelada = items.filter(i => i.situacao === "cancelado").reduce((sum, i) => sum + calcularValor(i), 0);
 
-    // Top empresas por valor 
-    // Filtrar apenas campos de empresa válidos (não SCs ou números)
     const empresasMap = new Map<string, number>();
     items.forEach(item => {
       if (item.empresa && calcularValor(item) > 0) {
         const empresa = item.empresa.trim();
-        // Filtrar valores que são apenas números (provavelmente SCs)
         const isOnlyNumbers = /^\d+$/.test(empresa);
-        // Filtrar valores muito curtos ou que parecem SCs
         if (!isOnlyNumbers && empresa.length > 2 && empresa !== item.sc) {
           const atual = empresasMap.get(empresa) || 0;
           empresasMap.set(empresa, atual + calcularValor(item));
         }
       }
     });
-    const topEmpresas = Array.from(empresasMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
+    const topEmpresas = Array.from(empresasMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    // Top 5 serviços mais caros
     const topServicos = servicos
       .map(servico => ({
         servico: servico.servico || "-",
@@ -867,64 +545,42 @@ export default function Solicitacoes() {
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 5);
 
-    // Anos disponíveis
     const anos = Array.from(new Set(items.map(i => i.ano).filter(Boolean))).sort((a, b) => (b || 0) - (a || 0));
-
-    // Insights adicionais
     const semValor = items.filter(i => calcularValor(i) === 0).length;
     const taxaPreenchimento = items.length > 0 ? ((items.length - semValor) / items.length * 100) : 0;
     
-    // Distribuição por ano
     const distribuicaoAno = new Map<number, number>();
     items.forEach(item => {
-      if (item.ano) {
-        distribuicaoAno.set(item.ano, (distribuicaoAno.get(item.ano) || 0) + 1);
-      }
+      if (item.ano) distribuicaoAno.set(item.ano, (distribuicaoAno.get(item.ano) || 0) + 1);
     });
-    const topAno = Array.from(distribuicaoAno.entries())
-      .sort((a, b) => b[1] - a[1])[0] || [null, 0];
+    const topAno = Array.from(distribuicaoAno.entries()).sort((a, b) => b[1] - a[1])[0] || [null, 0];
 
-    // Empresas com mais itens (quantidade)
     const empresasQtdMap = new Map<string, number>();
     items.forEach(item => {
-      if (item.empresa) {
-        empresasQtdMap.set(item.empresa, (empresasQtdMap.get(item.empresa) || 0) + 1);
-      }
+      if (item.empresa) empresasQtdMap.set(item.empresa, (empresasQtdMap.get(item.empresa) || 0) + 1);
     });
-    const topEmpresasQtd = Array.from(empresasQtdMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
+    const topEmpresasQtd = Array.from(empresasQtdMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-    // Serviços mais frequentes
     const servicosFreqMap = new Map<string, number>();
     servicos.forEach(item => {
-      if (item.servico) {
-        servicosFreqMap.set(item.servico, (servicosFreqMap.get(item.servico) || 0) + 1);
-      }
+      if (item.servico) servicosFreqMap.set(item.servico, (servicosFreqMap.get(item.servico) || 0) + 1);
     });
-    const topServicosFreq = Array.from(servicosFreqMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
+    const topServicosFreq = Array.from(servicosFreqMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
-    // Itens com OC vs sem OC
     const comOC = items.filter(i => i.oc && i.oc.trim() !== "").length;
     const semOC = items.length - comOC;
-
-    // Itens com nota fiscal vs sem
     const comNF = items.filter(i => i.nota_fiscal && i.nota_fiscal.trim() !== "").length;
     const semNF = items.length - comNF;
 
-    // Média de itens por mês (baseado nos últimos 12 meses)
     const mesesComItens = new Set<string>();
     items.forEach(item => {
       const data = item.tipo === "servico" ? item.data_solicitacao : item.data_sc;
       if (data) {
         const parts = data.split('/');
         if (parts.length === 3) {
-          const mes = parts[1];
           let ano = parseInt(parts[2], 10);
           if (ano < 100) ano += 2000;
-          mesesComItens.add(`${ano}-${mes}`);
+          mesesComItens.add(`${ano}-${parts[1]}`);
         }
       }
     });
@@ -942,33 +598,15 @@ export default function Solicitacoes() {
       topServicos,
       anos: anos.length,
       anoAtual: anos[0] || new Date().getFullYear(),
-      // Situação
-      paga,
-      cancelada,
-      pendente,
-      valorPaga,
-      valorPendente,
-      valorCancelada,
-      // Insights
-      semValor,
-      taxaPreenchimento,
-      topAno: topAno[0] ? { ano: topAno[0], quantidade: topAno[1] } : null,
-      topEmpresasQtd,
-      topServicosFreq,
-      comOC,
-      semOC,
-      comNF,
-      semNF,
-      mediaItensMes,
-      mesesComItens: mesesComItens.size,
+      paga, cancelada, pendente, valorPaga, valorPendente, valorCancelada,
+      semValor, taxaPreenchimento, topAno: topAno[0] ? { ano: topAno[0], quantidade: topAno[1] } : null,
+      topEmpresasQtd, topServicosFreq, comOC, semOC, comNF, semNF, mediaItensMes, mesesComItens: mesesComItens.size,
     };
   }, [items]);
 
-  // Agrupar serviços por mês
   const servicosPorMes = useMemo(() => {
     const servicos = items.filter((i) => i.tipo === "servico" && i.data_solicitacao);
     
-    // Função para extrair mês/ano da data brasileira (dd/mm/yyyy)
     const extrairMesAno = (dataStr: string): string | null => {
       if (!dataStr) return null;
       const parts = dataStr.split('/');
@@ -976,18 +614,14 @@ export default function Solicitacoes() {
         const mes = parseInt(parts[1], 10);
         let ano = parseInt(parts[2], 10);
         if (ano < 100) ano += 2000;
-        
         if (!isNaN(mes) && !isNaN(ano) && mes >= 1 && mes <= 12) {
-          // Criar data para formatar o nome do mês
           const date = new Date(ano, mes - 1, 1);
-          const nomeMes = format(date, "MMMM yyyy", { locale: ptBR });
-          return `${ano}-${String(mes).padStart(2, '0')}`; // Chave para ordenação
+          return `${ano}-${String(mes).padStart(2, '0')}`;
         }
       }
       return null;
     };
 
-    // Agrupar por mês/ano
     const agrupados = new Map<string, {
       mesAno: string;
       nomeMes: string;
@@ -1028,17 +662,12 @@ export default function Solicitacoes() {
       }
     });
 
-    // Converter para array e ordenar (mais recente primeiro)
-    return Array.from(agrupados.values()).sort((a, b) => {
-      return b.mesAno.localeCompare(a.mesAno);
-    });
+    return Array.from(agrupados.values()).sort((a, b) => b.mesAno.localeCompare(a.mesAno));
   }, [items]);
 
-  // Agrupar produtos por mês
   const produtosPorMes = useMemo(() => {
     const produtos = items.filter((i) => i.tipo === "produto" && i.data_sc);
     
-    // Função para extrair mês/ano da data brasileira (dd/mm/yyyy)
     const extrairMesAno = (dataStr: string): string | null => {
       if (!dataStr) return null;
       const parts = dataStr.split('/');
@@ -1046,18 +675,14 @@ export default function Solicitacoes() {
         const mes = parseInt(parts[1], 10);
         let ano = parseInt(parts[2], 10);
         if (ano < 100) ano += 2000;
-        
         if (!isNaN(mes) && !isNaN(ano) && mes >= 1 && mes <= 12) {
-          // Criar data para formatar o nome do mês
           const date = new Date(ano, mes - 1, 1);
-          const nomeMes = format(date, "MMMM yyyy", { locale: ptBR });
-          return `${ano}-${String(mes).padStart(2, '0')}`; // Chave para ordenação
+          return `${ano}-${String(mes).padStart(2, '0')}`;
         }
       }
       return null;
     };
 
-    // Agrupar por mês/ano
     const agrupados = new Map<string, {
       mesAno: string;
       nomeMes: string;
@@ -1098,10 +723,7 @@ export default function Solicitacoes() {
       }
     });
 
-    // Converter para array e ordenar (mais recente primeiro)
-    return Array.from(agrupados.values()).sort((a, b) => {
-      return b.mesAno.localeCompare(a.mesAno);
-    });
+    return Array.from(agrupados.values()).sort((a, b) => b.mesAno.localeCompare(a.mesAno));
   }, [items]);
 
   const handleSort = (field: SortField) => {
@@ -1115,13 +737,10 @@ export default function Solicitacoes() {
 
   const handleDoubleClick = (item: ServicoProduto) => {
     setEditingRow(item.id);
-    setEditingValues({
-      ...item,
-    });
+    setEditingValues({ ...item });
   };
 
   const handleCancelEdit = () => {
-    // Limpar timeout de blur se existir
     if (blurTimeoutRef.current) {
       clearTimeout(blurTimeoutRef.current);
       blurTimeoutRef.current = null;
@@ -1138,7 +757,6 @@ export default function Solicitacoes() {
     try {
       if (!item) return;
 
-      // Extrair dbId
       let dbId = (item as any)._dbId;
       if (!dbId && item.id) {
         const match = item.id.match(/^(servico|produto)_(\d+)_/);
@@ -1172,54 +790,35 @@ export default function Solicitacoes() {
   };
 
   const handleDeleteItem = async (item: ServicoProduto) => {
-    // Abrir modal de confirmação em vez de usar window.confirm
     if (!item) return;
     setConfirmarDelete({ open: true, item });
   };
 
-  // Função para converter campos de texto para maiúsculas
   const convertTextFieldsToUpperCase = (data: any): any => {
     const fieldsToUpperCase = [
-      'servico',
-      'descricao',
-      'empresa',
-      'sc',
-      'nota_fiscal',
-      'oc',
-      'situacao',
-      'fornecedor',
-      'produto',
-      'informacoes'
+      'servico', 'descricao', 'empresa', 'sc', 'nota_fiscal',
+      'oc', 'situacao', 'fornecedor', 'produto', 'informacoes'
     ];
     
     const converted = { ...data };
-    
     fieldsToUpperCase.forEach(field => {
       if (converted[field] && typeof converted[field] === 'string') {
         converted[field] = converted[field].toUpperCase();
       }
     });
-    
     return converted;
   };
 
   const handleSaveEdit = async (skipReload = false) => {
     if (!editingRow) return;
-
     const item = items.find(i => i.id === editingRow);
     if (!item) return;
 
     try {
-      // Extrair o ID real do banco do ID composto
-      // Formato do ID: "servico_{dbId}_{ano}_{data}" ou "produto_{dbId}_{ano}_{data}"
       let dbId = (item as any)._dbId;
-      
       if (!dbId && item.id) {
-        // Tentar extrair do ID composto
         const match = item.id.match(/^(servico|produto)_(\d+)_/);
-        if (match) {
-          dbId = match[2];
-        }
+        if (match) dbId = match[2];
       }
       
       if (!dbId) {
@@ -1227,18 +826,15 @@ export default function Solicitacoes() {
         return;
       }
       
-      // Preparar updates removendo campos que não devem ser atualizados
       const updates: any = { ...editingValues };
       delete updates.id;
       delete updates.tipo;
       delete updates._dbId;
 
-      // Converter valor formatado para string simples antes de salvar
       if (updates.valor) {
         updates.valor = currencyToString(updates.valor as string);
       }
 
-      // Converter campos de texto para maiúsculas
       const normalizedUpdates = convertTextFieldsToUpperCase(updates);
 
       if (item.tipo === "servico") {
@@ -1247,7 +843,6 @@ export default function Solicitacoes() {
         await updateProduto(dbId, normalizedUpdates);
       }
 
-      // Atualizar o item na lista local
       setItems((prevItems) =>
         prevItems.map((i) =>
           i.id === item.id ? { ...i, ...normalizedUpdates } : i
@@ -1257,10 +852,7 @@ export default function Solicitacoes() {
       toast.success("Item atualizado com sucesso!");
       handleCancelEdit();
       
-      if (!skipReload) {
-        // Recarregar dados para garantir sincronização
-        await loadItems();
-      }
+      if (!skipReload) await loadItems();
     } catch (error) {
       logger.error("Erro ao atualizar item:", error);
       toast.error("Erro ao atualizar item");
@@ -1276,15 +868,10 @@ export default function Solicitacoes() {
     }
   };
 
-  // Handler para blur - não salva mais automaticamente, apenas valida se está em outro campo
   const handleBlur = (e: React.FocusEvent) => {
-    // Limpar timeout anterior se existir
     if (blurTimeoutRef.current) {
       clearTimeout(blurTimeoutRef.current);
     }
-    
-    // Não fazer nada no blur - o usuário deve usar o botão flutuante para salvar
-    // Apenas manter a edição ativa se o foco estiver em outro campo da mesma linha
   };
 
   const handleFieldChange = (field: string, value: string) => {
@@ -1295,18 +882,10 @@ export default function Solicitacoes() {
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="w-3 h-3 opacity-50" />;
-    }
-    return sortDirection === "asc" ? (
-      <ArrowUp className="w-3 h-3" />
-    ) : (
-      <ArrowDown className="w-3 h-3" />
-    );
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 opacity-50" />;
+    return sortDirection === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
   };
 
-  // Função para verificar se uma SC já existe (comparando números)
-  // Aceita opcionalmente `ano` e `empresa` para checagens mais específicas
   const scExists = (sc: string, ano?: number | string | null, empresa?: string | null): boolean => {
     if (!sc) return false;
     const normalizedSC = extractNumbers(sc);
@@ -1317,34 +896,30 @@ export default function Solicitacoes() {
       const itemNormalized = extractNumbers(item.sc);
       if (itemNormalized !== normalizedSC) return false;
 
-      // Se ano foi fornecido, exigir que o ano do item corresponda
       if (ano !== undefined && ano !== null) {
         const itemAno = item.ano ? String(item.ano) : '';
         if (String(ano) !== itemAno) return false;
       }
 
-      // Se empresa foi fornecida, exigir correspondência (ignorando caixa)
       if (empresa) {
-        const itemEmpresa = item.empresa ? item.empresa.toLowerCase().trim() : '';
-        if (itemEmpresa && itemEmpresa !== empresa.toLowerCase().trim()) return false;
+        const itemEmpresa = item.empresa ? normalizeEmpresa(item.empresa) : '';
+        const paramEmpresa = normalizeEmpresa(empresa);
+        if (itemEmpresa && itemEmpresa !== paramEmpresa) return false;
       }
 
       return true;
     });
   };
 
-
-const handleCreateSubmit = async (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // 1. Validação Básica
     if (!createTipo) {
       toast.error("Selecione um tipo (Serviço ou Produto)");
       return;
     }
 
-    // 2. Validação de Campos Obrigatórios (Apenas para Serviços)
     if (createTipo === "servico") {
       if (!createFormData.servico || !createFormData.descricao || !createFormData.empresa || !createFormData.sc) {
         toast.error("Preencha todos os campos obrigatórios: Serviço, Descrição, Empresa e SC");
@@ -1352,27 +927,28 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
       }
     }
 
-    // 3. Validação de Duplicidade (SC)
     if (createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa)) {
-      toast.error("Esta SC já existe no sistema!");
+      toast.error(`⚠️ SC duplicada! Esta SC já foi lançada na empresa ${normalizeEmpresa(createFormData.empresa || '')}. Cada empresa deve ter SCs únicas.`, {
+        style: {
+          background: '#fee2e2',
+          color: '#dc2626',
+          border: '1px solid #fca5a5'
+        }
+      });
       return;
     }
 
     try {
-      setLoading(true);
+      setIsCreating(true);
 
-      // 4. Preparar dados para salvar
       let formDataToSave = { ...createFormData };
-      
-      // Converter valor monetário
+
       if (formDataToSave.valor) {
         formDataToSave.valor = currencyToString(formDataToSave.valor);
       }
-      
-      // Converter textos para Maiúsculas
+
       formDataToSave = convertTextFieldsToUpperCase(formDataToSave);
 
-      // 5. Salvar no Banco
       if (createTipo === "servico") {
         await createServico(formDataToSave);
         toast.success("Serviço criado com sucesso!");
@@ -1381,7 +957,6 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
         toast.success("Produto criado com sucesso!");
       }
 
-      // 6. Limpeza e Reload
       setShowCreateDialog(false);
       setCreateTipo(null);
       setCreateFormData({});
@@ -1392,18 +967,14 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
       console.error("Erro ao criar item:", error);
       toast.error("Erro ao criar item");
     } finally {
-      setLoading(false);
+      setIsCreating(false);
     }
   };
 
-
-
-  // Simplified: no duplicate detection. Just paginate the filtered/sorted items.
   const itemsParaExibir = useMemo(() => {
     return filteredAndSortedItems.slice(0, displayedCount);
   }, [filteredAndSortedItems, displayedCount]);
 
-  // Resetar contador quando filtros mudarem
   useEffect(() => {
     setDisplayedCount(100);
   }, [activeTipoTab, anoFilter, servicoFilter, searchTerm, showDuplicados]);
@@ -1492,60 +1063,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
             </Card>
           </div>
 
-          {/* Botões para abrir modais de Serviços, Produtos e Despesas por Mês */}
-          <div className="mb-6 flex gap-2 flex-wrap">
-            <Button
-              onClick={() => setShowServicosModal(true)}
-              className="flex-1 min-w-[170px] flex items-center gap-3 px-4 py-2 rounded-lg shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-r from-blue-500 to-blue-600 text-white"
-            >
-              <span className="p-2 rounded-full bg-white/20">
-                <Wrench className="w-4 h-4 text-white" />
-              </span>
-              <span className="text-sm font-semibold">Serviços por Mês</span>
-              <Badge variant="outline" className="ml-auto bg-white/20 text-white border-transparent">
-                {servicosPorMes.length}
-              </Badge>
-            </Button>
 
-            <Button
-              onClick={() => setShowProdutosModal(true)}
-              className="flex-1 min-w-[170px] flex items-center gap-3 px-4 py-2 rounded-lg shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-r from-purple-500 to-purple-600 text-white"
-            >
-              <span className="p-2 rounded-full bg-white/20">
-                <ShoppingCart className="w-4 h-4 text-white" />
-              </span>
-              <span className="text-sm font-semibold">Produtos por Mês</span>
-              <Badge variant="outline" className="ml-auto bg-white/20 text-white border-transparent">
-                {produtosPorMes.length}
-              </Badge>
-            </Button>
-
-            <Button
-              onClick={async () => {
-                setShowDespesasModal(true);
-                // Verificar se é dia 1 e resetar automaticamente
-                try {
-                  const foiResetado = await resetarSeDia1();
-                  if (foiResetado) {
-                    toast.success("Checklist resetado automaticamente (dia 1 do mês)");
-                  }
-                } catch (error) {
-                  logger.error("Erro ao verificar/resetar no dia 1:", error);
-                  // Não bloquear a abertura do modal se houver erro
-                }
-                loadDespesas();
-              }}
-              className="flex-1 min-w-[170px] flex items-center gap-3 px-4 py-2 rounded-lg shadow-sm transform transition hover:-translate-y-0.5 hover:shadow-md bg-gradient-to-r from-green-500 to-green-600 text-white"
-            >
-              <span className="p-2 rounded-full bg-white/20">
-                <Receipt className="w-4 h-4 text-white" />
-              </span>
-              <span className="text-sm font-semibold">Despesas T.I.</span>
-              <Badge variant="outline" className="ml-auto bg-white/20 text-white border-transparent">
-                {despesasRecorrentes.length + despesasEsporadicas.length}
-              </Badge>
-            </Button>
-          </div>
 
           {/* Cards de Insights */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
@@ -1636,6 +1154,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
       ) : (
         /* Aba Lista - Tabela */
         <div className="flex-1 overflow-hidden min-h-0 w-full">
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 px-3 md:px-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
@@ -1890,8 +1409,8 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
       )}
 
       {/* Dialog de Criação */}
-      <Dialog 
-        open={showCreateDialog} 
+      <Dialog
+        open={showCreateDialog}
         onOpenChange={(open) => {
           setShowCreateDialog(open);
           if (!open) {
@@ -1901,20 +1420,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {!createTipo ? "Escolha o tipo" : createTipo === "servico" ? "Novo Serviço" : "Novo Produto"}
-            </DialogTitle>
-            <DialogDescription>
-              {!createTipo 
-                ? "Selecione se deseja criar um serviço ou um produto" 
-                : createTipo === "servico" 
-                  ? "Preencha os campos abaixo para criar um novo serviço" 
-                  : "Preencha os campos abaixo para criar um novo produto"}
-            </DialogDescription>
-          </DialogHeader>
-
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           {!createTipo ? (
             <div className="grid grid-cols-2 gap-4 py-4">
               <Button
@@ -1962,171 +1468,58 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
               className="space-y-4"
             >
               {createTipo === "servico" ? (
-                <>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="servico">
                       Serviço <span className="text-red-500">*</span>
                     </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="servico"
-                        value={createFormData.servico || ""}
-                        onChange={(e) => {
-                          const servicoValue = e.target.value;
-                          setCreateFormData({ 
-                            ...createFormData, 
-                            servico: servicoValue,
-                            // Limpar descrição e empresa se o serviço mudar
-                            descricao: createFormData.servico !== servicoValue ? "" : createFormData.descricao,
-                            empresa: createFormData.servico !== servicoValue ? "" : createFormData.empresa,
-                          });
-                        }}
-                        placeholder="Digite ou selecione um serviço..."
-                        required
-                        className="flex-1"
-                      />
-                      {servicosUnicosConfig.length > 0 && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="outline" size="icon" className="shrink-0">
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[300px] p-0" align="end">
-                            <div className="max-h-[300px] overflow-y-auto">
-                              {servicosUnicosConfig.map((servico) => (
-                                <button
-                                  key={servico}
-                                  type="button"
-                                  className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground text-sm"
-                                  onClick={() => {
-                                    setCreateFormData({ 
-                                      ...createFormData, 
-                                      servico: servico,
-                                      descricao: "",
-                                      empresa: "",
-                                    });
-                                  }}
-                                >
-                                  {servico}
-                                </button>
-                              ))}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="descricao">
-                      Descrição <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="descricao"
-                        value={createFormData.descricao || ""}
-                        onChange={(e) => setCreateFormData({ ...createFormData, descricao: e.target.value })}
-                        required
-                        placeholder="Digite ou selecione uma descrição..."
-                        className="flex-1"
-                      />
-                      {configsFiltradas.length > 0 && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="outline" size="icon" className="shrink-0">
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[400px] p-0" align="end">
-                            <div className="max-h-[300px] overflow-y-auto">
-                              {Array.from(new Set(configsFiltradas.map((c) => c.descricao))).map((descricao) => {
-                                const filtradasPorDescricao = configsFiltradas.filter(
-                                  (c) => c.descricao === descricao
-                                );
-                                const empresasUnicas = Array.from(new Set(filtradasPorDescricao.map((c) => c.empresa)));
-                                
-                                return (
-                                  <button
-                                    key={descricao}
-                                    type="button"
-                                    className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground text-sm"
-                                    onClick={() => {
-                                      setCreateFormData((prev: any) => ({
-                                        ...prev,
-                                        descricao: descricao,
-                                        empresa: empresasUnicas.length === 1 ? empresasUnicas[0] : prev.empresa,
-                                      }));
-                                    }}
-                                  >
-                                    {descricao}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
+                    <Input
+                      id="servico"
+                      value={createFormData.servico || ""}
+                      onChange={(e) => setCreateFormData({ ...createFormData, servico: e.target.value })}
+                      placeholder="Digite o serviço..."
+                      required
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="empresa">
                       Empresa <span className="text-red-500">*</span>
                     </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="empresa"
-                        value={createFormData.empresa || ""}
-                        onChange={(e) => setCreateFormData({ ...createFormData, empresa: e.target.value })}
-                        required
-                        placeholder="Digite ou selecione uma empresa..."
-                        className="flex-1"
-                      />
-                      {configsFiltradas.length > 0 && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="outline" size="icon" className="shrink-0">
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[300px] p-0" align="end">
-                            <div className="max-h-[300px] overflow-y-auto">
-                              {(() => {
-                                // Filtrar empresas baseado na descrição selecionada (se houver)
-                                let empresasDisponiveis = configsFiltradas;
-                                if (createFormData.descricao) {
-                                  empresasDisponiveis = empresasDisponiveis.filter(
-                                    (c) => c.descricao === createFormData.descricao
-                                  );
-                                }
-                                return Array.from(new Set(empresasDisponiveis.map((c) => c.empresa)));
-                              })().map((empresa) => {
-                                const filtradasPorEmpresa = configsFiltradas.filter(
-                                  (c) => c.empresa === empresa
-                                );
-                                const descricoesUnicas = Array.from(new Set(filtradasPorEmpresa.map((c) => c.descricao)));
-                                
-                                return (
-                                  <button
-                                    key={empresa}
-                                    type="button"
-                                    className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground text-sm"
-                                    onClick={() => {
-                                      setCreateFormData((prev: any) => ({
-                                        ...prev,
-                                        empresa: empresa,
-                                        descricao: descricoesUnicas.length === 1 ? descricoesUnicas[0] : prev.descricao,
-                                      }));
-                                    }}
-                                  >
-                                    {empresa}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </div>
+                    <Select
+                      value={createFormData.empresa || ""}
+                      onValueChange={(value) => setCreateFormData({ ...createFormData, empresa: value })}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a marina..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BOA VISTA">BOA VISTA</SelectItem>
+                        <SelectItem value="BRACUHY">BRACUHY</SelectItem>
+                        <SelectItem value="PICCOLA">PICCOLA</SelectItem>
+                        <SelectItem value="BÚZIOS">BÚZIOS</SelectItem>
+                        <SelectItem value="ITACURUÇÁ">ITACURUÇÁ</SelectItem>
+                        <SelectItem value="MARINA DA GLÓRIA">MARINA DA GLÓRIA</SelectItem>
+                        <SelectItem value="PARATY">PARATY</SelectItem>
+                        <SelectItem value="PIRATAS">PIRATAS</SelectItem>
+                        <SelectItem value="RIBEIRA">RIBEIRA</SelectItem>
+                        <SelectItem value="VEROLME">VEROLME</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="descricao">
+                      Descrição <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="descricao"
+                      value={createFormData.descricao || ""}
+                      onChange={(e) => setCreateFormData({ ...createFormData, descricao: e.target.value })}
+                      required
+                      placeholder="Digite a descrição..."
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sc">
@@ -2140,14 +1533,14 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                         setCreateFormData({ ...createFormData, sc: scValue });
                         // Validar em tempo real
                         if (scValue && scExists(scValue, createFormData.ano, createFormData.empresa)) {
-                          toast.error("Esta SC já existe!");
+                          toast.error(`Esta SC já foi lançada na ${createFormData.empresa}. Cada empresa deve ter SCs únicas.`);
                         }
                       }}
                       required
-                      className={createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) ? "border-red-500 focus-visible:ring-red-500" : ""}
+                      className={`bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20 ${createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                     />
                     {createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) && (
-                      <p className="text-xs text-red-500">Esta SC já existe no sistema</p>
+                      <p className="text-xs text-red-500">Esta SC já foi lançada na {createFormData.empresa}. Cada empresa deve ter SCs únicas.</p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -2156,6 +1549,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       id="nota_fiscal"
                       value={createFormData.nota_fiscal || ""}
                       onChange={(e) => setCreateFormData({ ...createFormData, nota_fiscal: e.target.value })}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2170,7 +1564,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                         }}
                         placeholder="dd/mm/aaaa"
                         maxLength={10}
-                        className="flex-1"
+                        className="flex-1 bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                       />
                       <Popover>
                         <PopoverTrigger asChild>
@@ -2217,6 +1611,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                           setCreateFormData({ ...createFormData, valor: formatted });
                         }
                       }}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2225,6 +1620,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       id="oc"
                       value={createFormData.oc || ""}
                       onChange={(e) => setCreateFormData({ ...createFormData, oc: e.target.value })}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2236,7 +1632,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                         setCreateFormData({ ...createFormData, situacao: situacaoValue });
                       }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20">
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -2247,16 +1643,40 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       </SelectContent>
                     </Select>
                   </div>
-                </>
+                </div>
               ) : (
-                <>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="fornecedor">Fornecedor</Label>
                     <Input
                       id="fornecedor"
                       value={createFormData.fornecedor || ""}
                       onChange={(e) => setCreateFormData({ ...createFormData, fornecedor: e.target.value })}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="empresa">Empresa</Label>
+                    <Select
+                      value={createFormData.empresa || ""}
+                      onValueChange={(value) => setCreateFormData({ ...createFormData, empresa: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a marina..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BOA VISTA">BOA VISTA</SelectItem>
+                        <SelectItem value="BRACUHY">BRACUHY</SelectItem>
+                        <SelectItem value="PICCOLA">PICCOLA</SelectItem>
+                        <SelectItem value="BÚZIOS">BÚZIOS</SelectItem>
+                        <SelectItem value="ITACURUÇÁ">ITACURUÇÁ</SelectItem>
+                        <SelectItem value="MARINA DA GLÓRIA">MARINA DA GLÓRIA</SelectItem>
+                        <SelectItem value="PARATY">PARATY</SelectItem>
+                        <SelectItem value="PIRATAS">PIRATAS</SelectItem>
+                        <SelectItem value="RIBEIRA">RIBEIRA</SelectItem>
+                        <SelectItem value="VEROLME">VEROLME</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="produto">Produto</Label>
@@ -2264,22 +1684,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       id="produto"
                       value={createFormData.produto || ""}
                       onChange={(e) => setCreateFormData({ ...createFormData, produto: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="informacoes">Informações</Label>
-                    <Input
-                      id="informacoes"
-                      value={createFormData.informacoes || ""}
-                      onChange={(e) => setCreateFormData({ ...createFormData, informacoes: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="empresa">Empresa</Label>
-                    <Input
-                      id="empresa"
-                      value={createFormData.empresa || ""}
-                      onChange={(e) => setCreateFormData({ ...createFormData, empresa: e.target.value })}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2295,11 +1700,20 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                           toast.error("Esta SC já existe!");
                         }
                       }}
-                      className={createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) ? "border-red-500 focus-visible:ring-red-500" : ""}
+                      className={`bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20 ${createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                     />
                     {createFormData.sc && scExists(createFormData.sc, createFormData.ano, createFormData.empresa) && (
-                      <p className="text-xs text-red-500">Esta SC já existe no sistema</p>
+                      <p className="text-xs text-red-500">Esta SC já foi lançada na {createFormData.empresa}. Cada empresa deve ter SCs únicas.</p>
                     )}
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="informacoes">Informações</Label>
+                    <Input
+                      id="informacoes"
+                      value={createFormData.informacoes || ""}
+                      onChange={(e) => setCreateFormData({ ...createFormData, informacoes: e.target.value })}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="nota_fiscal">Nota Fiscal</Label>
@@ -2307,6 +1721,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       id="nota_fiscal"
                       value={createFormData.nota_fiscal || ""}
                       onChange={(e) => setCreateFormData({ ...createFormData, nota_fiscal: e.target.value })}
+                      className="bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2321,7 +1736,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                         }}
                         placeholder="dd/mm/aaaa"
                         maxLength={10}
-                        className="flex-1"
+                        className="flex-1 bg-background border-2 shadow-sm focus:ring-2 focus:ring-primary/20"
                       />
                       <Popover>
                         <PopoverTrigger asChild>
@@ -2398,7 +1813,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                       </SelectContent>
                     </Select>
                   </div>
-                </>
+                </div>
               )}
 
               <DialogFooter>
@@ -2416,11 +1831,19 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
                 </Button>
 
 
-            <Button 
+            <Button
               type="button"
               onClick={handleCreateSubmit}
+              disabled={isCreating}
             >
-              Criar {createTipo === "servico" ? "Serviço" : "Produto"}
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                `Criar ${createTipo === "servico" ? "Serviço" : "Produto"}`
+              )}
             </Button>
 
               </DialogFooter>
@@ -2675,279 +2098,7 @@ const handleCreateSubmit = async (e: React.FormEvent) => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal de Despesas T.I. - Checklist de SCs */}
-      <Dialog open={showDespesasModal} onOpenChange={setShowDespesasModal}>
-        <DialogContent className="max-w-[95vw] w-full max-h-[95vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-blue-600" />
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-bold">
-                  Checklist de SCs - {getMesAtual().replace('_', '').toUpperCase()}
-                </span>
-              </DialogTitle>
-              {/* Botão de reset movido para o final do modal (melhor localização) */}
-            </div>
-          </DialogHeader>
 
-          {loadingDespesas ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">Carregando despesas...</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Layout em duas colunas */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Coluna 1: Despesas Recorrentes */}
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Wrench className="w-5 h-5 text-blue-600" />
-                      <h3 className="text-lg font-bold text-blue-600">Recorrentes</h3>
-                      <Badge className="bg-blue-600 text-white hover:bg-blue-700">
-                        {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length}/{despesasRecorrentes.length}
-                      </Badge>
-                    </div>
-                    {despesasRecorrentes.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Nenhuma despesa recorrente encontrada
-                      </p>
-                    ) : (
-                      <div className="max-h-[550px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                        <div className="grid grid-cols-2 gap-2">
-                          {despesasRecorrentes.map((despesa) => {
-                          const marcada = isDespesaMarcada(despesa);
-
-                            if (marcada) console.log("⚠️ ITEM MARCADO:", despesa.servico, "| Mês:", getMesAtual(), "| Valor na coluna:", (despesa as any)[getMesAtual()]);
-                          return (
-                            <div
-                              key={despesa.id}
-                              className={cn(
-                                "flex items-center gap-3 p-3 rounded-lg border-2 transition-all cursor-pointer hover:shadow-md",
-                                marcada 
-                                  ? "bg-green-100 dark:bg-green-900/30 border-green-500 dark:border-green-600 shadow-sm" 
-                                  : "bg-background border-orange-300 dark:border-orange-700 hover:border-orange-400"
-                              )}
-                              onClick={() => handleToggleDespesa(despesa.id, !marcada)}
-                            >
-                              <Checkbox
-                                checked={marcada}
-                                onCheckedChange={(checked) => 
-                                  handleToggleDespesa(despesa.id, checked === true)
-                                }
-                                onClick={(e) => e.stopPropagation()}
-                                className="shrink-0"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className={cn(
-                                    "font-medium text-sm",
-                                    marcada && "line-through text-muted-foreground"
-                                  )}>
-                                    {despesa.fornecedor}
-                                  </p>
-                                  {despesa.marina && (
-                                            <Badge 
-                                              variant="outline"
-                                              className={cn(
-                                                "text-[14px] shrink-0 font-semibold px-2 py-0.5",
-                                                marcada && "opacity-50"
-                                              )}
-                                            >
-                                              {despesa.marina}
-                                            </Badge>
-                                          )}
-                                </div>
-                                <p className={cn(
-                                  "text-xs text-muted-foreground",
-                                  marcada && "line-through"
-                                )}>
-                                  {despesa.desc_servico}
-                                </p>
-                              </div>
-                              <Badge 
-                                className={cn(
-                                  "shrink-0 font-semibold",
-                                  marcada 
-                                    ? "bg-green-600 text-white hover:bg-green-700" 
-                                    : "bg-orange-500 text-white hover:bg-orange-600"
-                                )}
-                              >
-                                {formatCurrency(String(despesa.valor_medio || 0))}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Coluna 2: Despesas Esporádicas */}
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-4">
-                      <AlertCircle className="w-5 h-5 text-orange-600" />
-                      <h3 className="text-lg font-bold text-orange-600">Esporádicas</h3>
-                      <Badge className="bg-orange-600 text-white hover:bg-orange-700">
-                        {despesasEsporadicas.length}
-                      </Badge>
-                    </div>
-                    {despesasEsporadicas.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-8">
-                        Nenhuma despesa esporádica encontrada
-                      </p>
-                    ) : (
-                      <div className="max-h-[550px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                        <div className="grid grid-cols-2 gap-2">
-                          {despesasEsporadicas.map((despesa) => {
-                          const valorMes = getValorMesAtual(despesa);
-                          return (
-                            <div
-                              key={despesa.id}
-                              className="flex items-center gap-3 p-3 rounded-lg border-2 border-orange-300 dark:border-orange-700 bg-background hover:bg-orange-50 dark:hover:bg-orange-950/20 hover:border-orange-400 transition-colors"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="font-medium text-sm">
-                                    {despesa.fornecedor}
-                                  </p>
-                                  {despesa.marina && (
-                                                    <Badge 
-                                                      variant="outline"
-                                                      className="text-[14px] shrink-0 font-semibold px-2 py-0.5"
-                                                    >
-                                                      {despesa.marina}
-                                                    </Badge>
-                                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {despesa.desc_servico}
-                                </p>
-                              </div>
-                              <Badge className="bg-orange-500 text-white hover:bg-orange-600 shrink-0 font-semibold">
-                                {formatCurrency(String(valorMes))}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Resumo Visual + botão de reset ao lado */}
-              <div className="flex items-start gap-4">
-                <Card className="flex-1 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 border-2 border-blue-200 dark:border-blue-800">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
-                          <span className="text-sm font-semibold text-green-700 dark:text-green-400">
-                            {despesasRecorrentes.filter(d => isDespesaMarcada(d)).length} SCs criadas
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50"></div>
-                          <span className="text-sm font-semibold text-orange-700 dark:text-orange-400">
-                            {despesasRecorrentes.filter(d => !isDespesaMarcada(d)).length} pendentes
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-base font-bold text-blue-600 dark:text-blue-400">
-                        Progresso: {Math.round((despesasRecorrentes.filter(d => isDespesaMarcada(d)).length / Math.max(despesasRecorrentes.length, 1)) * 100)}%
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <div className="flex items-start">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleResetarChecks}
-                    className="gap-2 mt-2"
-                  >
-                    <X className="w-4 h-4" />
-                    Resetar checks
-                  </Button>
-                </div>
-              </div>
-
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog de Confirmação para Marcar Despesa */}
-      <AlertDialog open={confirmarMarcacao.open} onOpenChange={(open) => {
-        if (!open) {
-          setConfirmarMarcacao({ open: false, despesaId: null, despesaNome: null, descricao: null, marina: null });
-        }
-      }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Marcação de Despesa</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                Você está prestes a marcar a despesa como <strong>SC criada</strong> no mês atual.
-              </p>
-              <div className="bg-muted p-3 rounded-md mt-3 space-y-2">
-                <div>
-                  <p className="font-semibold text-sm mb-1">Fornecedor:</p>
-                  <p className="text-sm">{confirmarMarcacao.despesaNome}</p>
-                </div>
-                {confirmarMarcacao.descricao && (
-                  <div>
-                    <p className="font-semibold text-sm mt-2 mb-1">Descrição:</p>
-                    <p className="text-sm text-muted-foreground">{confirmarMarcacao.descricao}</p>
-                  </div>
-                )}
-                {confirmarMarcacao.marina && (
-                  <div>
-                    <p className="font-semibold text-sm mt-2 mb-1">Marina:</p>
-                    <p className="text-sm">{confirmarMarcacao.marina}</p>
-                  </div>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mt-3">
-                Esta ação indica que a Solicitação de Compra (SC) foi criada para este mês.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmarMarcarDespesa} className="bg-green-600 hover:bg-green-700">
-              Confirmar Marcação
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Dialog de Confirmação para Resetar Checks do Mês */}
-      <AlertDialog open={showResetConfirm} onOpenChange={(open) => {
-        if (!open) setShowResetConfirm(false);
-      }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Resetar checks do mês</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação irá desmarcar todos os checks das despesas recorrentes para o mês atual. Deseja continuar?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={performResetConfirmed} className="bg-yellow-600 hover:bg-yellow-700">
-              Resetar todos
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Dialog de Confirmação para Deletar Item */}
       <AlertDialog open={confirmarDelete.open} onOpenChange={(open) => {

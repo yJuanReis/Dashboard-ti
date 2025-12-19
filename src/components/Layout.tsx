@@ -1,7 +1,7 @@
 import React, { ReactNode, useRef, useMemo } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home, Package, ArrowLeft } from "lucide-react";
+import { Search, HardDrive, Video, Table2, LayoutGrid, Type, ArrowUp, ArrowDown, Download, Printer, Phone, Plus, X, RefreshCw, Home, Package, ArrowLeft, Loader2 } from "lucide-react";
 import { useIsMobile, useIsLandscapeMobile } from "@/hooks/use-mobile";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { MobileBottomBar } from "@/components/MobileBottomBar";
@@ -203,6 +203,10 @@ export function Layout({ children }: LayoutProps) {
   const solicitacoesTipoTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
   const [solicitacoesMainTab, setSolicitacoesMainTab] = useState<"lista" | "central">("lista");
   const solicitacoesMainTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
+  const [solicitacoesLoading, setSolicitacoesLoading] = useState(false);
+  const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1);
+  const [despesasAno, setDespesasAno] = useState(new Date().getFullYear());
+  const [despesasSearch, setDespesasSearch] = useState("");
   const [nvrMarinaFilter, setNvrMarinaFilter] = useState("");
   const [nvrOwnerFilter, setNvrOwnerFilter] = useState("");
   const [nvrModelFilter, setNvrModelFilter] = useState("");
@@ -219,6 +223,7 @@ export function Layout({ children }: LayoutProps) {
   const isImpressorasPage = location.pathname.toLowerCase().includes("impressoras");
   const isRamaisPage = location.pathname.toLowerCase().includes("ramais");
   const isSolicitacoesPage = location.pathname.toLowerCase().includes("solicitacoes");
+  const isDespesasRecorrentesPage = location.pathname.toLowerCase().includes("despesas-recorrentes");
   const isAuditLogsPage = location.pathname.toLowerCase().includes("logs");
   const isConfiguracoesPage = location.pathname.toLowerCase().includes("configuracoes"); // Linha nova
   const isChamadosPage = location.pathname.toLowerCase().includes("chamados");
@@ -456,16 +461,23 @@ export function Layout({ children }: LayoutProps) {
       setSolicitacoesMainTab(tab);
     };
 
+    const handleSolicitacoesLoadingChanged = (event: Event) => {
+      const custom = event as CustomEvent<boolean>;
+      setSolicitacoesLoading(custom.detail || false);
+    };
+
     window.addEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
     window.addEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
     window.addEventListener("solicitacoes:tipoTabChanged", handleTipoTabChanged);
     window.addEventListener("solicitacoes:mainTabChanged", handleMainTabChanged);
+    window.addEventListener("solicitacoes:loadingChanged", handleSolicitacoesLoadingChanged);
 
     return () => {
       window.removeEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
       window.removeEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
       window.removeEventListener("solicitacoes:tipoTabChanged", handleTipoTabChanged);
       window.removeEventListener("solicitacoes:mainTabChanged", handleMainTabChanged);
+      window.removeEventListener("solicitacoes:loadingChanged", handleSolicitacoesLoadingChanged);
     };
   }, []);
   
@@ -493,6 +505,12 @@ export function Layout({ children }: LayoutProps) {
     setNvrOwnerFilter("");
     setNvrModelFilter("");
     const event = new CustomEvent("nvr:clearFilters");
+    window.dispatchEvent(event);
+  };
+
+  const handleDespesasSearchChange = (value: string) => {
+    setDespesasSearch(value);
+    const event = new CustomEvent("despesas-recorrentes:setSearch", { detail: value });
     window.dispatchEvent(event);
   };
   
@@ -920,21 +938,6 @@ export function Layout({ children }: LayoutProps) {
                     )}
                   </div>
                   <div className="w-[130px] md:w-[150px]">
-                    <Select value={solicitacoesServicoFilter || "todos"} onValueChange={handleSolicitacoesServicoFilterChange}>
-                      <SelectTrigger className="h-8 text-xs md:text-sm">
-                        <SelectValue placeholder="Serviço" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {solicitacoesServicoOptions.map((servico) => (
-                          <SelectItem key={servico} value={servico}>
-                            {servico}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="w-[130px] md:w-[150px]">
                     <Select value={solicitacoesAnoFilter || "todos"} onValueChange={handleSolicitacoesAnoFilterChange}>
                       <SelectTrigger className="h-8 text-xs md:text-sm">
                         <SelectValue placeholder="Ano" />
@@ -1065,6 +1068,21 @@ export function Layout({ children }: LayoutProps) {
                         Duplicados
                       </Label>
                     </div>
+
+                  )}
+                  {solicitacoesMainTab === "lista" && (
+                    <Button
+                      onClick={() => {
+                        const event = new CustomEvent("solicitacoes:loadItems");
+                        window.dispatchEvent(event);
+                      }}
+                      disabled={solicitacoesLoading}
+                      size="sm"
+                      className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700"
+                    >
+                      <Loader2 className={`w-3 h-3 ${solicitacoesLoading ? 'animate-spin' : ''}`} />
+                      Atualizar 
+                    </Button>
                   )}
                   <Button
                     onClick={() => {
@@ -1076,6 +1094,89 @@ export function Layout({ children }: LayoutProps) {
                   >
                     <Plus className="w-3 h-3 md:w-4 md:h-4" />
                     <span className="hidden sm:inline">Adicionar</span>
+                    <span className="sm:hidden">Adicionar</span>
+                  </Button>
+                </div>
+              )}
+
+              {/* Busca e filtros da página de Despesas Recorrentes no header (apenas desktop) */}
+              {isDespesasRecorrentesPage && !isMobile && (
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  <div className="relative max-w-[300px] md:max-w-[400px] min-w-[120px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar..."
+                      value={despesasSearch}
+                      autoComplete="off"
+                      onChange={(e) => handleDespesasSearchChange(e.target.value)}
+                      className="pl-10 pr-10 h-8 text-xs md:text-sm"
+                    />
+                    {despesasSearch && (
+                      <button
+                        onClick={() => handleDespesasSearchChange("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Select value={despesasMes.toString()} onValueChange={(value) => setDespesasMes(parseInt(value))}>
+                      <SelectTrigger className="w-32 h-8 text-xs md:text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
+                          <SelectItem key={mes} value={mes.toString()}>
+                            {new Date(2024, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Input
+                      type="number"
+                      value={despesasAno}
+                      onChange={(e) => setDespesasAno(parseInt(e.target.value))}
+                      className="w-20 h-8 text-xs md:text-sm"
+                      min="2020"
+                      max="2030"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const hoje = new Date();
+                      setDespesasMes(hoje.getMonth() + 1);
+                      setDespesasAno(hoje.getFullYear());
+                    }}
+                    className="h-8 text-xs px-2"
+                  >
+                    Mês Atual
+                  </Button>
+                  {despesasSearch && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDespesasSearchChange("")}
+                      className="h-8 text-xs px-2"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Limpar
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => {
+                      const event = new CustomEvent("despesas-recorrentes:openCreateDialog");
+                      window.dispatchEvent(event);
+                    }}
+                    size="sm"
+                    className="gap-1 md:gap-2 bg-primary hover:bg-primary/90 text-xs md:text-sm ml-auto"
+                  >
+                    <Plus className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden sm:inline">Adicionar Despesa</span>
                     <span className="sm:hidden">Adicionar</span>
                   </Button>
                 </div>

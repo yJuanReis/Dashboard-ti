@@ -16,6 +16,7 @@ import {
   ShoppingCart,
   Shield,
   Database,
+  DollarSign,
 } from "lucide-react";
 
 export type AppRole = "admin" | "user";
@@ -115,6 +116,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     title: "Solicitações",
     url: "/solicitacoes",
     icon: ShoppingCart,
+  },
+  {
+    title: "Despesas Recorrentes",
+    url: "/despesas-recorrentes",
+    icon: DollarSign,
   },
   {
     title: "Logs de Auditoria",

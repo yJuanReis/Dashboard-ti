@@ -10,6 +10,17 @@ const BRL = (value: number): string => {
   }).format(value);
 };
 
+// Função para mapear dados da tabela despesas_ti para formato compatível
+function mapDespesasCompatibilidade(data: any[]): any[] {
+  return data.map(item => ({
+    ...item,
+    servico: item.servico || item.fornecedor || '',
+    descricao: item.descricao || item.desc_servico || '',
+    fornecedor: item.servico || item.fornecedor || '',
+    desc_servico: item.descricao || item.desc_servico || '',
+  }));
+}
+
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse
@@ -53,13 +64,20 @@ export default async function handler(
     const mesAtual = meses[dataHoje.getMonth()];
     const nomeMes = dataHoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
-    // Verificar se é dia 10 - se não for, não enviar email
-    if (diaHoje !== 10) {
-      return response.status(200).json({ 
-        success: true, 
+    // Verificar se é um teste (parâmetro test=true ou header x-test=true)
+    const isTest = request.query.test === 'true' || request.headers['x-test'] === 'true';
+
+    // Verificar se é dia 10 - se não for, não enviar email (exceto se for teste)
+    if (diaHoje !== 10 && !isTest) {
+      return response.status(200).json({
+        success: true,
         message: `Não é dia 10. Email será enviado apenas no dia 10 de cada mês. Hoje é dia ${diaHoje}.`,
         skipped: true
       });
+    }
+
+    if (isTest) {
+      console.log(`🧪 TESTE: Enviando email de teste mesmo não sendo dia 10 (hoje é dia ${diaHoje})`);
     }
 
     console.log(`📧 É dia 10! Enviando email com SCs pendentes para ${nomeMes}...`);
@@ -71,7 +89,7 @@ export default async function handler(
       .select('*')
       .eq('tipo_despesa', 'Recorrente')
       .or(`${mesAtual}.is.null,${mesAtual}.eq.0`)
-      .order('fornecedor');
+      .order('servico');
 
     if (errPendentes) {
       console.error('Erro ao buscar despesas pendentes:', errPendentes);
@@ -80,7 +98,7 @@ export default async function handler(
         .from('despesas_ti')
         .select('*')
         .eq('tipo_despesa', 'Recorrente')
-        .order('fornecedor');
+        .order('servico');
 
       if (errTodas) {
         throw errTodas;
@@ -92,10 +110,10 @@ export default async function handler(
         return valor === null || valor === undefined || valor === 0;
       });
 
-      return await enviarEmailPendentes(pendentesFiltradas, mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
+      return await enviarEmailPendentes(mapDespesasCompatibilidade(pendentesFiltradas), mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
     }
 
-    return await enviarEmailPendentes(pendentes || [], mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
+    return await enviarEmailPendentes(mapDespesasCompatibilidade(pendentes || []), mesAtual, nomeMes, emailUser, emailPass, emailTo, response);
 
   } catch (error: any) {
     console.error('Erro ao processar cron de despesas:', error);
@@ -116,84 +134,172 @@ async function enviarEmailPendentes(
   emailTo: string,
   response: any
 ) {
-  let totalPendente = 0;
-  
-  // Montar HTML do email
-  let html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <style>
-        body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-        h2 { color: #d9534f; }
-        h3 { border-bottom: 2px solid #d9534f; padding-bottom: 5px; color: #d9534f; }
-        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        th { background: #f8d7da; padding: 10px; text-align: left; font-weight: bold; }
-        td { padding: 10px; border-bottom: 1px solid #eee; }
-        .text-right { text-align: right; }
-        .empresa { background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-        .alerta { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
-        .total { text-align: right; margin-top: 30px; font-size: 1.3em; font-weight: bold; color: #d9534f; }
-        .sem-pendentes { text-align: center; padding: 40px; color: #28a745; font-size: 1.2em; }
-      </style>
-    </head>
-    <body>
-      <h2>⚠️ Alerta: SCs Pendentes - ${nomeMes}</h2>
-      <div class="alerta">
-        <strong>📋 Atenção!</strong><br>
-        As seguintes Solicitações de Compra (SCs) ainda <strong>NÃO foram lançadas</strong> este mês.
-        Por favor, verifique o checklist e crie as SCs necessárias.
-      </div>
+
+
+
+
+  // Template HTML profissional usando tabelas (compatível com email)
+  let html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SCs Pendentes - ${nomeMes}</title>
+  <style type="text/css">
+    /* Reset básico para clientes de email */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+
+    /* Responsividade */
+    @media screen and (max-width: 600px) {
+      .container { width: 100% !important; }
+      .column { display: block !important; width: 100% !important; max-width: 100% !important; direction: ltr !important; }
+      .card-spacer { height: 20px !important; }
+      .mobile-padding { padding-left: 10px !important; padding-right: 10px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+
+  <!-- Wrapper Principal -->
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8f9fa;">
+    <tr>
+      <td align="center" style="padding: 20px 0;">
+
+        <!-- Container Central -->
+        <table border="0" cellpadding="0" cellspacing="0" width="800" class="container" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #e9ecef;">
+
+          <!-- Cabeçalho -->
+          <tr>
+            <td align="center" style="background: #667eea; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; color: #ffffff;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 300; letter-spacing: 0.5px; font-family: sans-serif;">
+                <img src="https://dashboard-ti-brmarinas.vercel.app/favicon.ico" alt="Logo" style="width: 46px; height: 46px; margin-right: 10px; vertical-align: middle; border-radius: 4px;">
+                Dashboard TI | BR Marinas
+              </h1>
+              <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SCs Pendentes - ${nomeMes}</p>
+            </td>
+          </tr>
+
+          <!-- Conteúdo (Grid Simulado com Tabelas) -->
+          <tr>
+            <td class="mobile-padding" style="padding: 20px;">
   `;
 
-  if (pendentes && pendentes.length > 0) {
-    html += `
-      <h3>📋 SCs Pendentes (${pendentes.length})</h3>
-      <table>
-        <tr>
-          <th>Fornecedor</th>
-          <th>Empresa</th>
-          <th>Serviço</th>
-          <th class="text-right">Valor Médio</th>
-        </tr>
-    `;
 
-    pendentes.forEach((item: any) => {
-      const valor = item.valor_medio || 0;
-      totalPendente += valor;
-      const empresa = item.empresa ? `<span class="empresa">${escapeHtml(item.empresa)}</span>` : '<span style="color: #999;">-</span>';
-      
+
+
+
+  if (pendentes && pendentes.length > 0) {
+    // Organizar os pendentes em grupos de 3 para simular linhas
+    const rows = [];
+    for (let i = 0; i < pendentes.length; i += 3) {
+      rows.push(pendentes.slice(i, i + 3));
+    }
+
+    rows.forEach((row, rowIndex) => {
       html += `
-        <tr>
-          <td><strong>${escapeHtml(item.fornecedor || 'N/A')}</strong></td>
-          <td>${empresa}</td>
-          <td style="font-size: 12px;">${escapeHtml(item.desc_servico || 'N/A')}</td>
-          <td class="text-right"><strong>${BRL(valor)}</strong></td>
-        </tr>
+              <!-- Linha ${rowIndex + 1} de Cards -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+      `;
+
+      row.forEach((item: any, colIndex: number) => {
+        const servico = escapeHtml(item.servico || item.fornecedor || 'N/A');
+        const descricao = escapeHtml(item.desc_servico || item.descricao || 'Sem descrição');
+        const empresa = escapeHtml(item.empresa || item.marina || 'N/A');
+
+        html += `
+                  <!-- Card ${colIndex + 1} -->
+                  <td class="column" width="32%" valign="top" style="vertical-align: top;">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border: 1px solid #e9ecef; border-radius: 8px; background-color: #ffffff;">
+                      <tr>
+                        <td style="padding: 15px;">
+                          <div style="font-size: 16px; font-weight: 600; color: #495057; margin-bottom: 8px;">📦 ${servico}</div>
+                          <div style="font-size: 13px; color: #6c757d; line-height: 1.4; margin-bottom: 12px; min-height: 40px;">${descricao}</div>
+                          <div style="font-size: 11px; color: #007bff; background: #e7f3ff; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                            <span style="height: 8px; width: 8px; background-color: #dc3545; border-radius: 50%; display: inline-block; margin-right: 4px;"></span>
+                            ${empresa}
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+        `;
+
+        // Adicionar espaçador se não for o último da linha
+        if (colIndex < row.length - 1) {
+          html += `
+                  <!-- Espaçador -->
+                  <td class="column" width="2%" style="font-size: 0; line-height: 0;">&nbsp;</td>
+          `;
+        }
+      });
+
+      // Preencher colunas vazias se a linha não tiver 3 cards
+      while (row.length < 3) {
+        html += `
+                  <td class="column" width="32%" style="font-size: 0; line-height: 0;">&nbsp;</td>
+        `;
+        if (row.length < 2) {
+          html += `
+                  <td class="column" width="2%" style="font-size: 0; line-height: 0;">&nbsp;</td>
+          `;
+        }
+        row.length++;
+      }
+
+      html += `
+                </tr>
+      `;
+
+      // Adicionar espaçador vertical entre linhas (exceto na última)
+      if (rowIndex < rows.length - 1) {
+        html += `
+                <!-- Spacer Vertical entre linhas -->
+                <tr><td colspan="5" height="20">&nbsp;</td></tr>
+        `;
+      }
+
+      html += `
+              </table>
       `;
     });
-
-    html += `</table>`;
-    html += `<div class="total">💰 Total Pendente: ${BRL(totalPendente)}</div>`;
   } else {
+    // Caso não haja pendentes, mostrar mensagem de sucesso
     html += `
-      <div class="sem-pendentes">
-        ✅ <strong>Parabéns!</strong><br>
-        Todas as SCs do mês já foram lançadas!
-      </div>
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="center" style="padding: 40px;">
+                    <div style="font-size: 18px; color: #28a745; margin-bottom: 10px;">✅ Todas as SCs já foram lançadas!</div>
+                    <div style="font-size: 14px; color: #6c757d;">Parabéns! Não há pendências este mês.</div>
+                  </td>
+                </tr>
+              </table>
     `;
   }
 
   html += `
-      <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
-      <p style="color: #666; font-size: 12px;">
-        Este é um email automático enviado no dia 10 de cada mês.<br>
-        Para acessar o checklist, entre no sistema e vá em "Solicitações" > "Despesas T.I."
-      </p>
-    </body>
-    </html>
-  `;
+            </td>
+          </tr>
+
+          <!-- Rodapé -->
+          <tr>
+            <td align="center" style="background-color: #f8f9fa; padding: 20px; border-top: 1px solid #e9ecef; color: #adb5bd; font-size: 11px;">
+              <p style="margin: 5px 0;">Este é um lembrete automático das SCs pendentes.</p>
+              <p style="margin: 5px 0;">© 2025 BR Marinas - Dashboard TI</p>
+              <p style="margin: 5px 0;"><a href="https://dashboard-ti-brmarinas.vercel.app/" style="color: #007bff; text-decoration: none;">Acesse o sistema para gerenciar as despesas</a></p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
 
   // Enviar Email
   const transporter = nodemailer.createTransport({
@@ -205,16 +311,15 @@ async function enviarEmailPendentes(
   });
 
   await transporter.sendMail({
-    from: `"Sistema Financeiro - Dashboard TI" <${emailUser}>`,
+    from: `"Dashboard TI | BR Marinas" <${emailUser}>`,
     to: emailTo,
-    subject: `⚠️ [Dashboard TI] SCs Pendentes - ${nomeMes}`,
+    subject: `SCs Pendentes - ${nomeMes}`,
     html: html,
   });
 
-  return response.status(200).json({ 
-    success: true, 
+  return response.status(200).json({
+    success: true,
     message: 'Email com SCs pendentes enviado com sucesso!',
-    totalPendente: BRL(totalPendente),
     quantidadePendentes: pendentes?.length || 0,
     mes: nomeMes
   });
@@ -232,4 +337,3 @@ function escapeHtml(text: string): string {
   };
   return text.replace(/[&<>"']/g, (m) => map[m]);
 }
-

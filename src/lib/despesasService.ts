@@ -2,9 +2,12 @@
  * =====================================================
  * DESPESAS SERVICE - Gerenciamento de Despesas T.I.
  * =====================================================
- * * Serviço para buscar e gerenciar despesas recorrentes
+ * Serviço para buscar e gerenciar despesas recorrentes
  * e esporádicas da tabela despesas_ti
  */
+
+
+
 
 import { supabase } from './supabaseClient';
 import { logger } from './logger';
@@ -13,15 +16,28 @@ import { logger } from './logger';
 // INTERFACES
 // =====================================================
 
+export interface DespesaRecorrente {
+  id: number;
+  apelido: string;
+  match_texto: string;
+  match_empresa: string;
+  match_fornecedor?: string;
+  dia_vencimento: number;
+  ativo: boolean;
+  descricao_padrao?: string;
+  valor_estimado?: number | string | null;
+  created_at: string;
+  updated_at: string;
+  status_mes_atual?: string; // ✅ Novo campo para status mensal
+}
+
 export interface DespesaTI {
   id: string;
-  servico: string;      // Antigo: fornecedor
-  descricao: string;    // Antigo: desc_servico
+  servico: string;
+  descricao: string;
   tipo_despesa: 'Recorrente' | 'Esporadico';
   valor_medio: number;
-  marina?: string | null;
-  // Alias para compatibilidade com o código que usa 'empresa'
-  empresa?: string | null;
+  empresa?: string | null; // ✅ Mudou de 'marina' para 'empresa'
   jan?: number;
   fev?: number;
   mar?: number;
@@ -30,15 +46,15 @@ export interface DespesaTI {
   jun?: number;
   jul?: number;
   ago?: number;
-  set?: number;
-  out_?: number;
+  set_?: number; // ✅ Com underscore
+  out_?: number; // ✅ Com underscore
   nov?: number;
   dez?: number;
   created_at?: string;
-  // Campos legados para compatibilidade temporária
   fornecedor?: string;
   desc_servico?: string;
 }
+
 
 // =====================================================
 // FUNÇÕES AUXILIARES
@@ -60,39 +76,33 @@ export async function fetchDespesasRecorrentes(): Promise<DespesaTI[]> {
   try {
     logger.log('🔍 Buscando despesas recorrentes...');
     
-    // Primeiro, vamos tentar buscar tudo para ver o que realmente existe
     const { data: allData } = await supabase
       .from('despesas_ti')
       .select('*')
       .eq('tipo_despesa', 'Recorrente')
       .limit(1);
-    
+
     if (allData && allData.length > 0) {
       logger.log('📋 Estrutura da primeira despesa (todas as colunas):', Object.keys(allData[0]));
     }
-    
-    // Agora busca com select específico (Atualizado para servico e descricao)
-    // Inclui alias para compatibilidade com código antigo que usa fornecedor/desc_servico
+
     const { data, error } = await supabase
       .from('despesas_ti')
-      .select('id, servico, descricao, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
+      .select('id, servico, descricao, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set_, out_, nov, dez, created_at')
       .eq('tipo_despesa', 'Recorrente')
-      .order('servico', { ascending: true }); // Ordenar pelo novo nome
+      .order('servico', { ascending: true });
 
     if (error) {
       logger.error('❌ Erro na query:', error);
-      // Se der erro com select específico, tenta com *
-      logger.log('🔄 Tentando buscar com select *...');
       const { data: fallbackData, error: fallbackError } = await supabase
         .from('despesas_ti')
         .select('*')
         .eq('tipo_despesa', 'Recorrente')
         .order('servico', { ascending: true });
-      
+
       if (fallbackError) {
         handleSupabaseError(fallbackError, 'buscar despesas recorrentes');
       }
-      
       return mapDespesasCompatibilidade(fallbackData || []);
     }
 
@@ -111,27 +121,23 @@ export async function fetchDespesasEsporadicas(): Promise<DespesaTI[]> {
   try {
     logger.log('🔍 Buscando despesas esporádicas...');
     
-    // Atualizado para servico e descricao
     const { data, error } = await supabase
       .from('despesas_ti')
-      .select('id, servico, descricao, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
+      .select('id, servico, descricao, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set_, out_, nov, dez, created_at')
       .eq('tipo_despesa', 'Esporadico')
       .order('servico', { ascending: true });
 
     if (error) {
       logger.error('❌ Erro na query:', error);
-      // Se der erro com select específico, tenta com *
-      logger.log('🔄 Tentando buscar com select *...');
       const { data: fallbackData, error: fallbackError } = await supabase
         .from('despesas_ti')
         .select('*')
         .eq('tipo_despesa', 'Esporadico')
         .order('servico', { ascending: true });
-      
+
       if (fallbackError) {
         handleSupabaseError(fallbackError, 'buscar despesas esporádicas');
       }
-      
       return mapDespesasCompatibilidade(fallbackData || []);
     }
 
@@ -144,22 +150,20 @@ export async function fetchDespesasEsporadicas(): Promise<DespesaTI[]> {
 }
 
 /**
- * Mapeia os dados para garantir compatibilidade com código que usa fornecedor/desc_servico
+ * Mapeia os dados para garantir compatibilidade
  */
 function mapDespesasCompatibilidade(data: any[]): DespesaTI[] {
   return data.map(item => ({
     ...item,
-    // Garante que servico e descricao existam
     servico: item.servico || item.fornecedor || '',
     descricao: item.descricao || item.desc_servico || '',
-    // Mantém compatibilidade reversa
     fornecedor: item.servico || item.fornecedor || '',
     desc_servico: item.descricao || item.desc_servico || '',
   }));
 }
 
 /**
- * Busca todas as despesas (recorrentes e esporádicas)
+ * Busca todas as despesas
  */
 export async function fetchTodasDespesas(): Promise<{
   recorrentes: DespesaTI[];
@@ -170,17 +174,10 @@ export async function fetchTodasDespesas(): Promise<{
       fetchDespesasRecorrentes(),
       fetchDespesasEsporadicas(),
     ]);
-
-    return {
-      recorrentes,
-      esporadicas,
-    };
+    return { recorrentes, esporadicas };
   } catch (error) {
     logger.error('❌ Erro ao buscar todas as despesas:', error);
-    return {
-      recorrentes: [],
-      esporadicas: [],
-    };
+    return { recorrentes: [], esporadicas: [] };
   }
 }
 
@@ -198,11 +195,9 @@ export function formatCurrency(value: number): string {
  * Obtém o valor do mês atual para uma despesa esporádica
  */
 export function getValorMesAtual(despesa: DespesaTI): number {
-  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out_', 'nov', 'dez'];
+  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set_', 'out_', 'nov', 'dez'];
   const dataHoje = new Date();
   const mesAtual = meses[dataHoje.getMonth()];
-  
-  // Tenta pegar o valor específico do mês, se não, usa a média
   const valorMes = (despesa as any)[mesAtual];
   return valorMes || despesa.valor_medio || 0;
 }
@@ -211,7 +206,7 @@ export function getValorMesAtual(despesa: DespesaTI): number {
  * Obtém o nome da coluna do mês atual
  */
 export function getMesAtual(): string {
-  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out_', 'nov', 'dez'];
+  const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set_', 'out_', 'nov', 'dez'];
   const dataHoje = new Date();
   return meses[dataHoje.getMonth()];
 }
@@ -226,15 +221,15 @@ export function isDespesaMarcada(despesa: DespesaTI): boolean {
 }
 
 /**
- * Atualiza o check de uma despesa recorrente para o mês atual
+ * 🔧 FUNÇÃO CORRIGIDA - Atualiza o check de uma despesa
  */
 export async function toggleDespesaCheck(despesaId: string, marcado: boolean): Promise<void> {
   try {
     const mesAtual = getMesAtual();
     const updateData: any = {};
-    
-    // Usa o nome correto da coluna (out_ tem underscore)
     const nomeColuna = mesAtual;
+    
+    // 🟢 CORREÇÃO: Agora usa o parâmetro 'marcado' corretamente
     updateData[nomeColuna] = marcado ? 1 : 0;
 
     logger.log(`🔄 Atualizando check da despesa ${despesaId} no mês ${nomeColuna} para ${marcado ? 'marcado' : 'desmarcado'}`);
@@ -242,7 +237,7 @@ export async function toggleDespesaCheck(despesaId: string, marcado: boolean): P
     const { error } = await supabase
       .from('despesas_ti')
       .update(updateData)
-      .eq('tipo_despesa', 'Recorrente');
+      .eq('id', despesaId); // 🟢 CORREÇÃO: Filtra pelo ID específico
 
     if (error) {
       logger.error(`❌ Erro ao atualizar coluna ${nomeColuna}:`, error);
@@ -259,34 +254,20 @@ export async function toggleDespesaCheck(despesaId: string, marcado: boolean): P
 /**
  * Reseta todos os checks do mês atual para despesas recorrentes
  */
-export async function resetarChecksMesAtual(): Promise<void> {
-  try {
-    const mesAtual = getMesAtual();
-    const updateData: any = {};
-    const nomeColuna = mesAtual;
-    updateData[nomeColuna] = 0;
-
-    logger.log(`🔄 Resetando checks do mês ${nomeColuna} para todas as despesas recorrentes`);
-
+export const resetarChecksMesAtual = async () => {
+  const mesAtual = getMesAtual();
+  const updateData = { [mesAtual]: 0 };
+  
   const { error } = await supabase
-        .from('despesas_ti')
-        .update(updateData)
-        // Hack de segurança: O Supabase exige um 'where' para updates.
-        // Usamos "ID diferente de zero" para pegar TODAS as linhas da tabela
-        // e garantir que nada fique marcado indevidamente.
-        .gt('id', 0);
+    .from('despesas_ti')
+    .update(updateData)
+    .eq('tipo_despesa', 'Recorrente');
 
-    if (error) {
-      logger.error(`❌ Erro ao resetar coluna ${nomeColuna}:`, error);
-      handleSupabaseError(error, 'resetar checks do mês');
-    }
-
-    logger.log(`✅ Todos os checks do mês ${nomeColuna} foram resetados`);
-  } catch (error) {
-    logger.error('❌ Erro ao resetar checks do mês:', error);
+  if (error) {
+    console.error('Erro ao resetar checks:', error);
     throw error;
   }
-}
+};
 
 /**
  * Verifica se é dia 1 do mês
@@ -306,7 +287,6 @@ export function isDia10(): boolean {
 
 /**
  * Reseta automaticamente os checks se for dia 1 do mês
- * Retorna true se o reset foi executado, false caso contrário
  */
 export async function resetarSeDia1(): Promise<boolean> {
   if (!isDia1()) {
@@ -333,17 +313,15 @@ export async function fetchDespesasPendentes(): Promise<DespesaTI[]> {
     const mesAtual = getMesAtual();
     logger.log(`🔍 Buscando despesas pendentes do mês ${mesAtual}...`);
 
-    // Atualizado para servico e descricao
     const { data, error } = await supabase
       .from('despesas_ti')
-      .select('id, servico, descricao, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set, out_, nov, dez, created_at')
+      .select('id, servico, descricao, tipo_despesa, valor_medio, marina, jan, fev, mar, abr, mai, jun, jul, ago, set_, out_, nov, dez, created_at')
       .eq('tipo_despesa', 'Recorrente')
       .or(`${mesAtual}.is.null,${mesAtual}.eq.0`)
-      .order('servico', { ascending: true }); // Ordenar pelo novo nome
+      .order('servico', { ascending: true });
 
     if (error) {
       logger.error('❌ Erro ao buscar despesas pendentes:', error);
-      // Fallback: buscar todas e filtrar
       const { data: todasDespesas, error: errorTodas } = await supabase
         .from('despesas_ti')
         .select('*')
@@ -354,13 +332,11 @@ export async function fetchDespesasPendentes(): Promise<DespesaTI[]> {
         handleSupabaseError(errorTodas, 'buscar despesas pendentes');
       }
 
-      // Filtrar manualmente e mapear
       const todasMapeadas = mapDespesasCompatibilidade(todasDespesas || []);
       const pendentes = todasMapeadas.filter((d: any) => {
         const valor = d[mesAtual];
         return valor === null || valor === undefined || valor === 0;
       });
-
       logger.log(`✅ ${pendentes.length} despesas pendentes encontradas (fallback)`);
       return pendentes;
     }
@@ -374,40 +350,35 @@ export async function fetchDespesasPendentes(): Promise<DespesaTI[]> {
 }
 
 /**
- * Normaliza string para comparação (remove acentos, espaços extras, converte para minúsculas)
+ * Normaliza string para comparação
  */
 function normalizarString(str: string | null | undefined): string {
   if (!str) return '';
   return str
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/[\u0300-\u036f]/g, '')
     .trim()
-    .replace(/\s+/g, ' '); // Remove espaços extras
+    .replace(/\s+/g, ' ');
 }
 
 /**
- * Verifica se duas strings são similares (match parcial)
+ * Verifica se duas strings são similares
  */
 function stringsSimilares(str1: string, str2: string): boolean {
   const norm1 = normalizarString(str1);
   const norm2 = normalizarString(str2);
   
-  // Match exato
   if (norm1 === norm2) return true;
-  
-  // Match parcial (uma contém a outra)
   if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
   
-  // Match por palavras (se tiver pelo menos uma palavra em comum)
   const palavras1 = norm1.split(/\s+/).filter(p => p.length > 2);
   const palavras2 = norm2.split(/\s+/).filter(p => p.length > 2);
-  
   return palavras1.some(p => palavras2.includes(p));
 }
 
 /**
- * Busca e marca automaticamente a despesa correspondente quando um serviço é criado
+ * Busca e marca automaticamente a despesa correspondente
  */
 export async function marcarDespesaPorServico(
   servicoNome: string | null | undefined,
@@ -421,7 +392,6 @@ export async function marcarDespesaPorServico(
 
     logger.log(`🔍 Tentando marcar despesa para: ${servicoNome} (Empresa: ${empresa || 'N/A'})`);
 
-    // 1. Buscar todas as despesas recorrentes
     const { data: despesasRaw, error } = await supabase
       .from('despesas_ti')
       .select('*')
@@ -431,67 +401,48 @@ export async function marcarDespesaPorServico(
       logger.error('❌ Erro ao buscar despesas para match:', error);
       return false;
     }
-    
+
     if (!despesasRaw || despesasRaw.length === 0) return false;
 
-    // 2. Mapear para garantir campos servico/descricao (compatibilidade)
     const despesas = mapDespesasCompatibilidade(despesasRaw);
     let despesaEncontrada: DespesaTI | null = null;
 
-    // Funções auxiliares locais para limpeza
     const clean = (str: string | null | undefined) => (str || '').toLowerCase().trim();
-    
     const inputServico = clean(servicoNome);
     const inputDesc = clean(servicoDescricao);
     const inputEmpresa = clean(empresa);
 
-    // 3. Iterar para encontrar match
-    // ORDENAÇÃO IMPORTANTE:
-    // Itens com MARINA definida devem vir PRIMEIRO para terem prioridade no match.
-    // Itens sem marina (genéricos) ficam por último como fallback.
     despesas.sort((a, b) => {
-      const temMarinaA = !!a.marina;
-      const temMarinaB = !!b.marina;
-      if (temMarinaA && !temMarinaB) return -1; // a vem antes
-      if (!temMarinaA && temMarinaB) return 1;  // b vem antes
+      const temEmpresaA = !!a.empresa;
+      const temEmpresaB = !!b.empresa;
+      if (temEmpresaA && !temEmpresaB) return -1;
+      if (!temEmpresaA && temEmpresaB) return 1;
       return 0;
     });
 
     for (const despesa of despesas) {
-      // Dados do banco
       const dbServico = clean(despesa.servico);
       const dbDescricao = clean(despesa.descricao);
-      const dbMarina = clean(despesa.marina);
+      const dbEmpresa = clean(despesa.empresa);
 
-      // Lógica de Match de Serviço (Nome ou Descrição)
-      // Verifica se o nome do serviço bate com o serviço ou descrição do banco
-      // E vice-versa, incluindo verificação de "contém"
-      const servicoMatch = 
-        inputServico === dbServico || 
+      const servicoMatch =
+        inputServico === dbServico ||
         inputDesc === dbServico ||
         dbDescricao === inputServico ||
         dbServico.includes(inputServico) ||
         inputServico.includes(dbServico) ||
         (dbDescricao && dbDescricao.includes(inputServico));
-      
-      // Lógica de Match de Empresa (Marina)
-      let marinaMatch = false;
 
-      if (dbMarina) {
-        // Se a despesa tem marina definida (específica),
-        // EXIGE que a empresa recebida seja compatível.
-        marinaMatch = (inputEmpresa === dbMarina);
+      let empresaMatch = false;
+      if (dbEmpresa) {  
+        empresaMatch = (inputEmpresa === dbEmpresa);
       } else {
-        // Se a despesa NÃO tem marina (genérica/fallback),
-        // aceita o match apenas pelo nome do serviço.
-        marinaMatch = true;
+        empresaMatch = true;
       }
 
-      if (servicoMatch && marinaMatch) {
+      if (servicoMatch && empresaMatch) { // ✅ Match encontrado
         despesaEncontrada = despesa as DespesaTI;
-        // Assim que encontrar o primeiro match (que será o mais específico devido à ordenação),
-        // encerra a busca.
-        break; 
+        break;
       }
     }
 
@@ -500,19 +451,15 @@ export async function marcarDespesaPorServico(
       return false;
     }
 
-    // 4. Verificar se já está marcada
     const jaMarcada = isDespesaMarcada(despesaEncontrada);
-    
     if (jaMarcada) {
       logger.log(`ℹ️ Despesa "${despesaEncontrada.servico}" encontrada, mas já estava marcada.`);
       return true;
     }
 
-    // 5. Marcar a despesa no banco
     await toggleDespesaCheck(despesaEncontrada.id, true);
     logger.log(`✅ Despesa "${despesaEncontrada.servico}" marcada automaticamente com sucesso!`);
     return true;
-
   } catch (error) {
     logger.error('❌ Erro ao marcar despesa por serviço:', error);
     return false;
@@ -520,7 +467,7 @@ export async function marcarDespesaPorServico(
 }
 
 /**
- * Busca despesas correspondentes a um serviço sem marcar automaticamente
+ * Busca despesas correspondentes sem marcar
  */
 export async function buscarDespesasCorrespondentes(
   servicoNome: string | null | undefined,
@@ -541,16 +488,14 @@ export async function buscarDespesasCorrespondentes(
     const despesas = mapDespesasCompatibilidade(despesasRaw);
     const despesasEncontradas: DespesaTI[] = [];
 
-    // Buscar todas as despesas que correspondem (exato ou parcial)
     for (const despesa of despesas) {
-      // === AQUI MUDOU: Usa 'servico' e 'descricao' ===
       const dbServico = despesa.servico;
       const dbDescricao = despesa.descricao;
 
       const servicoMatch = stringsSimilares(servicoNome, dbServico);
-      const marinaMatch = !empresa || !despesa.marina || stringsSimilares(empresa, despesa.marina);
-      
-      if (servicoMatch && marinaMatch) {
+      const empresaMatch = !empresa || !despesa.empresa || stringsSimilares(empresa, despesa.empresa);
+
+      if (servicoMatch && empresaMatch) {
         const descMatch = !dbDescricao || stringsSimilares(servicoNome, dbDescricao);
         if (descMatch || !dbDescricao) {
           despesasEncontradas.push(despesa as DespesaTI);
@@ -562,5 +507,120 @@ export async function buscarDespesasCorrespondentes(
   } catch (error) {
     logger.error('❌ Erro ao buscar despesas correspondentes:', error);
     return [];
+  }
+}
+
+// =====================================================
+// DESPESAS RECORRENTES - NOVO SISTEMA SIMPLIFICADO
+// =====================================================
+
+/**
+ * Busca todas as despesas recorrentes com status mensal
+ */
+export async function fetchDespesasRecorrentesSimplificado(): Promise<DespesaRecorrente[]> {
+  try {
+    logger.log('🔍 Buscando despesas recorrentes simplificado...');
+
+    const { data, error } = await supabase
+      .from('despesas_recorrentes')
+      .select('*')
+      .eq('ativo', true)
+      .order('apelido', { ascending: true });
+
+    if (error) {
+      logger.error('❌ Erro ao buscar despesas recorrentes simplificado:', error);
+      return [];
+    }
+
+    logger.log(`✅ ${data?.length || 0} despesas recorrentes encontradas`);
+    return data || [];
+  } catch (error) {
+    logger.error('❌ Erro ao buscar despesas recorrentes simplificado:', error);
+    return [];
+  }
+}
+
+/**
+ * Atualiza o status mensal de uma despesa recorrente
+ */
+export async function atualizarStatusDespesaRecorrente(
+  despesaId: number,
+  status: 'LANCADO' | 'PENDENTE'
+): Promise<void> {
+  try {
+    logger.log(`🔄 Atualizando status da despesa ${despesaId} para ${status}`);
+
+    const { error } = await supabase
+      .from('despesas_recorrentes')
+      .update({
+        status_mes_atual: status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', despesaId);
+
+    if (error) {
+      logger.error('❌ Erro ao atualizar status da despesa recorrente:', error);
+      throw error;
+    }
+
+    logger.log(`✅ Status da despesa ${despesaId} atualizado para ${status}`);
+  } catch (error) {
+    logger.error('❌ Erro ao atualizar status da despesa recorrente:', error);
+    throw error;
+  }
+}
+
+/**
+ * Reseta todas as despesas recorrentes para PENDENTE (dia 1 do mês)
+ */
+export async function resetarStatusMensalDespesasRecorrentes(): Promise<void> {
+  try {
+    logger.log('🔄 Resetando status mensal de todas as despesas recorrentes...');
+
+    const { error } = await supabase
+      .from('despesas_recorrentes')
+      .update({
+        status_mes_atual: 'PENDENTE',
+        updated_at: new Date().toISOString()
+      })
+      .eq('ativo', true);
+
+    if (error) {
+      logger.error('❌ Erro ao resetar status mensal:', error);
+      throw error;
+    }
+
+    logger.log('✅ Status mensal resetado para todas as despesas recorrentes');
+  } catch (error) {
+    logger.error('❌ Erro ao resetar status mensal:', error);
+    throw error;
+  }
+}
+
+/**
+ * Verifica se deve mostrar aviso de reset (7 dias antes do dia 1)
+ */
+export function deveMostrarAvisoReset(): boolean {
+  const hoje = new Date();
+  const dia = hoje.getDate();
+
+  // Mostra aviso quando faltar 7 dias para o dia 1
+  // Se hoje é dia 25, por exemplo, faltam 6 dias para o próximo dia 1
+  const diasParaProximoDia1 = 31 - dia + 1; // Próximo dia 1
+  return diasParaProximoDia1 <= 7 && diasParaProximoDia1 > 0;
+}
+
+/**
+ * Obtém mensagem de aviso de reset
+ */
+export function getMensagemAvisoReset(): string {
+  const hoje = new Date();
+  const dia = hoje.getDate();
+  const diasRestantes = 31 - dia + 1;
+
+  if (diasRestantes === 1) {
+    return "⚠️ Aviso: Amanhã (dia 1) todas as despesas recorrentes serão resetadas para 'Pendente'.";
+  } else {
+    return `⚠️ Aviso: Faltam ${diasRestantes} dias para o reset mensal (dia 1). Todas as despesas serão marcadas como 'Pendente'.`;
   }
 }
