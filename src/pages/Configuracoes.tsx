@@ -48,7 +48,14 @@ import {
   getPagesHiddenByDefault as getPagesHiddenByDefaultService,
   type PageMaintenanceConfig as PageMaintenanceConfigService 
 } from "@/lib/pagesMaintenanceService";
-import { getVersionString, getVersionInfo } from "@/lib/version";
+import { getVersionString, getVersionInfo, getInternalVersionString } from "@/lib/version";
+
+// Estado do deploy
+type DeployStatus = {
+  status: 'success' | 'pending' | 'failed' | 'unknown';
+  lastDeploy: string | null;
+  url: string | null;
+};
 
 // Tipo para usuário
 type Usuario = {
@@ -80,9 +87,12 @@ const PAGINAS_DISPONIVEIS = [
   { path: '/solicitacoes', nome: 'Solicitações', icon: '📝' },
   
   // CORREÇÃO DE PATH (para bater com App.tsx):
-  { path: '/teste-de-seguranca', nome: 'Security Test', icon: '🔒' }, 
-  
-  { path: '/logs', nome: 'Logs de Segurança', icon: '📜' },
+  { path: '/teste-de-seguranca', nome: 'Pentest', icon: '🛡️' },
+
+  // ADIÇÃO DA PÁGINA DE DESPESAS RECORRENTES:
+  { path: '/despesas-recorrentes', nome: 'Despesas Recorrentes', icon: '💰' },
+
+  { path: '/logs', nome: 'Logs', icon: '📋' },
   { path: '/configuracoes', nome: 'Configurações', icon: '⚙️' },
 ];
 
@@ -2170,8 +2180,40 @@ export default function Configuracoes() {
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Versão:</span>
-                  <span className="font-semibold text-foreground font-mono text-xs">{getVersionString()}</span>
+                  <span className="font-semibold text-foreground font-mono text-xs">
+                    {realRole === 'admin' ? getInternalVersionString() : getVersionString()}
+                  </span>
                 </div>
+
+                {realRole === 'admin' && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Commit:</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {getVersionInfo().commitHash}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Commits:</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {getVersionInfo().commitCount}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Último Build:</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {new Date(getVersionInfo().buildDate).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Último Commit:</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {new Date(getVersionInfo().commitDate).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                  </>
+                )}
+
                 <div className="pt-4 border-t">
                   <Button
                     variant="outline"

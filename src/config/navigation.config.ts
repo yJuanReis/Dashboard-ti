@@ -17,6 +17,8 @@ import {
   Shield,
   Database,
   DollarSign,
+  ClipboardList,
+  ShieldCheck,
 } from "lucide-react";
 
 export type AppRole = "admin" | "user";
@@ -118,19 +120,19 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: ShoppingCart,
   },
   {
-    title: "Despesas Recorrentes",
+    title: "Despesas",
     url: "/despesas-recorrentes",
     icon: DollarSign,
   },
   {
-    title: "Logs de Auditoria",
+    title: "Logs",
     url: "/logs",
-    icon: Shield,
+    icon: ClipboardList,
   },
 
- {    title: "Teste de Segurança",
+ {    title: "Pentest",
     url: "/teste-de-seguranca",
-    icon: Database,
+    icon: ShieldCheck,
   },
 
 

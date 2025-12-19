@@ -1,0 +1,136 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Buscar todo o histórico para contar commits
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linting
+      run: npm run lint
+
+    - name: Generate version
+      run: node scripts/generate-version.js
+
+    - name: Build application
+      run: npm run build
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-files
+        path: dist/
+        retention-days: 7
+
+  deploy:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate version for production
+      run: node scripts/generate-version.js
+
+    - name: Build for production
+      run: npm run build
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+    - name: Deploy to Vercel
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        vercel-args: '--prod'
+
+    - name: Get deployment URL
+      id: deployment
+      run: |
+        DEPLOYMENT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+          "https://api.vercel.com/v13/deployments/${{ env.VERCEL_PROJECT_ID }}/latest" | \
+          jq -r '.url')
+        echo "deployment_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      if: success()
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v$(node -p "require('./src/lib/version.json').version")
+        release_name: Release v$(node -p "require('./src/lib/version.json').version")
+        body: |
+          ## 🚀 Nova versão implantada automaticamente
+
+          **Versão:** v$(node -p "require('./src/lib/version.json').version")
+          **Commit:** $(git rev-parse --short HEAD)
+          **Data:** $(date -Iseconds)
+
+          ### 📊 Estatísticas
+          - **Total de commits:** $(node -p "require('./src/lib/version.json').commitCount")
+          - **Último commit:** $(git log -1 --pretty=%B | head -1)
+
+          ### 🌐 Deploy
+          - **URL:** ${{ steps.deployment.outputs.deployment_url }}
+          - **Status:** ✅ Sucesso
+
+          ---
+          _Deploy automático realizado via GitHub Actions_
+        draft: false
+        prerelease: false
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🎉 Deploy realizado com sucesso!"
+        echo "📦 Versão: v$(node -p "require('./src/lib/version.json').version")"
+        echo "🌐 URL: ${{ steps.deployment.outputs.deployment_url }}"
+
+  notify-failure:
+    needs: [test-and-build, deploy]
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+    - name: Notify failure
+      run: |
+        echo "❌ Falha no CI/CD"
+        echo "Verifique os logs para mais detalhes"
