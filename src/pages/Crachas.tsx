@@ -418,7 +418,7 @@ export default function Crachas() {
                 <div
                   className={cn(
                     "absolute left-1/2 -translate-x-1/2 w-full text-center z-[3] grid-row-1 grid-col-1 font-bold",
-                    "text-[clamp(12px,3.5vw,20px)]", // Texto responsivo
+                    "text-[clamp(16px,4.5vw,26px)]", // Texto responsivo - tamanho aumentado
                     // Estilos Padrão/JL:
                     "text-white top-[75%]",
                     // Estilos Brigadista (sobrescreve):
