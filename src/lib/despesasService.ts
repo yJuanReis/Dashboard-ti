@@ -26,6 +26,7 @@ export interface DespesaRecorrente {
   ativo: boolean;
   descricao_padrao?: string;
   valor_estimado?: number | string | null;
+  recorrencia?: string; // ✅ Novo campo para recorrência (Mensal, Anual, Trimestral, ou personalizado)
   created_at: string;
   updated_at: string;
   status_mes_atual?: string; // ✅ Novo campo para status mensal
@@ -622,5 +623,111 @@ export function getMensagemAvisoReset(): string {
     return "⚠️ Aviso: Amanhã (dia 1) todas as despesas recorrentes serão resetadas para 'Pendente'.";
   } else {
     return `⚠️ Aviso: Faltam ${diasRestantes} dias para o reset mensal (dia 1). Todas as despesas serão marcadas como 'Pendente'.`;
+  }
+}
+
+/**
+ * Atualiza uma despesa recorrente específica (edição)
+ */
+export async function atualizarDespesaRecorrente(
+  despesaData: {
+    id: number;
+    apelido: string;
+    match_empresa: string;
+    match_texto: string;
+    valor_estimado?: number | null;
+  }
+): Promise<void> {
+  try {
+    logger.log(`🔄 Atualizando despesa recorrente ${despesaData.id}...`, despesaData);
+
+    const updateData = {
+      apelido: despesaData.apelido.trim(),
+      match_empresa: despesaData.match_empresa.trim(),
+      match_texto: despesaData.match_texto.trim(),
+      valor_estimado: despesaData.valor_estimado,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('despesas_recorrentes')
+      .update(updateData)
+      .eq('id', despesaData.id);
+
+    if (error) {
+      logger.error('❌ Erro ao atualizar despesa recorrente:', error);
+      throw error;
+    }
+
+    logger.log(`✅ Despesa recorrente ${despesaData.id} atualizada com sucesso`);
+  } catch (error) {
+    logger.error('❌ Erro ao atualizar despesa recorrente:', error);
+    throw error;
+  }
+}
+
+/**
+ * Cria uma nova despesa recorrente
+ */
+export async function createDespesaRecorrente(
+  despesaData: {
+    apelido: string;
+    tipo: 'servico' | 'produto';
+    match_empresa: string;
+    match_texto: string;
+    match_fornecedor?: string;
+    dia_vencimento: number;
+    descricao_padrao?: string;
+    valor_estimado?: number;
+    recorrencia?: string; // ✅ Novo campo para recorrência
+  }
+): Promise<DespesaRecorrente> {
+  try {
+    logger.log('➕ Criando nova despesa recorrente...', despesaData);
+
+    // Validar campos obrigatórios
+    if (!despesaData.apelido?.trim()) {
+      throw new Error('Apelido é obrigatório');
+    }
+    if (!despesaData.match_empresa?.trim()) {
+      throw new Error('Empresa é obrigatória');
+    }
+    if (!despesaData.match_texto?.trim()) {
+      throw new Error('Texto de correspondência é obrigatório');
+    }
+    if (!despesaData.dia_vencimento || despesaData.dia_vencimento < 1 || despesaData.dia_vencimento > 31) {
+      throw new Error('Dia de vencimento deve ser entre 1 e 31');
+    }
+
+    const insertData = {
+      apelido: despesaData.apelido.trim(),
+      match_empresa: despesaData.match_empresa.trim(),
+      match_texto: despesaData.match_texto.trim(),
+      dia_vencimento: despesaData.dia_vencimento,
+      ativo: true,
+      descricao_padrao: despesaData.descricao_padrao?.trim() || null,
+      valor_estimado: despesaData.valor_estimado || null,
+      recorrencia: despesaData.recorrencia || 'Mensal', // ✅ Novo campo com valor padrão
+      status_mes_atual: 'PENDENTE',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('despesas_recorrentes')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('❌ Erro ao criar despesa recorrente:', error);
+      throw error;
+    }
+
+    logger.log('✅ Despesa recorrente criada com sucesso:', data);
+    return data;
+  } catch (error) {
+    logger.error('❌ Erro ao criar despesa recorrente:', error);
+    throw error;
   }
 }

@@ -89,8 +89,7 @@ const PAGINAS_DISPONIVEIS = [
   // CORREÇÃO DE PATH (para bater com App.tsx):
   { path: '/teste-de-seguranca', nome: 'Pentest', icon: '🛡️' },
 
-  // ADIÇÃO DA PÁGINA DE DESPESAS RECORRENTES:
-  { path: '/despesas-recorrentes', nome: 'Despesas Recorrentes', icon: '💰' },
+
 
   { path: '/logs', nome: 'Logs', icon: '📋' },
   { path: '/configuracoes', nome: 'Configurações', icon: '⚙️' },
@@ -2073,7 +2072,7 @@ export default function Configuracoes() {
                       <p className="text-sm">Carregando páginas...</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {PAGINAS_DISPONIVEIS.map((pagina) => {
                         // Normalizar paths para comparação (case-insensitive)
                         const normalizedPaginaPath = pagina.path.toLowerCase().trim();
@@ -2082,7 +2081,7 @@ export default function Configuracoes() {
                           return normalizedDbPath === normalizedPaginaPath;
                         });
                         const isInMaintenance = maintenanceConfig?.is_active ?? false;
-                        
+
                         // Log para debug
                         if (maintenanceConfig) {
                           console.log(`[Configuracoes] Página ${pagina.path} encontrada no banco:`, {
@@ -2091,7 +2090,7 @@ export default function Configuracoes() {
                             badge_text: maintenanceConfig.badge_text
                           });
                         }
-                        
+
                         return (
                           <div
                             key={pagina.path}
@@ -2102,13 +2101,6 @@ export default function Configuracoes() {
                             }`}
                           >
                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center text-2xl transition-all ${
-                                isInMaintenance
-                                  ? "bg-warning/20"
-                                  : "bg-muted"
-                              }`}>
-                                {pagina.icon}
-                              </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <h4 className={`font-semibold text-sm ${
@@ -2116,29 +2108,21 @@ export default function Configuracoes() {
                                   }`}>
                                     {pagina.nome}
                                   </h4>
-                                  {isInMaintenance && (
-                                    <Badge 
-                                      variant="outline" 
-                                      className="text-[10px] px-2 py-0.5 h-5 bg-yellow-100 text-yellow-700 border-yellow-300 font-medium"
-                                    >
-                                      {maintenanceConfig?.badge_text || "Avaliar"}
-                                    </Badge>
-                                  )}
                                 </div>
-                                <p className="text-xs text-muted-foreground font-mono">{pagina.path}</p>
+                                <p className={`text-xs font-mono ${pagina.path === '/senhas' ? 'text-black' : 'text-muted-foreground'}`}>{pagina.path}</p>
                               </div>
                             </div>
                             <label className="relative inline-flex items-center cursor-pointer ml-4 flex-shrink-0">
-                              <input 
-                                type="checkbox" 
-                                className="sr-only peer" 
+                              <input
+                                type="checkbox"
+                                className="sr-only peer"
                                 checked={isInMaintenance}
                                 onChange={() => handleTogglePageMaintenance(pagina.path, isInMaintenance)}
                                 disabled={loadingPagesMaintenance}
                               />
                               <div className={`w-12 h-6 rounded-full peer transition-all duration-300 ${
-                                isInMaintenance 
-                                  ? "bg-warning shadow-md shadow-warning/30" 
+                                isInMaintenance
+                                  ? "bg-warning shadow-md shadow-warning/30"
                                   : "bg-muted border border-border"
                               } peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-warning peer-checked:after:translate-x-full peer-checked:after:border-warning-foreground after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-warning-foreground after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all after:shadow-sm`}></div>
                             </label>

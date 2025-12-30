@@ -7,6 +7,7 @@ import { fetchNVRs } from "../lib/nvrService";
 import { fetchRamais, type Ramal } from "../lib/ramaisService";
 import { fetchImpressoras, type Impressora } from "../lib/impressorasService";
 import { fetchServicos, fetchProdutos } from "../lib/servicosProdutosService";
+import { fetchDespesasRecorrentesSimplificado } from "../lib/despesasService";
 
 import { 
   BarChart, 
@@ -67,17 +68,42 @@ const formatDistanceToNow = (date: string | Date) => {
 // Função auxiliar para converter string de moeda (BRL) em number
 const parseCurrency = (value: string | undefined): number => {
   if (!value) return 0;
-  // Remove "R$", espaços e pontos de milhar. Troca vírgula por ponto.
-  const cleanValue = value.replace(/[R$\s.]/g, '').replace(',', '.');
+
+  // Remove apenas "R$" e espaços, mas preserva pontos e vírgulas
+  let cleanValue = value.replace(/[R$\s]/g, '');
+
+  // Detecta formato: se tem vírgula E ponto, é formato brasileiro com separador de milhares
+  // Exemplo: "1.234,56" -> remove ponto de milhares, mantém vírgula decimal
+  if (cleanValue.includes(',') && cleanValue.includes('.')) {
+    cleanValue = cleanValue.replace(/\./g, ''); // Remove pontos de milhares
+    cleanValue = cleanValue.replace(',', '.'); // Troca vírgula por ponto decimal
+  }
+  // Se só tem vírgula, é formato brasileiro simples (já está correto)
+  else if (cleanValue.includes(',')) {
+    cleanValue = cleanValue.replace(',', '.');
+  }
+  // Se só tem ponto, é formato americano (já está correto)
+
   return parseFloat(cleanValue) || 0;
 };
 
-// Função auxiliar para fazer o parse de datas (aceita YYYY-MM-DD ou ISO)
+// Função auxiliar para fazer o parse de datas (aceita DD/MM/YYYY, YYYY-MM-DD ou ISO)
 const parseDate = (dateStr: string | undefined): Date | null => {
   if (!dateStr) return null;
+
+  // Tenta parsear data brasileira DD/MM/YYYY
+  const brDateMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brDateMatch) {
+    const [, day, month, year] = brDateMatch;
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (!isNaN(date.getTime())) return date;
+  }
+
+  // Tenta parsear como ISO ou outro formato
   const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return null;
-  return date;
+  if (!isNaN(date.getTime())) return date;
+
+  return null;
 };
 
 // --- TYPES ---
@@ -411,8 +437,9 @@ export default function Home() {
           const lowSlots = (nvr.slots || [])
             .map((s: any, idx: number) => ({ index: idx + 1, hdSize: Number(s.hdSize || 0), status: s.status }))
             .filter((s: any) => s.hdSize > 0 && s.hdSize < SLOT_THRESHOLD);
-          return { nvr, lowSlots };
-        }).filter((x: any) => x.lowSlots.length >= MIN_SLOTS_UNDER);
+          return { nvr, lowSlots, problemCount: lowSlots.length };
+        }).filter((x: any) => x.problemCount >= MIN_SLOTS_UNDER)
+          .sort((a: any, b: any) => b.problemCount - a.problemCount); // Ordenar por quantidade de problemas (decrescente)
 
         setCriticalNVRs(filtered);
       } catch (err) {
@@ -420,14 +447,21 @@ export default function Home() {
       }
 
       // =================================================================
-      // 6. DADOS FINANCEIROS REAIS (NOVA IMPLEMENTAÇÃO)
+      // 6. DADOS FINANCEIROS REAIS (APENAS SERVIÇOS E PRODUTOS)
       // =================================================================
       try {
+        console.log('🔍 Iniciando busca de dados financeiros...');
+
         // Busca paralela de serviços e produtos
         const [servicosData, produtosData] = await Promise.all([
            fetchServicos(),
            fetchProdutos()
         ]);
+
+        console.log('📊 Dados recebidos:', {
+          servicosCount: servicosData?.length || 0,
+          produtosCount: produtosData?.length || 0
+        });
 
         // Define os últimos 6 meses para o eixo X do gráfico
         const today = new Date();
@@ -437,14 +471,14 @@ export default function Home() {
               monthIdx: d.getMonth(),
               year: d.getFullYear(),
               // Nome do mês abreviado (Jan, Fev...)
-              name: d.toLocaleString('pt-BR', { month: 'short' }).replace('.', ''), 
+              name: d.toLocaleString('pt-BR', { month: 'short' }).replace('.', ''),
               servicos: 0,
               produtos: 0
            };
         }).reverse(); // Reverte para ficar em ordem cronológica (ex: Jun -> Nov)
 
         // Função auxiliar para somar valor ao mês correto
-        const addToMonth = (dateStr: string | undefined, valueStr: string | undefined, type: 'servicos' | 'produtos') => {
+        const addToMonth = (dateStr: string | undefined, valueStr: string | undefined, type: 'servicos' | 'produtos' | 'despesas') => {
            const date = parseDate(dateStr);
            if (!date) return; // Se a data for inválida ou não existir, ignora
 
@@ -459,20 +493,40 @@ export default function Home() {
            }
         };
 
-        // Processa Serviços (USA EXCLUSIVAMENTE data_solicitacao)
+        // Processa Serviços (USA data_solicitacao)
+        console.log('🟡 Processando serviços:', servicosData.length);
+        let totalServicos = 0;
         servicosData.forEach(s => {
-            addToMonth(s.data_solicitacao, s.valor, 'servicos');
+            const valorStr = s.valor || '0';
+            const valorNum = parseCurrency(valorStr);
+            totalServicos += valorNum;
+            console.log('🔵 Serviço:', s.servico, 'data_solicitacao:', s.data_solicitacao, 'valor:', s.valor, 'valorNum:', valorNum);
+            addToMonth(s.data_solicitacao, valorStr, 'servicos');
         });
+        console.log('💰 Total Serviços processados:', totalServicos);
 
-        // Processa Produtos (USA EXCLUSIVAMENTE data_sc)
+        // Processa Produtos (USA data_sc)
+        console.log('🟣 Processando produtos:', produtosData.length);
+        let totalProdutos = 0;
         produtosData.forEach(p => {
-            addToMonth(p.data_sc, p.valor, 'produtos');
+            const valorStr = p.valor || '0';
+            const valorNum = parseCurrency(valorStr);
+            totalProdutos += valorNum;
+            console.log('🟠 Produto:', p.produto, 'data_sc:', p.data_sc, 'valor:', p.valor, 'valorNum:', valorNum);
+            addToMonth(p.data_sc, valorStr, 'produtos');
         });
-        
-        // Capitaliza a primeira letra do mês (jan -> Jan)
+        console.log('💰 Total Produtos processados:', totalProdutos);
+        console.log('📈 Dados finais para o gráfico:', last12Months);
+
+        // Capitaliza a primeira letra do mês e inclui ano quando necessário
+        const currentYear = new Date().getFullYear();
+        const hasMultipleYears = last12Months.some(m => m.year !== currentYear);
+
         const formattedData = last12Months.map(m => ({
             ...m,
-            name: m.name.charAt(0).toUpperCase() + m.name.slice(1)
+            name: hasMultipleYears
+                ? `${m.name.charAt(0).toUpperCase() + m.name.slice(1)}/${String(m.year).slice(-2)}`
+                : m.name.charAt(0).toUpperCase() + m.name.slice(1)
         }));
 
         setFinancialData(formattedData);
@@ -534,6 +588,28 @@ export default function Home() {
   const getSlotStatusClass = (status: string, hdSize: number) => {
     const baseClass = getHDSizeClass(hdSize);
     return status === "inactive" ? `${baseClass} opacity-50` : baseClass;
+  };
+
+  // Nova função para visualização completa dos slots
+  const getCompleteSlotStatus = (hdSize: number, status: string) => {
+    if (!hdSize || hdSize <= 0) return "bg-gray-400 border-gray-600"; // Slot vazio
+    if (hdSize >= 14) return "bg-green-500 border-green-700"; // Adequado
+    if (hdSize >= 6) return "bg-yellow-500 border-yellow-700"; // Atenção
+    return "bg-red-500 border-red-700"; // Crítico
+  };
+
+  const getNVRUpgradeStatus = (slots: any[]) => {
+    if (!slots || slots.length === 0) return { status: "Sem dados", color: "bg-gray-500", progress: 0 };
+
+    const totalSlots = slots.length;
+    const adequateSlots = slots.filter(s => s.hdSize >= 14).length;
+    const purchasedSlots = slots.filter(s => s.purchased === true).length;
+    const progress = (adequateSlots / totalSlots) * 100;
+
+    // Lógica baseada no status de compra
+    if (progress === 100) return { status: "Pronto", color: "bg-green-500", progress };
+    if (purchasedSlots > 0) return { status: "Em progresso", color: "bg-yellow-500", progress };
+    return { status: "Precisa upgrade", color: "bg-red-500", progress };
   };
 
   // --- FUNÇÃO PARA ABRIR O MODAL DE CONFIRMAÇÃO ---
@@ -635,55 +711,94 @@ export default function Home() {
         </div>
 
         {/* -------- ÁREAS DE CONTEÚDO PRINCIPAL -------- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Área 1: Armazenamento Crítico */}
-          <Card className="shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm cursor-pointer hover:shadow-md transition-all border-l-4 border-l-blue-500" onClick={() => setOpenStorageModal(true)}>
+        <div className="grid grid-cols-1 gap-6">
+
+
+
+          {/* Status de Upgrade de HDs */}
+          <Card className="shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-l-4 border-l-orange-500">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <HardDrive className="h-5 w-5 text-blue-600" />
-                  Armazenamento Crítico
+                  <Server className="h-5 w-5 text-orange-600" />
+                  Status de Upgrade de HDs
                 </CardTitle>
-
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setOpenStorageModal(true)}
+                  className="text-xs hover:bg-orange-50 hover:border-orange-300 hover:text-orange-700 dark:hover:bg-orange-900/20 dark:hover:border-orange-600 dark:hover:text-orange-400 transition-all"
+                >
+                  <Server className="w-3 h-3 mr-1" />
+                  Ver Todos
+                </Button>
               </div>
-              <CardDescription>Mostra NVRs com slots menores que 12TB (máx. 4)</CardDescription>
+              <CardDescription>Visão completa de todos os slots de cada NVR</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {criticalNVRs.length === 0 && !loadingDashboard ? (
-                  <div className="text-center py-6 text-slate-400 text-sm">Nenhum alerta de armazenamento.</div>
-                ) : (
-                  (() => {
-                    const items = criticalNVRs.slice(0,4);
+              {criticalNVRs.length === 0 && !loadingDashboard ? (
+                <div className="text-center py-6 text-slate-400 text-sm">
+                  Nenhum NVR com dados de armazenamento disponíveis.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {criticalNVRs.slice(0, 4).map((item: any) => {
+                    // Usar todos os slots do NVR, não só os problemáticos
+                    const allSlots = item.nvr.slots || [];
+                    const upgradeStatus = getNVRUpgradeStatus(allSlots);
+                    const adequateCount = allSlots.filter((s: any) => s.hdSize >= 14).length;
+                    const totalSlots = allSlots.length;
+
                     return (
-                      <div className="space-y-2">
-                        {items.map((item: any) => (
-                          <div key={item.nvr.id} className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                            <div className="flex items-center gap-3">
-                              <div className="text-sm font-medium">{item.nvr.marina} / {item.nvr.name}</div>
-                              <div className="text-xs text-slate-500 hidden sm:block">{item.nvr.model || ''}</div>
+                      <div
+                        key={item.nvr.id}
+                        className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-white dark:bg-slate-900/50 cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all"
+                        onClick={() => navigate(`/controle-hds?nvr=${item.nvr.id}`)}
+                      >
+                        {/* Cabeçalho do NVR */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                              {item.nvr.marina} / {item.nvr.name}
                             </div>
-                            <div className="flex items-center gap-2">
-                              {(item.lowSlots || []).slice(0,3).map((s:any) => (
-                                <div key={s.index} className={`px-2 py-0.5 rounded text-[11px] text-white font-semibold flex items-center justify-center ${getSlotStatusClass(s.status || 'active', s.hdSize)} border ${s.hdSize === 0 ? 'border-gray-600' : 'border-white/20'}`}>
-                                  {s.hdSize}TB
-                                </div>
-                              ))}
-                              {item.lowSlots.length > 3 && (
-                                <div className="text-[11px] text-slate-500">+{item.lowSlots.length - 3}</div>
-                              )}
+                            <div className="text-xs text-slate-500">{item.nvr.model || 'Modelo não informado'}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`px-2 py-1 rounded-full text-xs font-medium text-white ${upgradeStatus.color}`}>
+                              {upgradeStatus.status}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {adequateCount}/{totalSlots}
                             </div>
                           </div>
-                        ))}
-                        {criticalNVRs.length > 4 && (
-                          <div className="text-xs text-slate-500 pt-1">Mostrando 4 de {criticalNVRs.length}</div>
-                        )}
+                        </div>
+
+                        {/* Barra de progresso */}
+                        <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-4">
+                          <div
+                            className={`h-2 rounded-full transition-all ${upgradeStatus.color.replace('bg-', 'bg-')}`}
+                            style={{ width: `${upgradeStatus.progress}%` }}
+                          ></div>
+                        </div>
+
+                        {/* Slots centralizados e responsivos */}
+                        <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                          {allSlots.map((slot: any, index: number) => (
+                            <div key={index} className="flex items-center gap-1">
+                              <span className="text-[9px] font-medium text-slate-500">#{index + 1}</span>
+                              <div
+                                className={`w-6 h-6 rounded flex items-center justify-center text-white text-[9px] font-bold border ${getCompleteSlotStatus(slot.hdSize, slot.status)} ${slot.status === 'inactive' ? 'opacity-50' : ''}`}
+                              >
+                                {slot.hdSize > 0 ? `${slot.hdSize}TB` : '-'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
-                  })()
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -729,16 +844,44 @@ export default function Home() {
                             tick={{fill: "hsl(var(--muted-foreground))", fontSize: 11}} 
                             width={40}
                           />
-                          <Tooltip 
+                          <Tooltip
                             cursor={{fill: "hsl(var(--muted)/0.3)"}}
                             contentStyle={{
-                              backgroundColor: "hsl(var(--card))", 
-                              borderColor: "hsl(var(--border))", 
-                              borderRadius: "8px",
-                              fontSize: "12px",
-                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                              backgroundColor: "hsl(var(--card))",
+                              borderColor: "hsl(var(--border))",
+                              borderRadius: "12px",
+                              fontSize: "16px",
+                              fontWeight: "600",
+                              padding: "12px 16px",
+                              boxShadow: "0 10px 25px -5px rgb(0 0 0 / 0.3)",
+                              border: "2px solid hsl(var(--border))"
                             }}
-                            formatter={(value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)}
+                            labelStyle={{
+                              fontSize: "18px",
+                              fontWeight: "700",
+                              color: "hsl(var(--foreground))",
+                              marginBottom: "8px"
+                            }}
+                            formatter={(value: number, name: string) => [
+                              new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
+                              name
+                            ]}
+                            labelFormatter={(label) => {
+                              // Converte abreviação para nome completo do mês no tooltip
+                              const monthMap: Record<string, string> = {
+                                'Jan': 'Janeiro', 'Fev': 'Fevereiro', 'Mar': 'Março', 'Abr': 'Abril',
+                                'Mai': 'Maio', 'Jun': 'Junho', 'Jul': 'Julho', 'Ago': 'Agosto',
+                                'Set': 'Setembro', 'Out': 'Outubro', 'Nov': 'Novembro', 'Dez': 'Dezembro'
+                              };
+
+                              // Remove o ano se estiver presente (ex: "Jan/25" -> "Jan")
+                              const monthAbbrev = label.split('/')[0];
+                              const fullMonth = monthMap[monthAbbrev] || monthAbbrev;
+
+                              // Adiciona o ano se estava presente
+                              const yearPart = label.includes('/') ? `/${label.split('/')[1]}` : '';
+                              return `${fullMonth}${yearPart}`;
+                            }}
                           />
                           <Legend 
                             wrapperStyle={{fontSize: "11px", paddingTop: "10px"}} 
@@ -752,14 +895,15 @@ export default function Home() {
                             radius={[0, 0, 4, 4]} 
                             barSize={30}
                           />
-                          <Bar 
-                            dataKey="produtos" 
-                            name="Produtos" 
-                            fill="#a855f7" 
-                            stackId="a" 
-                            radius={[4, 4, 0, 0]} 
+                          <Bar
+                            dataKey="produtos"
+                            name="Produtos"
+                            fill="#a855f7"
+                            stackId="a"
+                            radius={[4, 4, 0, 0]}
                             barSize={30}
                           />
+
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -810,46 +954,107 @@ export default function Home() {
           })()}
         </SimpleModal>
 
-        {/* -------- MODAL ARMAZENAMENTO CRÍTICO (Slots) -------- */}
+        {/* -------- MODAL TODOS OS NVRs -------- */}
         <SimpleModal
           open={openStorageModal}
           onOpenChange={setOpenStorageModal}
-          title="Armazenamento Crítico Detalhado"
+          title="Todos os NVRs - Status de Upgrade de HDs"
         >
-          <div className="space-y-4">
-            {criticalNVRs.length === 0 ? (
-              <div className="text-center py-10 flex flex-col items-center gap-3">
-                 <CheckCircle2 className="w-12 h-12 text-green-500/50" />
-                 <span className="text-slate-400">Tudo certo! Nenhum NVR com 2 ou mais slots abaixo de 12TB.</span>
-              </div>
-            ) : (
-              criticalNVRs.map((item: any) => (
-                <div key={item.nvr.id} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-white dark:bg-slate-900/50 shadow-sm">
-                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <div>
-                      <div className="font-bold text-lg text-slate-800 dark:text-slate-100">{item.nvr.marina} / {item.nvr.name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{item.nvr.model ? `${item.nvr.model} • ` : ''} {item.lowSlots.length} slot(s) com alerta</div>
-                    </div>
-                    <div className="text-sm px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-400 font-medium">
-                        {item.nvr.owner || 'N/A'}
-                    </div>
-                  </div>
+          <style>{`
+            .smooth-scroll {
+              scroll-behavior: smooth;
+              scrollbar-width: thin;
+              scrollbar-color: rgb(203 213 225) transparent;
+            }
+            .smooth-scroll::-webkit-scrollbar {
+              width: 6px;
+            }
+            .smooth-scroll::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .smooth-scroll::-webkit-scrollbar-thumb {
+              background: rgb(203 213 225);
+              border-radius: 3px;
+            }
+            .smooth-scroll::-webkit-scrollbar-thumb:hover {
+              background: rgb(148 163 184);
+            }
+          `}</style>
+          <div className="space-y-4 max-h-[70vh] overflow-y-auto smooth-scroll">
+            {(() => {
+              // Buscar todos os NVRs para mostrar no modal
+              const [allNVRs, setAllNVRs] = useState<any[]>([]);
 
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-                    {item.lowSlots.map((s: any) => (
-                      <div key={s.index} className="flex flex-col items-center group">
-                        <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center text-white text-xs font-bold shadow-sm group-hover:shadow-md transition-all group-hover:scale-110 border-2 ${getSlotStatusClass(s.status || 'active', s.hdSize)}`}
-                        >
-                          {s.hdSize}TB
-                        </div>
-                        <div className="text-[10px] uppercase font-bold text-slate-400 mt-2">Slot {s.index}</div>
-                      </div>
-                    ))}
-                  </div>
+              useEffect(() => {
+                const fetchAllNVRs = async () => {
+                  try {
+                    const nvrsData = await fetchNVRs();
+                    setAllNVRs(nvrsData || []);
+                  } catch (error) {
+                    console.error('Erro ao buscar todos os NVRs:', error);
+                  }
+                };
+                if (openStorageModal) fetchAllNVRs();
+              }, [openStorageModal]);
+
+              return allNVRs.length === 0 ? (
+                <div className="text-center py-10 flex flex-col items-center gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                  <span className="text-slate-400">Carregando NVRs...</span>
                 </div>
-              ))
-            )}
+              ) : (
+                allNVRs.map((nvr: any) => {
+                  const allSlots = nvr.slots || [];
+                  const upgradeStatus = getNVRUpgradeStatus(allSlots);
+                  const adequateCount = allSlots.filter((s: any) => s.hdSize >= 14).length;
+                  const totalSlots = allSlots.length;
+
+                  return (
+                    <div key={nvr.id} className="border border-slate-200 dark:border-slate-800 rounded-lg p-4 bg-white dark:bg-slate-900/50 shadow-sm">
+                      {/* Cabeçalho do NVR */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                            {nvr.marina} / {nvr.name}
+                          </div>
+                          <div className="text-xs text-slate-500">{nvr.model || 'Modelo não informado'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={`px-2 py-1 rounded-full text-xs font-medium text-white ${upgradeStatus.color}`}>
+                            {upgradeStatus.status}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {adequateCount}/{totalSlots}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Barra de progresso */}
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-4">
+                        <div
+                          className={`h-2 rounded-full transition-all ${upgradeStatus.color.replace('bg-', 'bg-')}`}
+                          style={{ width: `${upgradeStatus.progress}%` }}
+                        ></div>
+                      </div>
+
+                      {/* Slots com nova estética */}
+                      <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
+                        {allSlots.map((slot: any, index: number) => (
+                          <div key={index} className="flex items-center gap-1">
+                            <span className="text-[9px] font-medium text-slate-500">#{index + 1}</span>
+                            <div
+                              className={`w-6 h-6 rounded flex items-center justify-center text-white text-[9px] font-bold border ${getCompleteSlotStatus(slot.hdSize, slot.status)} ${slot.status === 'inactive' ? 'opacity-50' : ''}`}
+                            >
+                              {slot.hdSize > 0 ? `${slot.hdSize}TB` : '-'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              );
+            })()}
           </div>
         </SimpleModal>
 

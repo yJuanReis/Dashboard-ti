@@ -65,6 +65,11 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: Key,
   },
   {
+    title: "Solicitações",
+    url: "/solicitacoes",
+    icon: ShoppingCart,
+  },
+  {
     title: "Crachás",
     url: "/crachas",
     icon: IdCard,
@@ -113,16 +118,6 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     title: "Ramais",
     url: "/ramais",
     icon: Phone,
-  },
-  {
-    title: "Solicitações",
-    url: "/solicitacoes",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Despesas",
-    url: "/despesas-recorrentes",
-    icon: DollarSign,
   },
   {
     title: "Logs",

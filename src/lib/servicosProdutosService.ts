@@ -347,24 +347,35 @@ export async function createServico(
 
     // Registrar auditoria
     const { logCreate } = await import('@/lib/auditService');
-    await logCreate(
+    await logCreate( 
       'servicos',
       data.id,
       data,
       `Criou serviço: ${novoServico.servico || 'Sem serviço'}`
     ).catch(err => logger.warn('Erro ao registrar auditoria:', err));
 
-    // Marcar automaticamente a despesa correspondente no checklist
+    // Marcar automaticamente a despesa recorrente correspondente (MATCHING ESTRITO)
     try {
-      const { marcarDespesaPorServico } = await import('@/lib/despesasService');
-      console.log('🟡 [SERVICE] Chamando marcarDespesaPorServico com:', { servico: novoServico.servico, descricao: novoServico.descricao, empresa: novoServico.empresa });
-      logger.log(`🟡 [SERVICE] Chamando marcarDespesaPorServico com: servico="${novoServico.servico}" descricao="${novoServico.descricao}" empresa="${novoServico.empresa}"`);
-      const despesaMarcada = await marcarDespesaPorServico(
+      console.log('🟡 [SERVICE] Validando combinação exata para matching automático...');
+      const validacao = await validarCombinacaoSC(
         novoServico.servico,
         novoServico.descricao,
         novoServico.empresa
       );
-      
+
+      let despesaMarcada = false;
+
+      if (validacao.valido && validacao.despesa) {
+        // Atualizar status da despesa para LANCADO
+        const { atualizarStatusDespesaRecorrente } = await import('@/lib/despesasService');
+        await atualizarStatusDespesaRecorrente(validacao.despesa.id, 'LANCADO');
+
+        console.log(`✅ [MATCHING] Despesa "${validacao.despesa.apelido}" marcada como LANCADO (matching exato)`);
+        despesaMarcada = true;
+      } else {
+        console.log(`ℹ️ [MATCHING] Combinação não encontrada exatamente na tabela de despesas recorrentes`);
+      }
+
       // Sempre disparar evento, informando se foi marcada ou não
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('despesa:marcada-automaticamente', {
@@ -375,11 +386,11 @@ export async function createServico(
           }
         }));
       }
-      
+
       if (despesaMarcada) {
         logger.log(`✅ Despesa marcada automaticamente no checklist para o serviço: ${novoServico.servico}`);
       } else {
-        logger.log(`ℹ️ Nenhuma despesa correspondente encontrada para o serviço: ${novoServico.servico}`);
+        logger.log(`ℹ️ Nenhuma despesa correspondente encontrada (matching exato) para o serviço: ${novoServico.servico}`);
       }
     } catch (despesaError) {
       // Não bloquear a criação do serviço se houver erro ao marcar despesa
@@ -680,6 +691,395 @@ export async function deleteProduto(id: string): Promise<void> {
   } catch (error) {
     logger.error('❌ Erro ao deletar produto:', error);
     throw error;
+  }
+}
+
+/**
+ * Marca automaticamente uma despesa recorrente correspondente quando um serviço é criado
+ */
+async function marcarDespesaRecorrentePorServico(
+  servicoNome: string | null | undefined,
+  servicoDescricao: string | null | undefined,
+  empresa: string | null | undefined
+): Promise<boolean> {
+  try {
+    if (!servicoNome || !servicoNome.trim()) {
+      return false;
+    }
+
+    console.log(`🔍 [MATCHING] Procurando despesa recorrente para: "${servicoNome}" (Empresa: ${empresa || 'N/A'})`);
+
+    const { supabase } = await import('./supabaseClient');
+
+    // Buscar despesas recorrentes ativas com status PENDENTE
+    const { data: despesas, error } = await supabase
+      .from('despesas_recorrentes')
+      .select('*')
+      .eq('ativo', true)
+      .eq('status_mes_atual', 'PENDENTE');
+
+    if (error) {
+      console.error('❌ [MATCHING] Erro ao buscar despesas recorrentes:', error);
+      return false;
+    }
+
+    if (!despesas || despesas.length === 0) {
+      console.log('ℹ️ [MATCHING] Nenhuma despesa recorrente pendente encontrada');
+      return false;
+    }
+
+    console.log(`📋 [MATCHING] Encontradas ${despesas.length} despesas recorrentes pendentes`);
+
+    // Função auxiliar para normalizar strings
+    const normalizar = (str: string | null | undefined): string => {
+      if (!str) return '';
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .trim()
+        .replace(/\s+/g, ' '); // Normaliza espaços
+    };
+
+    const inputServico = normalizar(servicoNome);
+    const inputDescricao = normalizar(servicoDescricao);
+    const inputEmpresa = normalizar(empresa);
+
+    console.log(`🔍 [MATCHING] Procurando match para: servico="${inputServico}", empresa="${inputEmpresa}"`);
+
+    let melhorMatch: any = null;
+    let melhorScore = 0;
+
+    for (const despesa of despesas) {
+      const matchTexto = normalizar(despesa.match_texto);
+      const matchEmpresa = normalizar(despesa.match_empresa);
+      const apelido = normalizar(despesa.apelido);
+
+      console.log(`🔍 [MATCHING] Testando despesa: "${despesa.apelido}" (texto: "${matchTexto}", empresa: "${matchEmpresa}")`);
+
+      let score = 0;
+      let matchEncontrado = false;
+
+      // MATCH EXATO NO MATCH_TEXTO (MÁXIMA PRIORIDADE)
+      if (matchTexto && inputServico === matchTexto) {
+        score += 200; // Aumentado para dar mais prioridade
+        matchEncontrado = true;
+        console.log(`🎯 [MATCHING] MATCH EXATO no match_texto: "${matchTexto}"`);
+      }
+      // MATCH EXATO NO APELIDO (ALTA PRIORIDADE)
+      else if (apelido && inputServico === apelido) {
+        score += 180;
+        matchEncontrado = true;
+        console.log(`🎯 [MATCHING] MATCH EXATO no apelido: "${apelido}"`);
+      }
+      // MATCH NA DESCRIÇÃO (PRIORIDADE MÉDIA)
+      else if (inputDescricao && matchTexto && inputDescricao === matchTexto) {
+        score += 150;
+        matchEncontrado = true;
+        console.log(`✅ [MATCHING] Match exato na descrição: "${matchTexto}"`);
+      }
+      // MATCH PARCIAL MAIS RIGOROSO - palavra completa no início
+      else if (matchTexto && inputServico.startsWith(matchTexto + ' ')) {
+        score += 120;
+        matchEncontrado = true;
+        console.log(`✅ [MATCHING] Match parcial rigoroso (início): "${matchTexto}"`);
+      }
+      else if (matchTexto && matchTexto.startsWith(inputServico + ' ')) {
+        score += 120;
+        matchEncontrado = true;
+        console.log(`✅ [MATCHING] Match parcial rigoroso (início inverso): "${matchTexto}"`);
+      }
+      // MATCH PARCIAL NO APELIDO (menos rigoroso)
+      else if (apelido && inputServico.startsWith(apelido + ' ')) {
+        score += 100;
+        matchEncontrado = true;
+        console.log(`✅ [MATCHING] Match parcial no apelido (início): "${apelido}"`);
+      }
+      else if (apelido && apelido.startsWith(inputServico + ' ')) {
+        score += 100;
+        matchEncontrado = true;
+        console.log(`✅ [MATCHING] Match parcial no apelido (início inverso): "${apelido}"`);
+      }
+      // MATCH PARCIAL MENOS RIGOROSO (palavras em comum)
+      else if (matchTexto && (inputServico.includes(matchTexto) || matchTexto.includes(inputServico))) {
+        // Verificar se é uma correspondência significativa
+        const palavrasInput = inputServico.split(/\s+/).filter(p => p.length > 2);
+        const palavrasMatch = matchTexto.split(/\s+/).filter(p => p.length > 2);
+        const palavrasComuns = palavrasInput.filter(p => palavrasMatch.includes(p)).length;
+
+        if (palavrasComuns >= Math.min(palavrasInput.length, palavrasMatch.length) * 0.7) {
+          score += 80;
+          matchEncontrado = true;
+          console.log(`✅ [MATCHING] Match parcial significativo (${palavrasComuns} palavras): "${matchTexto}"`);
+        }
+      }
+
+      // BÔNUS POR EMPRESA (só se houver match básico)
+      if (matchEncontrado && matchEmpresa && inputEmpresa) {
+        if (inputEmpresa === matchEmpresa) {
+          score += 50;
+          console.log(`🎯 [MATCHING] Empresa exata match: "${matchEmpresa}"`);
+        } else if (inputEmpresa.includes(matchEmpresa) || matchEmpresa.includes(inputEmpresa)) {
+          score += 25;
+          console.log(`🎯 [MATCHING] Empresa parcial match: "${matchEmpresa}"`);
+        }
+      }
+
+      console.log(`📊 [MATCHING] Score para "${despesa.apelido}": ${score}`);
+
+      // Atualizar melhor match se score for maior
+      if (matchEncontrado && score > melhorScore) {
+        melhorMatch = despesa;
+        melhorScore = score;
+        console.log(`🏆 [MATCHING] Novo melhor match: "${despesa.apelido}" (score: ${score})`);
+      }
+    }
+
+    if (!melhorMatch) {
+      console.log('❌ [MATCHING] Nenhum match encontrado');
+      return false;
+    }
+
+    // Threshold mínimo de score para considerar match (muito rigoroso para evitar falsos positivos)
+    if (melhorScore < 120) {
+      console.log(`⚠️ [MATCHING] Score muito baixo (${melhorScore}), ignorando match`);
+      return false;
+    }
+
+    console.log(`🎯 [MATCHING] Match encontrado! "${melhorMatch.apelido}" (score: ${melhorScore})`);
+
+    // Atualizar status da despesa para LANCADO
+    const { atualizarStatusDespesaRecorrente } = await import('@/lib/despesasService');
+
+    await atualizarStatusDespesaRecorrente(melhorMatch.id, 'LANCADO');
+
+    console.log(`✅ [MATCHING] Despesa "${melhorMatch.apelido}" marcada como LANCADO`);
+    return true;
+
+  } catch (error) {
+    console.error('❌ [MATCHING] Erro no matching automático:', error);
+    return false;
+  }
+}
+
+/**
+ * Busca todas as empresas disponíveis para autocomplete
+ */
+export async function buscarEmpresasParaAutocomplete(): Promise<string[]> {
+  try {
+    console.log('🔍 [AUTOCOMPLETE] Buscando empresas disponíveis...');
+
+    const { supabase } = await import('./supabaseClient');
+
+    const { data, error } = await supabase
+      .from('despesas_recorrentes')
+      .select('match_empresa')
+      .eq('ativo', true)
+      .not('match_empresa', 'is', null)
+      .order('match_empresa');
+
+    if (error) {
+      console.error('❌ [AUTOCOMPLETE] Erro ao buscar empresas:', error);
+      return [];
+    }
+
+    // Remover duplicatas e ordenar
+    const empresas = [...new Set(data?.map(d => d.match_empresa).filter(Boolean) || [])].sort();
+    console.log(`✅ [AUTOCOMPLETE] ${empresas.length} empresas encontradas:`, empresas);
+
+    return empresas;
+  } catch (error) {
+    console.error('❌ [AUTOCOMPLETE] Erro ao buscar empresas:', error);
+    return [];
+  }
+}
+
+/**
+ * Busca serviços disponíveis para uma empresa específica
+ */
+export async function buscarServicosParaAutocomplete(empresa: string): Promise<string[]> {
+  try {
+    if (!empresa || !empresa.trim()) return [];
+
+    console.log(`🔍 [AUTOCOMPLETE] Buscando serviços para empresa: ${empresa}`);
+
+    const { supabase } = await import('./supabaseClient');
+
+    const { data, error } = await supabase
+      .from('despesas_recorrentes')
+      .select('match_texto')
+      .eq('ativo', true)
+      .eq('match_empresa', empresa.trim())
+      .not('match_texto', 'is', null)
+      .order('match_texto');
+
+    if (error) {
+      console.error('❌ [AUTOCOMPLETE] Erro ao buscar serviços:', error);
+      return [];
+    }
+
+    // Remover duplicatas e ordenar
+    const servicos = [...new Set(data?.map(d => d.match_texto).filter(Boolean) || [])].sort();
+    console.log(`✅ [AUTOCOMPLETE] ${servicos.length} serviços encontrados para ${empresa}:`, servicos);
+
+    return servicos;
+  } catch (error) {
+    console.error('❌ [AUTOCOMPLETE] Erro ao buscar serviços:', error);
+    return [];
+  }
+}
+
+/**
+ * Busca descrições disponíveis para um serviço + empresa específicos
+ */
+export async function buscarDescricoesParaAutocomplete(servico: string, empresa: string): Promise<string[]> {
+  try {
+    if (!servico || !servico.trim() || !empresa || !empresa.trim()) return [];
+
+    console.log(`🔍 [AUTOCOMPLETE] Buscando descrições para serviço: ${servico} + empresa: ${empresa}`);
+
+    const { supabase } = await import('./supabaseClient');
+
+    const { data, error } = await supabase
+      .from('despesas_recorrentes')
+      .select('descricao_padrao, match_texto')
+      .eq('ativo', true)
+      .eq('match_empresa', empresa.trim())
+      .eq('match_texto', servico.trim())
+      .not('descricao_padrao', 'is', null)
+      .order('descricao_padrao');
+
+    if (error) {
+      console.error('❌ [AUTOCOMPLETE] Erro ao buscar descrições:', error);
+      return [];
+    }
+
+    // Coletar descrições únicas (descricao_padrao e match_texto como fallback)
+    const descricoes = new Set<string>();
+
+    data?.forEach(d => {
+      if (d.descricao_padrao) descricoes.add(d.descricao_padrao);
+      if (d.match_texto) descricoes.add(d.match_texto); // fallback
+    });
+
+    const resultado = Array.from(descricoes).sort();
+    console.log(`✅ [AUTOCOMPLETE] ${resultado.length} descrições encontradas:`, resultado);
+
+    return resultado;
+  } catch (error) {
+    console.error('❌ [AUTOCOMPLETE] Erro ao buscar descrições:', error);
+    return [];
+  }
+}
+
+/**
+ * Valida se uma combinação Serviço + Descrição + Empresa existe exatamente na tabela
+ */
+export async function validarCombinacaoSC(
+  servico: string,
+  descricao: string,
+  empresa: string
+): Promise<{ valido: boolean; despesa?: any }> {
+  try {
+    if (!servico?.trim() || !empresa?.trim()) {
+      return { valido: false };
+    }
+
+    console.log(`🔍 [VALIDATION] Validando combinação: Serviço="${servico}", Descrição="${descricao}", Empresa="${empresa}"`);
+
+    const { supabase } = await import('./supabaseClient');
+
+    // Primeiro tentar match exato
+    let query = supabase
+      .from('despesas_recorrentes')
+      .select('*')
+      .eq('ativo', true)
+      .eq('status_mes_atual', 'PENDENTE')
+      .eq('match_empresa', empresa.trim())
+      .eq('match_texto', servico.trim());
+
+    let { data, error } = await query;
+
+    if (error) {
+      console.error('❌ [VALIDATION] Erro ao validar combinação exata:', error);
+      return { valido: false };
+    }
+
+    let encontrado = data && data.length > 0;
+    let despesa = encontrado ? data[0] : undefined;
+
+    // Se não encontrou match exato, tentar match parcial (serviço contém ou é contido)
+    if (!encontrado) {
+      console.log('🔄 [VALIDATION] Tentando match parcial...');
+
+      const { data: allDespesas, error: errorAll } = await supabase
+        .from('despesas_recorrentes')
+        .select('*')
+        .eq('ativo', true)
+        .eq('status_mes_atual', 'PENDENTE');
+
+      if (!errorAll && allDespesas) {
+        console.log(`📋 [VALIDATION] Encontradas ${allDespesas.length} despesas pendentes para análise:`);
+        allDespesas.forEach(d => console.log(`   - "${d.match_texto}" (${d.match_empresa}) - ${d.apelido}`));
+
+        // Normalizar strings para comparação
+        const normalizar = (str: string) => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+        const inputServico = normalizar(servico);
+        const inputDescricao = descricao ? normalizar(descricao) : '';
+        const inputEmpresa = normalizar(empresa);
+
+        console.log(`🔍 [VALIDATION] Procurando match para:`);
+        console.log(`   Serviço: "${inputServico}"`);
+        console.log(`   Descrição: "${inputDescricao}"`);
+        console.log(`   Empresa: "${inputEmpresa}"`);
+
+        for (const desp of allDespesas) {
+          const matchTexto = normalizar(desp.match_texto || '');
+          const matchDescricao = normalizar(desp.descricao_padrao || '');
+          const matchEmpresa = normalizar(desp.match_empresa || '');
+
+          console.log(`🔍 [VALIDATION] Testando despesa: "${desp.apelido}"`);
+          console.log(`   match_texto: "${matchTexto}"`);
+          console.log(`   match_empresa: "${matchEmpresa}"`);
+
+          // Verificar se a empresa corresponde primeiro
+          const empresaMatch = inputEmpresa === matchEmpresa;
+          console.log(`   Empresa match: ${empresaMatch}`);
+
+          if (empresaMatch) {
+            // Verificar se o serviço contém ou é contido no match_texto
+            const matchServico = inputServico === matchTexto ||
+                                inputServico.includes(matchTexto) ||
+                                matchTexto.includes(inputServico);
+
+            console.log(`   Serviço match: ${matchServico} (${inputServico} vs ${matchTexto})`);
+
+            // Verificar se a descrição corresponde (se fornecida)
+            const matchDesc = !inputDescricao ||
+                             inputDescricao === matchDescricao ||
+                             inputDescricao.includes(matchDescricao) ||
+                             matchDescricao.includes(inputDescricao);
+
+            console.log(`   Descrição match: ${matchDesc} (${inputDescricao} vs ${matchDescricao})`);
+
+            if (matchServico && matchDesc) {
+              encontrado = true;
+              despesa = desp;
+              console.log(`✅ [VALIDATION] Match parcial encontrado: "${desp.apelido}"`);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`✅ [VALIDATION] Combinação ${encontrado ? 'VÁLIDA' : 'INVÁLIDA'}`, encontrado ? `para despesa: ${despesa?.apelido}` : '');
+
+    return { valido: encontrado, despesa };
+  } catch (error) {
+    console.error('❌ [VALIDATION] Erro ao validar combinação:', error);
+    return { valido: false };
   }
 }
 
