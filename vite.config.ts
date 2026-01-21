@@ -37,25 +37,7 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false, // Desabilita sourcemaps em produção para reduzir tamanho
     rollupOptions: {
       output: {
-        // Otimiza chunks para melhor cache
-        manualChunks(id) {
-          // Agrupa bibliotecas grandes separadamente
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor';
-            }
-            if (id.includes('@radix-ui') || id.includes('lucide-react')) {
-              return 'ui-vendor';
-            }
-            if (id.includes('@supabase')) {
-              return 'supabase-vendor';
-            }
-            if (id.includes('@tanstack')) {
-              return 'query-vendor';
-            }
-            return 'vendor';
-          }
-        },
+        // Usa chunking automático do Vite para evitar problemas de dependência
         // Nomes de arquivos otimizados
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
