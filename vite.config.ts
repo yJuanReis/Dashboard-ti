@@ -47,8 +47,11 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('@radix-ui') || id.includes('lucide-react')) {
               return 'ui-vendor';
             }
-            if (id.includes('@supabase') || id.includes('@tanstack')) {
-              return 'data-vendor';
+            if (id.includes('@supabase')) {
+              return 'supabase-vendor';
+            }
+            if (id.includes('@tanstack')) {
+              return 'query-vendor';
             }
             return 'vendor';
           }
