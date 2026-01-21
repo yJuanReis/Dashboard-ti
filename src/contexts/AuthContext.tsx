@@ -16,7 +16,7 @@ import {
   AUTH_ERRORS,
   type AppError
 } from "@/lib/errorService";
-import { logAction, AuditAction } from "@/lib/auditService";
+import { logAction, AuditAction, logCreate } from "@/lib/auditService";
 
 interface AuthContextType {
   user: User | null;
@@ -74,14 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (!insertError && createdProfile) {
               // Perfil criado com sucesso - registrar log de auditoria
-              const { logCreate } = await import('@/lib/auditService');
               await logCreate(
                 'user_profiles',
                 userId,
                 createdProfile as Record<string, any>,
                 `Criou perfil automaticamente durante login: ${userEmail}`
               ).catch(err => logger.warn('Erro ao registrar log de auditoria:', err));
-              
+
               return true;
             } else {
               // Se falhar ao criar (pode ser RLS), retornar true mesmo assim
@@ -588,4 +587,3 @@ export function useAuth() {
   }
   return context;
 }
-
