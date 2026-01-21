@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { FileText, Download, Eye, RefreshCw, Laptop, Smartphone, Tablet, Monitor, Radio, Cloud, Shield, Zap, ExternalLink, Printer } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +37,7 @@ interface TermoData {
   valorChip?: string;
   minutagem?: string;
   dadosMoveis?: string;
+  marinas?: string;
 }
 
 export default function TesteTermos() {
@@ -51,8 +59,8 @@ export default function TesteTermos() {
   const [tipoModelo, setTipoModelo] = useState<"computadores" | "celulares" | "em_breve">("computadores");
   
   const [termoData, setTermoData] = useState<TermoData>({
-    dia: "",
-    mes: "",
+    dia: hoje.getDate().toString(),
+    mes: (hoje.getMonth() + 1).toString(),
     ano: hoje.getFullYear().toString(),
     equipamento: "",
     marca: "",
@@ -69,6 +77,7 @@ export default function TesteTermos() {
     valorChip: "",
     minutagem: "",
     dadosMoveis: "",
+    marinas: "",
   });
 
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -254,11 +263,11 @@ export default function TesteTermos() {
       isFirstRender.current = false;
       return;
     }
-    
+
     const hoje = new Date();
     setTermoData({
-      dia: "",
-      mes: "",
+      dia: hoje.getDate().toString(),
+      mes: (hoje.getMonth() + 1).toString(),
       ano: hoje.getFullYear().toString(),
       equipamento: "",
       marca: "",
@@ -275,6 +284,7 @@ export default function TesteTermos() {
       valorChip: "",
       minutagem: "",
       dadosMoveis: "",
+      marinas: "",
     });
     setCamposNA({});
   }, [tipoModelo]);
@@ -355,7 +365,7 @@ export default function TesteTermos() {
       if (dados.dia || camposNAUsar.dia) {
         targetPage.drawText(camposNAUsar.dia ? "N/A" : dados.dia, {
           x: 388,                    // ← AJUSTE X DO DIA AQUI (esquerda/direita) - CELULARES
-          y: height - 708,           // ← AJUSTE Y DO DIA AQUI (cima/baixo) - CELULARES
+          y: height - 710,       // ← AJUSTE Y DO DIA AQUI (cima/baixo) - CELULARES
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -380,7 +390,7 @@ export default function TesteTermos() {
 
         targetPage.drawText(camposNAUsar.mes ? "N/A" : valorMes, {
           x: 435,
-          y: height - 708,
+          y: height - 710,
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -391,7 +401,7 @@ export default function TesteTermos() {
       if (dados.ano || camposNAUsar.ano) {
         targetPage.drawText(camposNAUsar.ano ? "N/A" : dados.ano, {
           x: 516,                    // ← AJUSTE X DO ANO AQUI (esquerda/direita) - CELULARES
-          y: height - 708,           // ← AJUSTE Y DO ANO AQUI (cima/baixo) - CELULARES
+          y: height - 710,      // ← AJUSTE Y DO ANO AQUI (cima/baixo) - CELULARES
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -484,7 +494,7 @@ export default function TesteTermos() {
       if (dados.aparelho || camposNAUsar.aparelho) {
         targetPage.drawText(camposNAUsar.aparelho ? "N/A" : dados.aparelho, {
           x: 180,                    // ← X INICIAL (I)
-          y: height - 235,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 236,         // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 9,
           font: font,
           color: rgb(0, 0, 0),
@@ -496,7 +506,7 @@ export default function TesteTermos() {
       if (dados.numero || camposNAUsar.numero) {
         targetPage.drawText(camposNAUsar.numero ? "N/A" : dados.numero, {
           x: 353,                    // ← X INICIAL (I)
-          y: height - 235,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 236,          // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -509,7 +519,7 @@ export default function TesteTermos() {
       if (dados.numeroSerie || camposNAUsar.numeroSerie) {
         targetPage.drawText(camposNAUsar.numeroSerie ? "N/A" : dados.numeroSerie, {
           x: 94,                    // ← X INICIAL (I)
-          y: height - 250.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 253.8,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -522,8 +532,8 @@ export default function TesteTermos() {
       if (dados.chip || camposNAUsar.chip) {
         targetPage.drawText(camposNAUsar.chip ? "N/A" : dados.chip, {
           x: 216.8,                    // ← X INICIAL (I)
-          y: height - 250.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
-          size: 10,
+          y: height - 253.8,      // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          size: 9,
           font: font,
           color: rgb(0, 0, 0),
           maxWidth: 329 - 216.8,       // Largura máxima (F x - I x)
@@ -534,7 +544,7 @@ export default function TesteTermos() {
       if (dados.imei || camposNAUsar.imei) {
         targetPage.drawText(camposNAUsar.imei ? "N/A" : dados.imei, {
           x: 366,                    // ← X INICIAL (I)
-          y: height - 250.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 253.8,  // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -546,8 +556,20 @@ export default function TesteTermos() {
       if (dados.acessorio || camposNAUsar.acessorio) {
         targetPage.drawText(camposNAUsar.acessorio ? "N/A" : dados.acessorio, {
           x: 93,                    // ← X INICIAL (I)
-          y: height - 264.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 268.4,        // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
+          font: font,
+          color: rgb(0, 0, 0),
+          maxWidth: 331 - 129,       // Largura máxima (F x - I x)
+        });
+      }
+
+      // 6.1. MARINAS - Coordenadas logo abaixo do campo Acessório
+      if (dados.marinas || camposNAUsar.marinas) {
+        targetPage.drawText(camposNAUsar.marinas ? "N/A" : dados.marinas, {
+          x: 350,                   // ← X INICIAL (I) - Mesmo que acessório
+          y: height - 220,       // ← Y INICIAL (I) - Logo abaixo do acessório
+          size: 9,
           font: font,
           color: rgb(0, 0, 0),
           maxWidth: 331 - 129,       // Largura máxima (F x - I x)
@@ -558,8 +580,8 @@ export default function TesteTermos() {
       // Usando y297 (inicial) como referência
       if (dados.valorAparelho || camposNAUsar.valorAparelho) {
         targetPage.drawText(camposNAUsar.valorAparelho ? "N/A" : dados.valorAparelho, {
-          x: 124,                    // ← X INICIAL (I)
-          y: height - 278.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          x: 137.5,                  // ← X INICIAL (I)
+          y: height - 283.5,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -570,8 +592,8 @@ export default function TesteTermos() {
       // 7.1. VALOR DO CHIP - Coordenadas específicas para celulares
       if (dados.valorChip || camposNAUsar.valorChip) {
         targetPage.drawText(camposNAUsar.valorChip ? "N/A" : dados.valorChip, {
-          x: 399.5,                    // ← X INICIAL (I)
-          y: height - 278.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          x: 412.5,                    // ← X INICIAL (I)
+          y: height - 283.5,        // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -584,7 +606,7 @@ export default function TesteTermos() {
       if (dados.minutagem || camposNAUsar.minutagem) {
         targetPage.drawText(camposNAUsar.minutagem ? "N/A" : dados.minutagem, {
           x: 203,                    // ← X INICIAL (I)
-          y: height - 292.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 298,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -597,7 +619,7 @@ export default function TesteTermos() {
       if (dados.dadosMoveis || camposNAUsar.dadosMoveis) {
         targetPage.drawText(camposNAUsar.dadosMoveis ? "N/A" : dados.dadosMoveis, {
           x: 403,                    // ← X INICIAL (I)
-          y: height - 292.1,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
+          y: height - 298,           // ← Y INICIAL (I) - convertido para coordenadas do PDF
           size: 10,
           font: font,
           color: rgb(0, 0, 0),
@@ -641,10 +663,10 @@ export default function TesteTermos() {
         clearTimeout(previewTimeoutRef.current);
       }
       
-      // Criar novo timeout para atualizar o preview após 500ms de inatividade
+      // Criar novo timeout para atualizar o preview após 2000ms de inatividade
       previewTimeoutRef.current = setTimeout(() => {
         updatePreview();
-      }, 500);
+      }, 700);
       
       // Limpar timeout quando o componente desmontar ou quando pdfBytes mudar
       return () => {
@@ -894,8 +916,8 @@ export default function TesteTermos() {
   const handleReset = () => {
     const hoje = new Date();
     setTermoData({
-      dia: "",
-      mes: "",
+      dia: hoje.getDate().toString(),
+      mes: (hoje.getMonth() + 1).toString(),
       ano: hoje.getFullYear().toString(),
       equipamento: "",
       marca: "",
@@ -912,6 +934,7 @@ export default function TesteTermos() {
       valorChip: "",
       minutagem: "",
       dadosMoveis: "",
+      marinas: "",
     });
     setCamposNA({});
     toast.info("Formulário resetado");
@@ -1061,7 +1084,7 @@ export default function TesteTermos() {
                       handleInputChange("equipamento", e.target.value)
                     }
                     placeholder="Ex: Notebook, Desktop, etc."
-                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                    className="h-8 text-sm"
                   />
                 </div>
                 <div>
@@ -1071,8 +1094,8 @@ export default function TesteTermos() {
                     value={termoData.marca}
                     onChange={(e) => handleInputChange("marca", e.target.value)}
                     placeholder="Ex: ACER, Dell, HP, etc."
-                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                  />
+                    className="h-8 text-sm"
+                 />
                 </div>
                 <div>
                   <Label htmlFor="modelo" className="text-sm">Modelo *</Label>
@@ -1081,7 +1104,7 @@ export default function TesteTermos() {
                     value={termoData.modelo}
                     onChange={(e) => handleInputChange("modelo", e.target.value)}
                     placeholder="Ex: Aspire A515-57"
-                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                    className="h-8 text-sm"
                   />
                 </div>
                 <div>
@@ -1093,7 +1116,7 @@ export default function TesteTermos() {
                       handleInputChange("numeroSerie", e.target.value)
                     }
                     placeholder="Número de série"
-                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                    className="h-8 text-sm"
                   />
                 </div>
                 <div>
@@ -1107,7 +1130,7 @@ export default function TesteTermos() {
                       }
                       placeholder="Ex: R$2.989,10"
                       disabled={camposNA.valorMercado || false}
-                      className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <div className="absolute right-1 top-1/2 -translate-y-1/2">
                       <NACheckbox
@@ -1123,30 +1146,60 @@ export default function TesteTermos() {
               </>
             ) : (
               <>
-                {/* Campos específicos para celulares - Grid de 2 colunas */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* Campos específicos para celulares - Reordenados e melhor distribuídos */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 1. Marina (Dropdown obrigatório) */}
                   <div className="col-span-1 sm:col-span-2">
-                    <Label htmlFor="aparelho" className="text-sm">Aparelho *</Label>
+                    <Label htmlFor="marina" className="text-sm">
+                      Marina <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={termoData.marinas || ""}
+                      onValueChange={(value) => handleInputChange("marinas", value)}
+                      required
+                    >
+                      <SelectTrigger className="h-8 text-sm bg-background">
+                        <SelectValue placeholder="Selecione a marina..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Boa Vista">Boa Vista</SelectItem>
+                        <SelectItem value="Bracuhy">Bracuhy</SelectItem>
+                        <SelectItem value="Piccola">Piccola</SelectItem>
+                        <SelectItem value="Búzios">Búzios</SelectItem>
+                        <SelectItem value="Itacuruçá">Itacuruçá</SelectItem>
+                        <SelectItem value="Glória">Glória</SelectItem>
+                        <SelectItem value="Paraty">Paraty</SelectItem>
+                        <SelectItem value="Piratas">Piratas</SelectItem>
+                        <SelectItem value="Ribeira">Ribeira</SelectItem>
+                        <SelectItem value="Verolme">Verolme</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 2. Aparelho (obrigatório) */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <Label htmlFor="aparelho" className="text-sm">
+                      Aparelho <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="aparelho"
                       value={termoData.aparelho || ""}
-                      onChange={(e) =>
-                        handleInputChange("aparelho", e.target.value)
-                      }
+                      onChange={(e) => handleInputChange("aparelho", e.target.value)}
                       placeholder="Ex: iPhone 14, Samsung Galaxy S23"
-                      className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                      className="h-8 text-sm"
+                      required
                     />
                   </div>
+
+                  {/* 3. Número (opcional) */}
                   <div>
                     <Label htmlFor="numero" className="text-sm">Número</Label>
                     <div className="relative">
                       <Input
                         id="numero"
                         value={termoData.numero || ""}
-                        onChange={(e) =>
-                          handleInputChange("numero", e.target.value)
-                        }
-                        placeholder="Número"
+                        onChange={(e) => handleInputChange("numero", e.target.value)}
+                        placeholder="Número CHIP"
                         disabled={camposNA.numero || false}
                         className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
@@ -1154,22 +1207,35 @@ export default function TesteTermos() {
                         <NACheckbox
                           id="numero-na"
                           checked={camposNA.numero || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("numero", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("numero", checked)}
                         />
                       </div>
                     </div>
                   </div>
+
+                  {/* 4. Número de Série (obrigatório) */}
+                  <div>
+                    <Label htmlFor="numeroSerie" className="text-sm">
+                      Número de Série <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="numeroSerie"
+                      value={termoData.numeroSerie}
+                      onChange={(e) => handleInputChange("numeroSerie", e.target.value)}
+                      placeholder="Número de série"
+                      className="h-8 text-sm"
+                      required
+                    />
+                  </div>
+
+                  {/* 5. Chip (opcional) */}
                   <div>
                     <Label htmlFor="chip" className="text-sm">Chip</Label>
                     <div className="relative">
                       <Input
                         id="chip"
                         value={termoData.chip || ""}
-                        onChange={(e) =>
-                          handleInputChange("chip", e.target.value)
-                        }
+                        onChange={(e) => handleInputChange("chip", e.target.value)}
                         placeholder="Número do chip"
                         disabled={camposNA.chip || false}
                         className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1178,59 +1244,46 @@ export default function TesteTermos() {
                         <NACheckbox
                           id="chip-na"
                           checked={camposNA.chip || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("chip", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("chip", checked)}
                         />
                       </div>
                     </div>
                   </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="numeroSerie" className="text-sm">Número de Série *</Label>
-                    <Input
-                      id="numeroSerie"
-                      value={termoData.numeroSerie}
-                      onChange={(e) =>
-                        handleInputChange("numeroSerie", e.target.value)
-                      }
-                      placeholder="Número de série"
-                      className="h-8 text-sm border-blue-500 focus:border-blue-600"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="imei" className="text-sm">IMEI * <span className="text-xs text-muted-foreground"></span></Label>
+
+                  {/* 6. IMEI (obrigatório) */}
+                  <div>
+                    <Label htmlFor="imei1" className="text-sm">
+                      IMEI1<span className="text-red-500">*</span>
+                    </Label>
                     <div className="relative">
                       <Input
-                        id="imei"
+                        id="imei1"
                         value={termoData.imei || ""}
-                        onChange={(e) =>
-                          handleInputChange("imei", e.target.value)
-                        }
-                        placeholder='IMEI ou "N/A"'
+                        onChange={(e) => handleInputChange("imei", e.target.value)}
+                        placeholder="IMEI1"
                         disabled={camposNA.imei || false}
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                        required
                       />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <NACheckbox
                           id="imei-na"
                           checked={camposNA.imei || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("imei", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("imei", checked)}
                         />
                       </div>
                     </div>
                   </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="acessorio" className="text-sm">Acessório</Label>
+
+                  {/* 7. Acessórios (opcional) */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <Label htmlFor="acessorio" className="text-sm">Acessórios</Label>
                     <div className="relative">
                       <Input
                         id="acessorio"
                         value={termoData.acessorio || ""}
-                        onChange={(e) =>
-                          handleInputChange("acessorio", e.target.value)
-                        }
-                        placeholder="Ex: Capa, Carregador"
+                        onChange={(e) => handleInputChange("acessorio", e.target.value)}
+                        placeholder="Ex: Capa, Carregador, Fone"
                         disabled={camposNA.acessorio || false}
                         className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
@@ -1238,37 +1291,38 @@ export default function TesteTermos() {
                         <NACheckbox
                           id="acessorio-na"
                           checked={camposNA.acessorio || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("acessorio", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("acessorio", checked)}
                         />
                       </div>
                     </div>
                   </div>
+
+                  {/* 8. Valor do Aparelho (obrigatório) */}
                   <div>
-                    <Label htmlFor="valorAparelho" className="text-sm">Valor do Aparelho *</Label>
+                    <Label htmlFor="valorAparelho" className="text-sm">
+                      Valor do Aparelho <span className="text-red-500">*</span>
+                    </Label>
                     <div className="relative">
                       <Input
                         id="valorAparelho"
                         value={termoData.valorAparelho || ""}
-                        onChange={(e) =>
-                          handleInputChange("valorAparelho", e.target.value)
-                        }
+                        onChange={(e) => handleInputChange("valorAparelho", e.target.value)}
                         placeholder="Ex: R$2.989,10"
                         disabled={camposNA.valorAparelho || false}
-                        className="h-8 text-sm border-blue-500 focus:border-blue-600 pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                        required
                       />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <NACheckbox
                           id="valorAparelho-na"
                           checked={camposNA.valorAparelho || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("valorAparelho", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("valorAparelho", checked)}
                         />
                       </div>
                     </div>
                   </div>
+
+                  {/* 9. Valor do Chip (opcional, obrigatório se chip preenchido) */}
                   <div>
                     <Label htmlFor="valorChip" className="text-sm">
                       Valor do Chip {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
@@ -1277,24 +1331,23 @@ export default function TesteTermos() {
                       <Input
                         id="valorChip"
                         value={termoData.valorChip || ""}
-                        onChange={(e) =>
-                          handleInputChange("valorChip", e.target.value)
-                        }
+                        onChange={(e) => handleInputChange("valorChip", e.target.value)}
                         placeholder="Ex: R$50,00"
                         disabled={camposNA.valorChip || false}
                         className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
+                        required={termoData.chip && termoData.chip.trim() !== "" ? true : false}
                       />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <NACheckbox
                           id="valorChip-na"
                           checked={camposNA.valorChip || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("valorChip", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("valorChip", checked)}
                         />
                       </div>
                     </div>
                   </div>
+
+                  {/* 10. Minutagem (opcional, obrigatório se chip preenchido) */}
                   <div>
                     <Label htmlFor="minutagem" className="text-sm">
                       Minutagem {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
@@ -1303,24 +1356,23 @@ export default function TesteTermos() {
                       <Input
                         id="minutagem"
                         value={termoData.minutagem || ""}
-                        onChange={(e) =>
-                          handleInputChange("minutagem", e.target.value)
-                        }
+                        onChange={(e) => handleInputChange("minutagem", e.target.value)}
                         placeholder="Minutagem"
                         disabled={camposNA.minutagem || false}
                         className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
+                        required={termoData.chip && termoData.chip.trim() !== "" ? true : false}
                       />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <NACheckbox
                           id="minutagem-na"
                           checked={camposNA.minutagem || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("minutagem", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("minutagem", checked)}
                         />
                       </div>
                     </div>
                   </div>
+
+                  {/* 11. Dados Móveis (opcional, obrigatório se chip preenchido) */}
                   <div>
                     <Label htmlFor="dadosMoveis" className="text-sm">
                       Dados Móveis {termoData.chip && termoData.chip.trim() !== "" && <span className="text-red-500">*</span>}
@@ -1329,20 +1381,17 @@ export default function TesteTermos() {
                       <Input
                         id="dadosMoveis"
                         value={termoData.dadosMoveis || ""}
-                        onChange={(e) =>
-                          handleInputChange("dadosMoveis", e.target.value)
-                        }
+                        onChange={(e) => handleInputChange("dadosMoveis", e.target.value)}
                         placeholder="Dados móveis"
                         disabled={camposNA.dadosMoveis || false}
                         className={`h-8 text-sm pr-6 disabled:opacity-50 disabled:cursor-not-allowed ${termoData.chip && termoData.chip.trim() !== "" ? "border-blue-500 focus:border-blue-600" : ""}`}
+                        required={termoData.chip && termoData.chip.trim() !== "" ? true : false}
                       />
                       <div className="absolute right-1 top-1/2 -translate-y-1/2">
                         <NACheckbox
                           id="dadosMoveis-na"
                           checked={camposNA.dadosMoveis || false}
-                          onCheckedChange={(checked) =>
-                            handleToggleNA("dadosMoveis", checked)
-                          }
+                          onCheckedChange={(checked) => handleToggleNA("dadosMoveis", checked)}
                         />
                       </div>
                     </div>
@@ -1393,7 +1442,7 @@ export default function TesteTermos() {
                     }}
                     placeholder="Ano *"
                     maxLength={4}
-                    className="h-8 text-sm border-blue-500 focus:border-blue-600"
+                    className="h-8 text-sm"
                   />
                 </div>
               </div>
@@ -1877,4 +1926,3 @@ export default function TesteTermos() {
     </div>
   );
 }
-

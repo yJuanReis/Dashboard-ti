@@ -41,7 +41,7 @@ export function MobileBottomBar() {
         <button
           type="button"
           onClick={() => handleSafeNavigate(homeItem?.url ?? "/home")}
-          className={`flex flex-col items-center justify-center px-2 py-1 rounded-full transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center px-3 py-2 rounded-full transition-all duration-200 min-h-[44px] min-w-[44px] ${
             isActivePath(homeItem?.url ?? "/home")
               ? "text-primary bg-primary/10"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -55,7 +55,7 @@ export function MobileBottomBar() {
         <button
           type="button"
           onClick={() => handleSafeNavigate("/senhas")}
-          className={`flex flex-col items-center justify-center px-2 py-1 rounded-full transition-all duration-200 ${
+          className={`flex flex-col items-center justify-center px-3 py-2 rounded-full transition-all duration-200 min-h-[44px] min-w-[44px] ${
             isActivePath("/senhas")
               ? "text-primary bg-primary/10"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -70,7 +70,7 @@ export function MobileBottomBar() {
           <button
             type="button"
             onClick={() => handleSafeNavigate("/configuracoes")}
-            className={`flex flex-col items-center justify-center px-2 py-1 rounded-full transition-all duration-200 ${
+            className={`flex flex-col items-center justify-center px-3 py-2 rounded-full transition-all duration-200 min-h-[44px] min-w-[44px] ${
               isActivePath("/configuracoes")
                 ? "text-primary bg-primary/10"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -85,7 +85,7 @@ export function MobileBottomBar() {
         <button
           type="button"
           onClick={() => setOpenMobile(true)}
-          className="flex flex-col items-center justify-center px-2 py-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all duration-200"
+          className="flex flex-col items-center justify-center px-3 py-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all duration-200 min-h-[44px] min-w-[44px]"
         >
           <Menu className="h-5 w-5" />
           <span className="mt-0.5 text-[10px] font-medium">Menu</span>
@@ -94,5 +94,3 @@ export function MobileBottomBar() {
     </nav>
   );
 }
-
-

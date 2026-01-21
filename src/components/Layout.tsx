@@ -13,58 +13,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { NAVIGATION_ITEMS } from "@/config/navigation.config";
 import { NVR_MODELS } from "@/contexts/NVRContext";
+import { ChevronUp } from "lucide-react";
 
-// Componente Glider para tabs de tipo (Serviços/Produtos)
-function TipoGlider({
-  tipoTab,
-  tipoTabRefs,
-}: {
-  tipoTab: "servico" | "produto";
-  tipoTabRefs: React.MutableRefObject<Map<string, HTMLLabelElement>>;
-}) {
-  const [gliderStyle, setGliderStyle] = useState({ width: 0, transform: "translateX(0)" });
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const activeKey = tipoTab === "servico" ? "Serviços" : "Produtos";
-      const activeLabel = tipoTabRefs.current.get(activeKey);
 
-      if (activeLabel) {
-        const container = activeLabel.parentElement;
-        if (container) {
-          let translateX = 0;
-
-          const order = ["Serviços", "Produtos"];
-          
-          for (const key of order) {
-            if (key === activeKey) break;
-            const label = tipoTabRefs.current.get(key);
-            if (label) {
-              translateX += label.offsetWidth;
-            }
-          }
-
-          const width = activeLabel.offsetWidth;
-          setGliderStyle({
-            width: width,
-            transform: `translateX(${translateX}px)`,
-          });
-        }
-      }
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, [tipoTab, tipoTabRefs]);
-
-  return (
-    <span
-      className="absolute left-1.5 top-1.5 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-full transition-all duration-250 ease-out z-0"
-      style={{
-        width: `${gliderStyle.width}px`,
-        transform: gliderStyle.transform,
-      }}
-    />
-  );
+interface LayoutProps {
+  children: ReactNode;
 }
 
 // Componente Glider para tabs de visualização (Planilha/Cards)
@@ -88,7 +42,7 @@ function ViewModeGlider({
           let translateX = 0;
 
           const order = ["Planilha", "Cards"];
-          
+
           for (const key of order) {
             if (key === activeKey) break;
             const label = viewModeTabRefs.current.get(key);
@@ -120,63 +74,6 @@ function ViewModeGlider({
   );
 }
 
-// Componente Glider para tabs principais de Solicitações (Lista/DADOS)
-function SolicitacoesMainGlider({
-  mainTab,
-  mainTabRefs,
-}: {
-  mainTab: "lista" | "central";
-  mainTabRefs: React.MutableRefObject<Map<string, HTMLLabelElement>>;
-}) {
-  const [gliderStyle, setGliderStyle] = useState({ width: 0, transform: "translateX(0)" });
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const activeKey = mainTab === "lista" ? "Lista" : "DADOS";
-      const activeLabel = mainTabRefs.current.get(activeKey);
-
-      if (activeLabel) {
-        const container = activeLabel.parentElement;
-        if (container) {
-          let translateX = 0;
-
-          const order = ["Lista", "DADOS"];
-          
-          for (const key of order) {
-            if (key === activeKey) break;
-            const label = mainTabRefs.current.get(key);
-            if (label) {
-              translateX += label.offsetWidth;
-            }
-          }
-
-          const width = activeLabel.offsetWidth;
-          setGliderStyle({
-            width: width,
-            transform: `translateX(${translateX}px)`,
-          });
-        }
-      }
-    }, 0);
-
-    return () => clearTimeout(timer);
-  }, [mainTab, mainTabRefs]);
-
-  return (
-    <span
-      className="absolute left-1.5 top-1.5 h-7 bg-blue-100 dark:bg-blue-900/30 rounded-full transition-all duration-250 ease-out z-0"
-      style={{
-        width: `${gliderStyle.width}px`,
-        transform: gliderStyle.transform,
-      }}
-    />
-  );
-}
-
-interface LayoutProps {
-  children: ReactNode;
-}
-
 export function Layout({ children }: LayoutProps) {
   const isMobile = useIsMobile();
   const isLandscapeMobile = useIsLandscapeMobile();
@@ -193,28 +90,26 @@ export function Layout({ children }: LayoutProps) {
   const [impressorasSearch, setImpressorasSearch] = useState("");
   const [impressorasMarinaFilter, setImpressorasMarinaFilter] = useState("");
   const [ramaisSearch, setRamaisSearch] = useState("");
-  const [solicitacoesSearch, setSolicitacoesSearch] = useState("");
-  const [solicitacoesServicoFilter, setSolicitacoesServicoFilter] = useState("todos");
-  const [solicitacoesAnoFilter, setSolicitacoesAnoFilter] = useState("todos");
-  const [solicitacoesServicoOptions, setSolicitacoesServicoOptions] = useState<string[]>([]);
-  const [solicitacoesAnoOptions, setSolicitacoesAnoOptions] = useState<string[]>([]);
-  const [solicitacoesShowDuplicados, setSolicitacoesShowDuplicados] = useState(false);
-  const [solicitacoesTipoTab, setSolicitacoesTipoTab] = useState<"servico" | "produto">("servico");
-  const solicitacoesTipoTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
-  const [solicitacoesMainTab, setSolicitacoesMainTab] = useState<"lista" | "central">("lista");
-  const solicitacoesMainTabRefs = useRef<Map<string, HTMLLabelElement>>(new Map());
-  const [solicitacoesLoading, setSolicitacoesLoading] = useState(false);
-  const [comprasDespesasTesteSearch, setComprasDespesasTesteSearch] = useState("");
-  const [comprasDespesasTesteTipo, setComprasDespesasTesteTipo] = useState<"servico" | "produto">("servico");
-  const [comprasDespesasTesteAno, setComprasDespesasTesteAno] = useState("todos");
-  const [comprasDespesasTesteAnoOptions, setComprasDespesasTesteAnoOptions] = useState<string[]>([]);
-  const [comprasDespesasTesteActiveTab, setComprasDespesasTesteActiveTab] = useState<"checklist" | "solicitacoes" | "central">("checklist");
-  const [despesasMes, setDespesasMes] = useState(new Date().getMonth() + 1);
-  const [despesasAno, setDespesasAno] = useState(new Date().getFullYear());
-  const [despesasSearch, setDespesasSearch] = useState("");
+
+
   const [nvrMarinaFilter, setNvrMarinaFilter] = useState("");
   const [nvrOwnerFilter, setNvrOwnerFilter] = useState("");
   const [nvrModelFilter, setNvrModelFilter] = useState("");
+
+  // Estados para paginação global
+  const [globalPagination, setGlobalPagination] = useState<{
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    visible: boolean;
+  }>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 12,
+    visible: false,
+  });
 
   // Mantém a UI de sidebar disponível mesmo em landscape,
   // mas como drawer mobile (controlado por useIsMobile/useSidebar).
@@ -227,9 +122,7 @@ export function Layout({ children }: LayoutProps) {
   const isNvrOrHdPage = isNvrPage || isHdPage;
   const isImpressorasPage = location.pathname.toLowerCase().includes("impressoras");
   const isRamaisPage = location.pathname.toLowerCase().includes("ramais");
-  const isSolicitacoesPage = location.pathname.toLowerCase().includes("solicitacoes");
-  const isDespesasRecorrentesPage = location.pathname.toLowerCase().includes("despesas-recorrentes");
-  const isComprasDespesasTestePage = location.pathname.toLowerCase().includes("compras-despesas-teste") || location.pathname.toLowerCase().includes("solicitacoes");
+
   const isAuditLogsPage = location.pathname.toLowerCase().includes("logs");
   const isConfiguracoesPage = location.pathname.toLowerCase().includes("configuracoes"); // Linha nova
   const isChamadosPage = location.pathname.toLowerCase().includes("chamados");
@@ -239,6 +132,7 @@ export function Layout({ children }: LayoutProps) {
   const isAssinaturasPage = location.pathname.toLowerCase().includes("assinaturas");
   const isCrachasPage = location.pathname.toLowerCase().includes("crachas");
   const isTesteDeSegurancaPage = location.pathname.toLowerCase().includes("teste-de-seguranca");
+
 
 
   const MARINA_OPTIONS = [
@@ -256,17 +150,12 @@ export function Layout({ children }: LayoutProps) {
 
   // Obter o nome da página atual baseado na rota
   const currentPageTitle = useMemo(() => {
-    // Título personalizado para página de teste
-    if (isComprasDespesasTestePage) {
-      return "🛒 Compras e Despesas (TESTE)";
-    }
-
     const path = location.pathname.toLowerCase();
     const navItem = NAVIGATION_ITEMS.find(item =>
       item.url.toLowerCase() === path || path.startsWith(item.url.toLowerCase() + "/")
     );
     return navItem?.title || "Início";
-  }, [location.pathname, isComprasDespesasTestePage]);
+  }, [location.pathname]);
 
   // Sincroniza o estado local do header com o modo de visualização e filtros da página de Senhas
   useEffect(() => {
@@ -323,6 +212,26 @@ export function Layout({ children }: LayoutProps) {
       window.removeEventListener("senhas:servicesUpdated", handleServicesUpdated);
     };
   }, [isSenhasPage, senhasService]);
+
+  // Handler global para tecla ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        // Primeiro, tentar fechar modais (dispatch evento global)
+        const escEvent = new CustomEvent('global:esc');
+        window.dispatchEvent(escEvent);
+
+        // Se estiver na página de senhas, limpar filtros
+        if (isSenhasPage) {
+          handleSenhasSearchChange("");
+          handleSenhasServiceChange("todos");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSenhasPage]);
 
   const handleSenhasToggle = (mode: "table" | "cards") => {
     setSenhasViewMode(mode);
@@ -402,110 +311,9 @@ export function Layout({ children }: LayoutProps) {
     window.dispatchEvent(event);
   };
   
-  const handleSolicitacoesSearchChange = (value: string) => {
-    setSolicitacoesSearch(value);
-    const event = new CustomEvent("solicitacoes:setSearch", { detail: value });
-    window.dispatchEvent(event);
-  };
 
-  const handleSolicitacoesServicoFilterChange = (value: string) => {
-    setSolicitacoesServicoFilter(value);
-    const event = new CustomEvent("solicitacoes:setServicoFilter", { detail: value });
-    window.dispatchEvent(event);
-  };
 
-  const handleSolicitacoesAnoFilterChange = (value: string) => {
-    setSolicitacoesAnoFilter(value);
-    const event = new CustomEvent("solicitacoes:setAnoFilter", { detail: value });
-    window.dispatchEvent(event);
-  };
 
-  const handleSolicitacoesClearFilters = () => {
-    setSolicitacoesSearch("");
-    setSolicitacoesServicoFilter("todos");
-    setSolicitacoesAnoFilter("todos");
-    const event = new CustomEvent("solicitacoes:clearFilters");
-    window.dispatchEvent(event);
-  };
-
-  const handleSolicitacoesToggleDuplicados = (checked: boolean) => {
-    setSolicitacoesShowDuplicados(checked);
-    const event = new CustomEvent("solicitacoes:toggleDuplicados", { detail: checked });
-    window.dispatchEvent(event);
-  };
-
-  const handleSolicitacoesToggleTipo = (tipo: "servico" | "produto") => {
-    setSolicitacoesTipoTab(tipo);
-    const event = new CustomEvent("solicitacoes:setTipoTab", { detail: tipo });
-    window.dispatchEvent(event);
-  };
-
-  const handleSolicitacoesToggleMainTab = (tab: "lista" | "central") => {
-    setSolicitacoesMainTab(tab);
-    const event = new CustomEvent("solicitacoes:setMainTab", { detail: tab });
-    window.dispatchEvent(event);
-  };
-
-  // Receber opções de serviço e ano da página
-  useEffect(() => {
-    const handleSetServicoOptions = (event: Event) => {
-      const custom = event as CustomEvent<string[]>;
-      const options = Array.isArray(custom.detail) ? custom.detail : [];
-      setSolicitacoesServicoOptions(options);
-    };
-
-    const handleSetAnoOptions = (event: Event) => {
-      const custom = event as CustomEvent<string[]>;
-      const options = Array.isArray(custom.detail) ? custom.detail : [];
-      setSolicitacoesAnoOptions(options);
-    };
-
-    const handleTipoTabChanged = (event: Event) => {
-      const custom = event as CustomEvent<"servico" | "produto">;
-      const tipo = custom.detail === "produto" ? "produto" : "servico";
-      setSolicitacoesTipoTab(tipo);
-    };
-
-    const handleMainTabChanged = (event: Event) => {
-      const custom = event as CustomEvent<"lista" | "central">;
-      const tab = custom.detail === "central" ? "central" : "lista";
-      setSolicitacoesMainTab(tab);
-    };
-
-    const handleSolicitacoesLoadingChanged = (event: Event) => {
-      const custom = event as CustomEvent<boolean>;
-      setSolicitacoesLoading(custom.detail || false);
-    };
-
-    const handleComprasDespesasTesteSetAnoOptions = (event: Event) => {
-      const custom = event as CustomEvent<string[]>;
-      const options = Array.isArray(custom.detail) ? custom.detail : [];
-      setComprasDespesasTesteAnoOptions(options);
-    };
-
-    const handleComprasDespesasTesteActiveTabChanged = (event: Event) => {
-      const custom = event as CustomEvent<"checklist" | "solicitacoes" | "central">;
-      const tab = custom.detail || "checklist";
-      setComprasDespesasTesteActiveTab(tab);
-    };
-
-    window.addEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
-    window.addEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
-    window.addEventListener("solicitacoes:tipoTabChanged", handleTipoTabChanged);
-    window.addEventListener("solicitacoes:mainTabChanged", handleMainTabChanged);
-    window.addEventListener("solicitacoes:loadingChanged", handleSolicitacoesLoadingChanged);
-    window.addEventListener("compras-despesas-teste:setAnoOptions", handleComprasDespesasTesteSetAnoOptions);
-    window.addEventListener("compras-despesas-teste:activeTabChanged", handleComprasDespesasTesteActiveTabChanged);
-
-    return () => {
-      window.removeEventListener("solicitacoes:setServicoOptions", handleSetServicoOptions);
-      window.removeEventListener("solicitacoes:setAnoOptions", handleSetAnoOptions);
-      window.removeEventListener("solicitacoes:tipoTabChanged", handleTipoTabChanged);
-      window.removeEventListener("solicitacoes:mainTabChanged", handleMainTabChanged);
-      window.removeEventListener("solicitacoes:loadingChanged", handleSolicitacoesLoadingChanged);
-      window.removeEventListener("compras-despesas-teste:setAnoOptions", handleComprasDespesasTesteSetAnoOptions);
-    };
-  }, []);
   
   const handleNvrMarinaFilterChange = (value: string) => {
     setNvrMarinaFilter(value);
@@ -534,39 +342,47 @@ export function Layout({ children }: LayoutProps) {
     window.dispatchEvent(event);
   };
 
-  const handleDespesasSearchChange = (value: string) => {
-    setDespesasSearch(value);
-    const event = new CustomEvent("despesas-recorrentes:setSearch", { detail: value });
+
+
+  // Handlers para paginação global
+  const handleGlobalPaginationUpdate = (event: Event) => {
+    const custom = event as CustomEvent<{
+      currentPage: number;
+      totalPages: number;
+      totalItems: number;
+      itemsPerPage: number;
+      visible: boolean;
+    }>;
+    setGlobalPagination(custom.detail);
+  };
+
+  const handleGlobalPaginationChange = (newPage: number) => {
+    const event = new CustomEvent("global-pagination:pageChanged", { detail: newPage });
     window.dispatchEvent(event);
   };
 
-  const handleComprasDespesasTesteSearchChange = (value: string) => {
-    setComprasDespesasTesteSearch(value);
-    const event = new CustomEvent("compras-despesas-teste:setSearch", { detail: value });
-    window.dispatchEvent(event);
-  };
+  // Event listeners para paginação global
+  useEffect(() => {
+    window.addEventListener("global-pagination:update", handleGlobalPaginationUpdate);
 
-  const handleComprasDespesasTesteTipoChange = (checked: boolean) => {
-    const tipo = checked ? "produto" : "servico";
-    setComprasDespesasTesteTipo(tipo);
-    const event = new CustomEvent("compras-despesas-teste:setTipo", { detail: tipo });
-    window.dispatchEvent(event);
-  };
+    return () => {
+      window.removeEventListener("global-pagination:update", handleGlobalPaginationUpdate);
+    };
+  }, []);
 
-  const handleComprasDespesasTesteAnoChange = (value: string) => {
-    setComprasDespesasTesteAno(value);
-    const event = new CustomEvent("compras-despesas-teste:setAno", { detail: value });
-    window.dispatchEvent(event);
-  };
+  // Resetar paginação global quando sair das páginas de senhas
+  useEffect(() => {
+    if (!isSenhasPage) {
+      setGlobalPagination({
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        itemsPerPage: 12,
+        visible: false,
+      });
+    }
+  }, [isSenhasPage]);
 
-  const handleComprasDespesasTesteClearFilters = () => {
-    setComprasDespesasTesteSearch("");
-    setComprasDespesasTesteTipo("servico");
-    setComprasDespesasTesteAno("todos");
-    const event = new CustomEvent("compras-despesas-teste:clearFilters");
-    window.dispatchEvent(event);
-  };
-  
   return (
     <SidebarProvider defaultOpen={showSidebarUI && !isMobile}>
       <div className="flex min-h-screen w-full bg-background">
@@ -590,7 +406,7 @@ export function Layout({ children }: LayoutProps) {
               )}
 
               {/* Botão Home nas páginas de Senhas, Controle NVR e Controle HD */}
-              {(isSenhasPage || isTesteDeSegurancaPage || isNvrPage || isHdPage || isSolicitacoesPage || isConfiguracoesPage || isAuditLogsPage || isRamaisPage || isImpressorasPage || isChamadosPage || isServidoresPage || isGestaoRedePage || isTermosPage || isAssinaturasPage || isCrachasPage) && (
+              {(isSenhasPage || isTesteDeSegurancaPage || isNvrPage || isHdPage || isConfiguracoesPage || isAuditLogsPage || isRamaisPage || isImpressorasPage || isChamadosPage || isServidoresPage || isGestaoRedePage || isTermosPage || isAssinaturasPage || isCrachasPage) && (
                 <button
                   type="button"
                   onClick={() => navigate("/home")}
@@ -622,24 +438,16 @@ export function Layout({ children }: LayoutProps) {
                       onChange={(e) => handleSenhasSearchChange(e.target.value)}
                       className="pl-10 pr-10 h-8 text-xs md:text-sm"
                     />
-                  </div>
-                  {senhasServicesOptions.length > 0 && (
-                    <div className="w-[130px] md:w-[160px]">
-                      <select
-                        value={senhasService}
-                        onChange={(e) => handleSenhasServiceChange(e.target.value)}
-                        className="px-2 py-1.5 bg-background border border-input rounded-md text-xs md:text-sm w-full"
+                    {senhasSearch && (
+                      <button
+                        onClick={() => handleSenhasSearchChange("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
-                        {senhasServicesOptions.map((service) => (
-                          <option key={service} value={service}>
-                            {service === "todos"
-                              ? "Serviços"
-                              : service.charAt(0).toUpperCase() + service.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
                   {/* Tabs de visualização - Apenas Desktop */}
                   {!isMobile && (
                     <div className="relative inline-flex items-center bg-white dark:bg-slate-800 shadow-sm rounded-full p-1.5 border border-slate-200 dark:border-slate-700">
@@ -714,6 +522,22 @@ export function Layout({ children }: LayoutProps) {
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
                     </div>
+                  )}
+
+                  {/* Botão Adicionar Senha - Apenas Desktop */}
+                  {!isMobile && (
+                    <Button
+                      onClick={() => {
+                        const event = new CustomEvent("senhas:openTypeSelector");
+                        window.dispatchEvent(event);
+                      }}
+                      className="gap-1 sm:gap-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600 text-xs sm:text-sm"
+                      size="sm"
+                    >
+                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Adicionar Senha</span>
+                      <span className="sm:hidden">Adicionar</span>
+                    </Button>
                   )}
                 </div>
               )}
@@ -970,168 +794,9 @@ export function Layout({ children }: LayoutProps) {
 
 
 
-              {/* Busca e filtros da página de Despesas Recorrentes no header (apenas desktop) */}
-              {isDespesasRecorrentesPage && !isMobile && (
-                <div className="flex-1 flex items-center gap-2 min-w-0">
-                  <div className="relative max-w-[300px] md:max-w-[400px] min-w-[120px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar..."
-                      value={despesasSearch}
-                      autoComplete="off"
-                      onChange={(e) => handleDespesasSearchChange(e.target.value)}
-                      className="pl-10 pr-10 h-8 text-xs md:text-sm"
-                    />
-                    {despesasSearch && (
-                      <button
-                        onClick={() => handleDespesasSearchChange("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Select value={despesasMes.toString()} onValueChange={(value) => setDespesasMes(parseInt(value))}>
-                      <SelectTrigger className="w-32 h-8 text-xs md:text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map((mes) => (
-                          <SelectItem key={mes} value={mes.toString()}>
-                            {new Date(2024, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Input
-                      type="number"
-                      value={despesasAno}
-                      onChange={(e) => setDespesasAno(parseInt(e.target.value))}
-                      className="w-20 h-8 text-xs md:text-sm"
-                      min="2020"
-                      max="2030"
-                    />
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const hoje = new Date();
-                      setDespesasMes(hoje.getMonth() + 1);
-                      setDespesasAno(hoje.getFullYear());
-                    }}
-                    className="h-8 text-xs px-2"
-                  >
-                    Mês Atual
-                  </Button>
-                  {despesasSearch && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDespesasSearchChange("")}
-                      className="h-8 text-xs px-2"
-                    >
-                      <X className="w-3 h-3 mr-1" />
-                      Limpar
-                    </Button>
-                  )}
-                  <Button
-                    onClick={() => {
-                      const event = new CustomEvent("despesas-recorrentes:openCreateDialog");
-                      window.dispatchEvent(event);
-                    }}
-                    size="sm"
-                    className="gap-1 md:gap-2 bg-primary hover:bg-primary/90 text-xs md:text-sm ml-auto"
-                  >
-                    <Plus className="w-3 h-3 md:w-4 md:h-4" />
-                    <span className="hidden sm:inline">Adicionar Despesa</span>
-                    <span className="sm:hidden">Adicionar</span>
-                  </Button>
-                </div>
-              )}
 
-              {/* Busca e filtros da página Compras Despesas Teste no header (apenas desktop) */}
-              {isComprasDespesasTestePage && !isMobile && (
-                <div className="flex-1 flex items-center gap-2 min-w-0">
-                  <div className="relative max-w-[300px] md:max-w-[400px] min-w-[120px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar serviços/produtos..."
-                      value={comprasDespesasTesteSearch}
-                      autoComplete="off"
-                      onChange={(e) => handleComprasDespesasTesteSearchChange(e.target.value)}
-                      className="pl-10 pr-10 h-8 text-xs md:text-sm"
-                    />
-                    {comprasDespesasTesteSearch && (
-                      <button
-                        onClick={() => handleComprasDespesasTesteSearchChange("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="w-[100px] md:w-[120px]">
-                    <Select value={comprasDespesasTesteAno} onValueChange={handleComprasDespesasTesteAnoChange}>
-                      <SelectTrigger className="h-8 text-xs md:text-sm">
-                        <SelectValue placeholder="Ano" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        {comprasDespesasTesteAnoOptions.map((ano) => (
-                          <SelectItem key={ano} value={ano}>
-                            {ano}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
-                  {(comprasDespesasTesteSearch || comprasDespesasTesteAno !== "todos") && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleComprasDespesasTesteClearFilters}
-                      className="h-8 text-xs px-2"
-                    >
-                      <X className="w-3 h-3 mr-1" />
-                      <span className="hidden sm:inline">Limpar</span>
-                    </Button>
-                  )}
-                  {comprasDespesasTesteActiveTab === "checklist" && (
-                    <Button
-                      onClick={() => {
-                        const event = new CustomEvent("compras-despesas-teste:openCreateDespesaModal");
-                        window.dispatchEvent(event);
-                      }}
-                      size="sm"
-                      className="gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-xs md:text-sm ml-auto"
-                    >
-                      <Plus className="w-3 h-3 md:w-4 md:h-4" />
-                      <span className="hidden sm:inline">Adicionar Despesa</span>
-                      <span className="sm:hidden">Despesa</span>
-                    </Button>
-                  )}
-                  {comprasDespesasTesteActiveTab === "solicitacoes" && (
-                    <Button
-                      onClick={() => {
-                        const event = new CustomEvent("compras-despesas-teste:openCreateDialog");
-                        window.dispatchEvent(event);
-                      }}
-                      size="sm"
-                      className="gap-1 md:gap-2 bg-primary hover:bg-primary/90 text-xs md:text-sm ml-auto"
-                    >
-                      <Plus className="w-3 h-3 md:w-4 md:h-4" />
-                      <span className="hidden sm:inline">Adicionar SC</span>
-                      <span className="sm:hidden">Adicionar SC</span>
-                    </Button>
-                  )}
-                </div>
-              )}
+
 
               {isAuditLogsPage && !isMobile && (
                 <div className="flex-1 flex items-center gap-2 min-w-0 justify-end">
@@ -1180,6 +845,69 @@ export function Layout({ children }: LayoutProps) {
               {children}
             </div>
           </main>
+
+          {/* Componente de Paginação Global - Apenas nas páginas de senhas */}
+          {isSenhasPage && globalPagination.visible && globalPagination.totalPages > 1 && (
+            <div className="flex items-center justify-between py-4 border-t px-4 bg-background/95 backdrop-blur-sm">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>
+                  Mostrando {(globalPagination.currentPage - 1) * globalPagination.itemsPerPage + 1} a{' '}
+                  {Math.min(globalPagination.currentPage * globalPagination.itemsPerPage, globalPagination.totalItems)} de{' '}
+                  {globalPagination.totalItems} itens
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGlobalPaginationChange(globalPagination.currentPage - 1)}
+                  disabled={globalPagination.currentPage === 1}
+                  className="gap-1"
+                >
+                  <ChevronUp className="w-4 h-4 rotate-[-90deg]" />
+                  Anterior
+                </Button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, globalPagination.totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (globalPagination.totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (globalPagination.currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (globalPagination.currentPage >= globalPagination.totalPages - 2) {
+                      pageNum = globalPagination.totalPages - 4 + i;
+                    } else {
+                      pageNum = globalPagination.currentPage - 2 + i;
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={globalPagination.currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handleGlobalPaginationChange(pageNum)}
+                        className="w-8 h-8 p-0"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleGlobalPaginationChange(globalPagination.currentPage + 1)}
+                  disabled={globalPagination.currentPage === globalPagination.totalPages}
+                  className="gap-1"
+                >
+                  Próximo
+                  <ChevronUp className="w-4 h-4 rotate-90" />
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Barra inferior fixa apenas no mobile (quando a UI da sidebar está disponível e não está em landscape) */}
           {showSidebarUI && !isLandscapeMobile && <MobileBottomBar />}

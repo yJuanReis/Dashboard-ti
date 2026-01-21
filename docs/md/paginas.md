@@ -20,6 +20,7 @@ Cada página mora em `src/pages` e é carregada dentro do `Layout` protegido por
 | Termos                | `/termos`          | PagePermissionGuard        | Em produção             |
 | Controle NVR          | `/controle-nvr`    | PagePermissionGuard        | Em produção             |
 | Controle de HDs       | `/controle-hds`    | PagePermissionGuard        | Em produção             |
+| Solicitações          | `/solicitacoes`    | PagePermissionGuard        | Em produção             |
 | Servidores            | `/servidores`      | PagePermissionGuard        | Em desenvolvimento      |
 | Gestão de Rede        | `/gestaorede`      | PagePermissionGuard        | Em desenvolvimento      |
 | Chamados              | `/chamados`        | PagePermissionGuard        | Em desenvolvimento      |
@@ -116,6 +117,22 @@ Cada página mora em `src/pages` e é carregada dentro do `Layout` protegido por
   - Ajuste do preço de HD persistido no Supabase (`fetchHDPrice` / `saveHDPrice`) com debounce.
   - Botão para exportar relatório XLSX (`window.XLSX`), além de toggles para marcar `purchased`.
   - Mesma lógica de orientação/integração com header via eventos customizados.
+
+## Solicitações (`/solicitacoes`)
+- **Arquivo**: `src/pages/SolicitacoesDespesas.tsx`
+- **Responsabilidade**: módulo unificado para gerenciamento de solicitações de compras (SCs) e controle de despesas recorrentes mensais.
+- **Principais recursos**:
+  - **Três abas principais**: Checklist (despesas recorrentes), Solicitações (serviços/produtos) e Central (dashboard orçamentário).
+  - **Checklist automatizada**: controle mensal de despesas fixas com status "Lançado/Pendente" e botão direto para criar SCs.
+  - **Gerenciamento de SCs**: criação e edição de solicitações de serviços e produtos com validações automáticas.
+  - **Matching inteligente**: vinculação automática entre despesas recorrentes e SCs baseadas em texto de correspondência.
+  - **Controle orçamentário**: dashboard com orçamento mensal, progresso, distribuição por empresa e alertas.
+  - **Detecção de duplicados**: identificação automática de itens similares baseados em SC + serviço/produto + empresa.
+  - **Edição inline**: double-click para editar campos diretamente na tabela.
+  - **Filtros avançados**: por tipo, ano, empresa, busca textual.
+  - **Auditoria completa**: todas as operações registradas em logs de auditoria.
+  - **Integrações**: Supabase (`servicos`, `produtos`, `despesas_recorrentes`), serviços de auditoria e configuração.
+- **Documentação detalhada**: ver [`docs/md/paginas/solicitacoes.md`](./paginas/solicitacoes.md).
 
 ## Servidores (`/servidores`)
 - **Arquivo**: `src/pages/Servidores.tsx`
@@ -220,4 +237,3 @@ Cada página mora em `src/pages` e é carregada dentro do `Layout` protegido por
   - `NavigationHistoryContext` registra últimos acessos (usado no layout).
 
 Use este documento como ponto de partida ao evoluir páginas ou ao orientar novos contribuidores sobre onde cada funcionalidade vive e quais serviços ela consome.
-

@@ -46,6 +46,7 @@ import { useNVR, NVR_MODELS, MARINA_OPTIONS, OWNER_OPTIONS, type NVR, type Slot 
 import { useSidebar } from "@/components/ui/sidebar";
 import { fetchHDPrice, saveHDPrice } from "@/lib/nvrConfigService";
 import { logger } from "@/lib/logger";
+import { MobileTable, MobileCard, MobileCardRow } from "@/components/MobileTable";
 
 type SortField = "marina" | "name" | "model" | "owner";
 type SortDirection = "asc" | "desc";
@@ -864,9 +865,64 @@ export default function EvolucaoHDs() {
         </div>
       )}
 
-      {/* Tabela com Scroll */}
+      {/* Tabela/Cards */}
       <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full custom-scrollbar">
-        <table className="w-full caption-bottom text-sm border-collapse">
+        <MobileTable mobileView={
+          <>
+            {filteredAndSortedNVRs.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Nenhum NVR com slots vazios encontrado.</p>
+              </div>
+            ) : (
+              filteredAndSortedNVRs.map((nvr) => {
+                const slotsNeedingAction = (nvr.slots || []).filter(slot =>
+                  slot.status === "empty" ||
+                  (slot.status !== "inactive" && slot.hdSize > 0 && slot.hdSize < 12)
+                );
+                const totalSlots = (nvr.slots || []).filter(slot => slot.status !== "inactive").length;
+
+                return (
+                  <MobileCard
+                    key={nvr.id}
+                    title={`${nvr.marina} / ${nvr.name}`}
+                    subtitle={`${nvr.owner} • ${nvr.model}`}
+                  >
+                    <MobileCardRow label="Slots com problema" value={`${slotsNeedingAction.length}/${totalSlots}`} />
+                    <MobileCardRow label="Modelo" value={nvr.model} />
+                    <div className="mt-3">
+                      <p className="text-xs text-muted-foreground mb-2">Slots que precisam de ação:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {slotsNeedingAction.slice(0, 6).map((slot, index) => {
+                          const slotIndex = (nvr.slots || []).indexOf(slot);
+                          return createSlotButton(slot, nvr.id, slotIndex);
+                        })}
+                        {slotsNeedingAction.length > 6 && (
+                          <div className="text-xs text-muted-foreground self-center px-2">
+                            +{slotsNeedingAction.length - 6} mais
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {nvr.notes && (
+                      <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedNVR(nvr)}
+                          className="h-8 px-3"
+                        >
+                          <MessageSquare className="w-4 h-4 mr-1" />
+                          Ver OBS
+                        </Button>
+                      </div>
+                    )}
+                  </MobileCard>
+                );
+              })
+            )}
+          </>
+        }>
+          <table className="w-full caption-bottom text-sm border-collapse">
             <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
                 <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2 m-0">
                   <TableHead className="text-center bg-slate-100 dark:bg-slate-800">
@@ -925,7 +981,7 @@ export default function EvolucaoHDs() {
                   </TableRow>
                 ) : (
                   filteredAndSortedNVRs.map((nvr, index) => (
-                    <TableRow 
+                    <TableRow
                       key={nvr.id}
                       className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
                     >
@@ -988,7 +1044,8 @@ export default function EvolucaoHDs() {
                 )}
               </TableBody>
             </table>
-          </div>
+        </MobileTable>
+      </div>
 
       {/* Modal de Observações */}
       <Dialog open={selectedNVR !== null} onOpenChange={() => setSelectedNVR(null)}>

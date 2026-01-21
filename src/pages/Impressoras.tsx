@@ -58,6 +58,7 @@ import {
 } from "@/lib/impressorasService";
 import { useSidebar } from "@/components/ui/sidebar";
 import { logger } from "@/lib/logger";
+import { MobileTable, MobileCard, MobileCardRow } from "@/components/MobileTable";
 
 type SortField = "modelo" | "numero_serie" | "ip" | "marina" | "local";
 type SortDirection = "asc" | "desc";
@@ -358,154 +359,219 @@ export default function Impressoras() {
     );
   };
 
+  // Renderização mobile (cards)
+  const mobileView = (
+    <>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="text-muted-foreground mt-2">Carregando impressoras...</p>
+        </div>
+      ) : filteredAndSortedImpressoras.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">Nenhuma impressora encontrada</p>
+        </div>
+      ) : (
+        filteredAndSortedImpressoras.map((impressora) => (
+          <MobileCard
+            key={impressora.id}
+            title={impressora.modelo || "Sem modelo"}
+            subtitle={`${impressora.marina || "Sem marina"} • ${impressora.local || "Sem local"}`}
+          >
+            <MobileCardRow label="Nº Série" value={impressora.numero_serie || "-"} />
+            <MobileCardRow
+              label="IP"
+              value={
+                impressora.ip && impressora.ip.toLowerCase() !== "wi-fi" ? (
+                  <a
+                    href={`http://${impressora.ip}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary/80 hover:underline transition-colors"
+                    title={`Abrir ${impressora.ip} em nova aba`}
+                  >
+                    {impressora.ip}
+                  </a>
+                ) : (
+                  impressora.ip || "-"
+                )
+              }
+            />
+            <MobileCardRow label="Observação" value={impressora.observacao || "-"} />
+            <div className="flex items-center justify-end gap-2 mt-3 pt-3 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleOpenDialog(impressora)}
+                className="h-8 px-3"
+              >
+                <Edit className="w-4 h-4 mr-1" />
+                Editar
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDelete(impressora.id)}
+                className="h-8 px-3 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Excluir
+              </Button>
+            </div>
+          </MobileCard>
+        ))
+      )}
+    </>
+  );
+
   return (
     <div className="flex flex-col h-full w-full overflow-hidden">
-
-
-      {/* Tabela */}
+      {/* Tabela/Cards */}
       <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 w-full custom-scrollbar">
-        <Table className="w-full caption-bottom text-xs md:text-sm min-w-[800px]">
-          <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
-            <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
-              <TableHead
-                className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                onClick={() => handleSort("marina")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  Marina
-                  <SortIcon field="marina" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                onClick={() => handleSort("local")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  Local
-                  <SortIcon field="local" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                onClick={() => handleSort("modelo")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  Modelo
-                  <SortIcon field="modelo" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                onClick={() => handleSort("numero_serie")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  Nº Série
-                  <SortIcon field="numero_serie" />
-                </div>
-              </TableHead>
-              <TableHead
-                className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                onClick={() => handleSort("ip")}
-              >
-                <div className="flex items-center justify-center gap-1">
-                  IP
-                  <SortIcon field="ip" />
-                </div>
-              </TableHead>
-              <TableHead className="text-center bg-slate-100 dark:bg-slate-800">Observação</TableHead>
-              <TableHead className="text-right bg-slate-100 dark:bg-slate-800">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    <p className="text-muted-foreground">Carregando impressoras...</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : filteredAndSortedImpressoras.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
-                  <p className="text-muted-foreground">
-                    Nenhuma impressora encontrada
-                  </p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredAndSortedImpressoras.map((impressora, index) => (
-                <TableRow
-                  key={impressora.id}
-                  className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
+        <MobileTable mobileView={mobileView}>
+          <Table className="w-full caption-bottom text-xs md:text-sm min-w-[800px]">
+            <TableHeader className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800 shadow-sm">
+              <TableRow className="bg-slate-100 dark:bg-slate-800 border-b-2">
+                <TableHead
+                  className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  onClick={() => handleSort("marina")}
                 >
-                  <TableCell className="text-center text-xs md:text-sm font-medium">
-                    {impressora.marina || "-"}
-                  </TableCell>
-                  <TableCell className="text-center text-xs md:text-sm">
-                    {impressora.local || "-"}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {impressora.modelo ? (
-                      <div
-                        className={`inline-flex items-center px-2.5 py-1 rounded-md border transition-all cursor-default ${getModeloColor(impressora.modelo).bg} ${getModeloColor(impressora.modelo).text} ${getModeloColor(impressora.modelo).border} ${getModeloColor(impressora.modelo).hover}`}
-                        title={impressora.modelo}
-                      >
-                        <span className="text-xs md:text-sm font-medium">
-                          {impressora.modelo}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-xs md:text-sm text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center text-xs md:text-sm font-mono">
-                    {impressora.numero_serie || "-"}
-                  </TableCell>
-                  <TableCell className="text-center text-xs md:text-sm font-mono">
-                    {impressora.ip && impressora.ip.toLowerCase() !== "wi-fi" ? (
-                      <a
-                        href={`http://${impressora.ip}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
-                        title={`Abrir ${impressora.ip} em nova aba`}
-                      >
-                        {impressora.ip}
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">{impressora.ip || "-"}</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center text-xs md:text-sm">
-                    {impressora.observacao || "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => handleOpenDialog(impressora)}
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => handleDelete(impressora.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
+                  <div className="flex items-center justify-center gap-1">
+                    Marina
+                    <SortIcon field="marina" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  onClick={() => handleSort("local")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Local
+                    <SortIcon field="local" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  onClick={() => handleSort("modelo")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Modelo
+                    <SortIcon field="modelo" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  onClick={() => handleSort("numero_serie")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Nº Série
+                    <SortIcon field="numero_serie" />
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="text-center bg-slate-100 dark:bg-slate-800 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  onClick={() => handleSort("ip")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    IP
+                    <SortIcon field="ip" />
+                  </div>
+                </TableHead>
+                <TableHead className="text-center bg-slate-100 dark:bg-slate-800">Observação</TableHead>
+                <TableHead className="text-right bg-slate-100 dark:bg-slate-800">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <p className="text-muted-foreground">Carregando impressoras...</p>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : filteredAndSortedImpressoras.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      Nenhuma impressora encontrada
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredAndSortedImpressoras.map((impressora, index) => (
+                  <TableRow
+                    key={impressora.id}
+                    className={index % 2 === 0 ? "bg-card" : "bg-muted/30"}
+                  >
+                    <TableCell className="text-center text-xs md:text-sm font-medium">
+                      {impressora.marina || "-"}
+                    </TableCell>
+                    <TableCell className="text-center text-xs md:text-sm">
+                      {impressora.local || "-"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {impressora.modelo ? (
+                        <div
+                          className={`inline-flex items-center px-2.5 py-1 rounded-md border transition-all cursor-default ${getModeloColor(impressora.modelo).bg} ${getModeloColor(impressora.modelo).text} ${getModeloColor(impressora.modelo).border} ${getModeloColor(impressora.modelo).hover}`}
+                          title={impressora.modelo}
+                        >
+                          <span className="text-xs md:text-sm font-medium">
+                            {impressora.modelo}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs md:text-sm text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-xs md:text-sm font-mono">
+                      {impressora.numero_serie || "-"}
+                    </TableCell>
+                    <TableCell className="text-center text-xs md:text-sm font-mono">
+                      {impressora.ip && impressora.ip.toLowerCase() !== "wi-fi" ? (
+                        <a
+                          href={`http://${impressora.ip}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
+                          title={`Abrir ${impressora.ip} em nova aba`}
+                        >
+                          {impressora.ip}
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground">{impressora.ip || "-"}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center text-xs md:text-sm">
+                      {impressora.observacao || "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleOpenDialog(impressora)}
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => handleDelete(impressora.id)}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </MobileTable>
       </div>
 
       {/* Dialog de Edição/Criação */}
@@ -623,4 +689,3 @@ export default function Impressoras() {
     </div>
   );
 }
-

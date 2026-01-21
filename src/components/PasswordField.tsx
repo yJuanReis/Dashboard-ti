@@ -24,6 +24,7 @@ interface PasswordFieldProps {
   className?: string;
   label?: string;
   showLabel?: boolean;
+  vertical?: boolean;
 }
 
 export function PasswordField({
@@ -35,6 +36,7 @@ export function PasswordField({
   className = "",
   label = "Senha",
   showLabel = true,
+  vertical = false,
 }: PasswordFieldProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [showTimer, setShowTimer] = useState<NodeJS.Timeout | null>(null);
@@ -133,6 +135,53 @@ export function PasswordField({
 
   if (!value) return null;
 
+  if (vertical) {
+    return (
+      <div className={cn("flex flex-col gap-1", className)}>
+        {showLabel && (
+          <span className="text-base font-medium text-slate-500 dark:text-slate-400">
+            {label}:
+          </span>
+        )}
+        <div className="bg-slate-100 dark:bg-slate-800 rounded-md px-2 py-1">
+          <span className="text-base font-mono font-medium text-slate-800 dark:text-slate-200">
+            {isVisible ? value : "••••••••"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
+            onClick={toggleVisibility}
+            title={isVisible ? "Ocultar senha" : "Mostrar senha"}
+          >
+            {isVisible ? (
+              <EyeOff className="w-3.5 h-3.5 mr-1" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 mr-1" />
+            )}
+            {isVisible ? "Ocultar" : "Mostrar"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
+            onClick={handleCopy}
+            title="Copiar senha"
+          >
+            {copied ? (
+              <Check className="w-3.5 h-3.5 mr-1 text-green-500" />
+            ) : (
+              <Copy className="w-3.5 h-3.5 mr-1" />
+            )}
+            Copiar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("flex items-center justify-between gap-2", className)}>
       {showLabel && (
@@ -174,4 +223,3 @@ export function PasswordField({
     </div>
   );
 }
-

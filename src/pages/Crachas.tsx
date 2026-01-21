@@ -236,12 +236,9 @@ export default function Crachas() {
 
       <div className="grid lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8">
         {/* Form Section */}
-        <div className="space-y-4 md:space-y-6">
-          <Card>
-            <CardHeader className="p-4 md:p-6">
-              <CardTitle className="text-lg md:text-xl">Configurações do Crachá</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6">
+        <div className="flex flex-col h-full">
+          <Card className="flex flex-col h-full">
+            <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
               {/* Layout Selection */}
               <div className="space-y-2 md:space-y-3">
                 <Label className="text-sm md:text-base font-semibold">Escolha o Layout</Label>
@@ -368,9 +365,9 @@ export default function Crachas() {
         </div>
 
         {/* Preview Section */}
-        <div>
-          <Card>
-            <CardContent className="flex items-center justify-center p-4 md:p-8">
+        <div className="flex flex-col h-full">
+          <Card className="flex flex-col h-full">
+            <CardContent className="p-4 md:p-8 flex-1 flex items-center justify-center custom-scrollbar">
               {/* Esta estrutura recria o cracha.html e cracha-generator.css
                 usando Tailwind e classes dinâmicas para o posicionamento.
               */}

@@ -48,6 +48,7 @@ Além disso, a rota `/security-test` exige um flag de sessão (`sessionStorage.s
 | Termos | `/termos` | Idem | Produção |
 | Controle NVR | `/controle-nvr` | Idem | Produção |
 | Controle de HDs | `/controle-hds` | Idem | Produção |
+| Solicitações | `/solicitacoes` | ProtectedRoute + PagePermissionGuard | Produção |
 | Servidores | `/servidores` | Idem | Em desenvolvimento |
 | Gestão de Rede | `/gestaorede` | Idem | Em desenvolvimento |
 | Chamados | `/chamados` | Idem | Em desenvolvimento |
@@ -103,4 +104,3 @@ Itens obrigatórios (detalhes em `docs/md/supabase.md`):
 3. Para overview geral, edite este arquivo (`docs/md/overview.md`) e/ou `docs/md/paginas.md`.
 
 Com essas referências, qualquer membro da equipe consegue entender rapidamente o objetivo de cada área do dashboard e quais dependências precisam estar operacionais.
-

@@ -64,11 +64,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     url: "/senhas",
     icon: Key,
   },
-  {
-    title: "Solicitações",
-    url: "/solicitacoes",
-    icon: ShoppingCart,
-  },
+
   {
     title: "Crachás",
     url: "/crachas",

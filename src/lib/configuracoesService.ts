@@ -23,19 +23,15 @@ export async function buscarConfiguracaoPorChave(chave: string): Promise<Configu
       .from('configuracoes_orcamento')
       .select('*')
       .eq('chave', chave)
-      .eq('ativo', true)
-      .single();
+      .eq('ativo', true);
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        // Registro não encontrado
-        logger.log(`Configuração ${chave} não encontrada`);
-        return null;
-      }
+      logger.error('Erro ao buscar configuração:', error);
       throw error;
     }
 
-    return data;
+    // Retorna o primeiro resultado ou null se não encontrar
+    return data && data.length > 0 ? data[0] : null;
   } catch (error) {
     logger.error('Erro ao buscar configuração:', error);
     throw error;
@@ -183,24 +179,48 @@ export async function desativarConfiguracao(chave: string): Promise<void> {
  * Funções específicas para orçamento
  */
 export class OrcamentoService {
-  private static readonly CHAVE_ORCAMENTO_TOTAL = 'orcamento_mensal_total';
-
   /**
-   * Busca o orçamento mensal total
+   * Gera a chave do orçamento baseada no ano
    */
-  static async buscarOrcamentoTotal(): Promise<number> {
-    return await buscarValorConfiguracao(this.CHAVE_ORCAMENTO_TOTAL, 150000);
+  private static gerarChaveOrcamento(ano?: number): string {
+    const anoAtual = ano || new Date().getFullYear();
+    return `orcamento_mensal_total_${anoAtual}`;
   }
 
   /**
-   * Atualiza o orçamento mensal total
+   * Busca o orçamento mensal total do ano atual
    */
-  static async atualizarOrcamentoTotal(valor: number): Promise<ConfiguracaoOrcamento> {
+  static async buscarOrcamentoTotal(ano?: number): Promise<number> {
+    const chave = this.gerarChaveOrcamento(ano);
+    return await buscarValorConfiguracao(chave, 150000);
+  }
+
+  /**
+   * Atualiza o orçamento mensal total do ano atual
+   */
+  static async atualizarOrcamentoTotal(valor: number, ano?: number): Promise<ConfiguracaoOrcamento> {
+    const chave = this.gerarChaveOrcamento(ano);
+    const anoAtual = ano || new Date().getFullYear();
+
     return await salvarConfiguracao(
-      this.CHAVE_ORCAMENTO_TOTAL,
-      'Orçamento Mensal Total',
+      chave,
+      `Orçamento Mensal Total ${anoAtual}`,
       valor,
       'orcamento'
     );
+  }
+
+  /**
+   * Busca o orçamento de um ano específico
+   */
+  static async buscarOrcamentoPorAno(ano: number): Promise<number> {
+    return await this.buscarOrcamentoTotal(ano);
+  }
+
+  /**
+   * Atualiza o orçamento de um ano específico
+   */
+  static async atualizarOrcamentoPorAno(valor: number, ano: number): Promise<ConfiguracaoOrcamento> {
+    return await this.atualizarOrcamentoTotal(valor, ano);
   }
 }

@@ -145,10 +145,10 @@ export default function Assinaturas() {
     <table cellPadding={0} cellSpacing={0} border={0} style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px', lineHeight: 1.5, color: '#333', borderCollapse: 'collapse', minHeight: '120px', height: '120px' }}>
       <tbody>
         <tr style={{ height: '100%' }}>
-          <td style={{ paddingRight: '12px', verticalAlign: 'top', width: '110px', minWidth: '110px', maxWidth: '110px', textAlign: 'center', height: '100%' }}>
+          <td style={{ paddingRight: '12px', verticalAlign: 'middle', width: '110px', minWidth: '110px', maxWidth: '110px', textAlign: 'center', height: '100%' }}>
             <img src={logoUrl} alt="Logo BR Marinas" width="100" height="100" style={{ display: 'block', margin: '0 auto', width: '100px', height: '100px', objectFit: 'contain' }} />
           </td>
-          <td style={{ paddingLeft: '0px', verticalAlign: 'top', width: '300px', height: '100%', textAlign: 'left' }}>
+          <td style={{ paddingLeft: '0px', verticalAlign: 'middle', width: '300px', height: '100%', textAlign: 'left' }}>
             <p style={{ margin: 0, fontWeight: 'bold', color: '#0055A5', fontSize: '14px' }}>
               {nome || "Seu Nome"}
             </p>
@@ -272,13 +272,10 @@ export default function Assinaturas() {
 
   return (
 
-    <div className="grid lg:grid-cols-2 gap-4 md:gap-6 lg:gap-8 h-full">
+    <div className="grid lg:grid-cols-2 gap-4 md:gap-6 lg:gap-2 h-full">
       {/* Form Section */}
       <div className="flex flex-col h-full">
         <Card className="w-full max-w-[600px] mx-auto flex flex-col h-full">
-          <CardHeader className="p-4 md:p-6">
-            <CardTitle className="text-lg md:text-xl">Informações da Assinatura</CardTitle>
-          </CardHeader>
           <CardContent className="space-y-4 md:space-y-6 p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
             {/* Layout Selection */}
             <div className="space-y-2 md:space-y-3">
@@ -421,20 +418,20 @@ export default function Assinaturas() {
           </CardHeader>
           <CardContent className="p-4 md:p-6 lg:p-8 rounded-lg overflow-x-auto flex-1 flex items-center justify-center custom-scrollbar">
             <div className="flex items-center justify-center w-full h-full">
-              <div 
-                ref={previewRef} 
-                style={{ 
-                  width: '330px', 
-                  height: '120px', 
-                  display: 'inline-block', 
+              <div
+                ref={previewRef}
+                style={{
+                  width: '330px',
+                  minHeight: '120px',
+                  display: 'inline-block',
                   minWidth: '330px',
                   backgroundColor: '#FFFFFF',
                   padding: '10px',
                   borderRadius: '4px',
-                  transform: 'scale(1.5)',
+                  transform: 'scale(2.0)',
                   transformOrigin: 'center'
                 }}
-                className="md:scale-150 lg:scale-[2]"
+                className="md:scale-200 lg:scale-[2.5]"
               >
                 <AssinaturaPreview
                   // 'ref' removido

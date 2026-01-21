@@ -6,37 +6,26 @@ import { useNavigate } from "react-router-dom";
 import { fetchNVRs } from "../lib/nvrService";
 import { fetchRamais, type Ramal } from "../lib/ramaisService";
 import { fetchImpressoras, type Impressora } from "../lib/impressorasService";
-import { fetchServicos, fetchProdutos } from "../lib/servicosProdutosService";
-import { fetchDespesasRecorrentesSimplificado } from "../lib/despesasService";
 
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
-} from 'recharts';
-import { 
-  Phone, 
-  Printer, 
-  Loader2, 
-  Database, 
-  Activity, 
-  Video, 
-  FileText, 
-  HardDrive, 
-  Clock, 
-  CheckCircle2, 
+
+
+import {
+  Phone,
+  Printer,
+  Loader2,
+  Database,
+  Activity,
+  Video,
+  FileText,
+  HardDrive,
+  Clock,
+  CheckCircle2,
   AlertTriangle,
   Server,
   ArrowRight,
   X,
   ChevronDown,
-  HelpCircle,
-  TrendingUp 
+  HelpCircle
 } from "lucide-react";
 
 // --- MOCKS E UTILITÁRIOS (Para substituir dependências externas) ---
@@ -58,52 +47,11 @@ const formatDistanceToNow = (date: string | Date) => {
   const now = new Date();
   const past = new Date(date);
   const diffInSeconds = Math.floor((now.getTime() - past.getTime()) / 1000);
-  
+
   if (diffInSeconds < 60) return "há menos de um minuto";
   if (diffInSeconds < 3600) return `há ${Math.floor(diffInSeconds / 60)} minutos`;
   if (diffInSeconds < 86400) return `há ${Math.floor(diffInSeconds / 3600)} horas`;
   return `há ${Math.floor(diffInSeconds / 86400)} dias`;
-};
-
-// Função auxiliar para converter string de moeda (BRL) em number
-const parseCurrency = (value: string | undefined): number => {
-  if (!value) return 0;
-
-  // Remove apenas "R$" e espaços, mas preserva pontos e vírgulas
-  let cleanValue = value.replace(/[R$\s]/g, '');
-
-  // Detecta formato: se tem vírgula E ponto, é formato brasileiro com separador de milhares
-  // Exemplo: "1.234,56" -> remove ponto de milhares, mantém vírgula decimal
-  if (cleanValue.includes(',') && cleanValue.includes('.')) {
-    cleanValue = cleanValue.replace(/\./g, ''); // Remove pontos de milhares
-    cleanValue = cleanValue.replace(',', '.'); // Troca vírgula por ponto decimal
-  }
-  // Se só tem vírgula, é formato brasileiro simples (já está correto)
-  else if (cleanValue.includes(',')) {
-    cleanValue = cleanValue.replace(',', '.');
-  }
-  // Se só tem ponto, é formato americano (já está correto)
-
-  return parseFloat(cleanValue) || 0;
-};
-
-// Função auxiliar para fazer o parse de datas (aceita DD/MM/YYYY, YYYY-MM-DD ou ISO)
-const parseDate = (dateStr: string | undefined): Date | null => {
-  if (!dateStr) return null;
-
-  // Tenta parsear data brasileira DD/MM/YYYY
-  const brDateMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (brDateMatch) {
-    const [, day, month, year] = brDateMatch;
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    if (!isNaN(date.getTime())) return date;
-  }
-
-  // Tenta parsear como ISO ou outro formato
-  const date = new Date(dateStr);
-  if (!isNaN(date.getTime())) return date;
-
-  return null;
 };
 
 // --- TYPES ---
@@ -361,9 +309,7 @@ export default function Home() {
   const [recentLogs, setRecentLogs] = useState<Log[]>([]);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
 
-  // Estados para o Gráfico Financeiro
-  const [financialData, setFinancialData] = useState<any[]>([]);
-  const [loadingFinancial, setLoadingFinancial] = useState(true);
+
 
   useEffect(() => {
     loadRamais();
@@ -397,7 +343,6 @@ export default function Home() {
 
   const fetchDashboardData = async () => {
     setLoadingDashboard(true);
-    setLoadingFinancial(true);
     try {
       // 1. Buscar Status dos NVRs
       const { data: nvrs } = await supabase.from('nvrs').select('status');
@@ -419,9 +364,7 @@ export default function Home() {
         setCriticalHDs(sortedHDs);
       }
 
-      // 3. Buscar Solicitações Pendentes
-      const { count } = await supabase.from('solicitacoes').select('*', { count: 'exact' });
-      if (count !== null) setPendingRequests(count);
+
 
       // 4. Buscar Últimos Logs
       const { data: logs } = await supabase.from('audit_logs').select('*');
@@ -446,100 +389,12 @@ export default function Home() {
         console.error('Erro ao buscar NVRs para armazenamento crítico:', err);
       }
 
-      // =================================================================
-      // 6. DADOS FINANCEIROS REAIS (APENAS SERVIÇOS E PRODUTOS)
-      // =================================================================
-      try {
-        console.log('🔍 Iniciando busca de dados financeiros...');
 
-        // Busca paralela de serviços e produtos
-        const [servicosData, produtosData] = await Promise.all([
-           fetchServicos(),
-           fetchProdutos()
-        ]);
-
-        console.log('📊 Dados recebidos:', {
-          servicosCount: servicosData?.length || 0,
-          produtosCount: produtosData?.length || 0
-        });
-
-        // Define os últimos 6 meses para o eixo X do gráfico
-        const today = new Date();
-        const last12Months = Array.from({ length: 12 }, (_, i) => {
-           const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-           return {
-              monthIdx: d.getMonth(),
-              year: d.getFullYear(),
-              // Nome do mês abreviado (Jan, Fev...)
-              name: d.toLocaleString('pt-BR', { month: 'short' }).replace('.', ''),
-              servicos: 0,
-              produtos: 0
-           };
-        }).reverse(); // Reverte para ficar em ordem cronológica (ex: Jun -> Nov)
-
-        // Função auxiliar para somar valor ao mês correto
-        const addToMonth = (dateStr: string | undefined, valueStr: string | undefined, type: 'servicos' | 'produtos' | 'despesas') => {
-           const date = parseDate(dateStr);
-           if (!date) return; // Se a data for inválida ou não existir, ignora
-
-           const monthIdx = date.getMonth();
-           const year = date.getFullYear();
-           const value = parseCurrency(valueStr);
-
-           // Encontra o mês correspondente no array last12Months
-           const monthData = last12Months.find(m => m.monthIdx === monthIdx && m.year === year);
-           if (monthData) {
-              monthData[type] += value;
-           }
-        };
-
-        // Processa Serviços (USA data_solicitacao)
-        console.log('🟡 Processando serviços:', servicosData.length);
-        let totalServicos = 0;
-        servicosData.forEach(s => {
-            const valorStr = s.valor || '0';
-            const valorNum = parseCurrency(valorStr);
-            totalServicos += valorNum;
-            console.log('🔵 Serviço:', s.servico, 'data_solicitacao:', s.data_solicitacao, 'valor:', s.valor, 'valorNum:', valorNum);
-            addToMonth(s.data_solicitacao, valorStr, 'servicos');
-        });
-        console.log('💰 Total Serviços processados:', totalServicos);
-
-        // Processa Produtos (USA data_sc)
-        console.log('🟣 Processando produtos:', produtosData.length);
-        let totalProdutos = 0;
-        produtosData.forEach(p => {
-            const valorStr = p.valor || '0';
-            const valorNum = parseCurrency(valorStr);
-            totalProdutos += valorNum;
-            console.log('🟠 Produto:', p.produto, 'data_sc:', p.data_sc, 'valor:', p.valor, 'valorNum:', valorNum);
-            addToMonth(p.data_sc, valorStr, 'produtos');
-        });
-        console.log('💰 Total Produtos processados:', totalProdutos);
-        console.log('📈 Dados finais para o gráfico:', last12Months);
-
-        // Capitaliza a primeira letra do mês e inclui ano quando necessário
-        const currentYear = new Date().getFullYear();
-        const hasMultipleYears = last12Months.some(m => m.year !== currentYear);
-
-        const formattedData = last12Months.map(m => ({
-            ...m,
-            name: hasMultipleYears
-                ? `${m.name.charAt(0).toUpperCase() + m.name.slice(1)}/${String(m.year).slice(-2)}`
-                : m.name.charAt(0).toUpperCase() + m.name.slice(1)
-        }));
-
-        setFinancialData(formattedData);
-
-      } catch (err) {
-        console.error("Erro ao buscar dados financeiros reais:", err);
-      }
 
     } catch (error) {
       console.error("Erro ao carregar dados do dashboard:", error);
     } finally {
       setLoadingDashboard(false);
-      setLoadingFinancial(false);
     }
   };
 
@@ -681,18 +536,7 @@ export default function Home() {
           />
 
 
-          <SectionCard
-            title="SC de Serviço e Produtos"
-            icon={<FileText className="w-4 h-4" />}
-            onClick={() => {
-              showAlert(
-                "Nova Solicitação",
-                "Deseja ser redirecionado para a página de criação de Solicitação?",
-                () => navigate('/solicitacoes?new=1')
-              );
-            }}
-            count="> Cadastrar 📝"
-          />
+
 
 
           <SectionCard
@@ -803,113 +647,7 @@ export default function Home() {
           </Card>
 
 
-          {/* Content Area 2 - GRÁFICO DE GASTOS */}
 
-              <Card className="h-full flex flex-col shadow-sm bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-l-4 border-l-green-500 overflow-hidden">
-                <CardHeader className="pb-2 pt-4 px-4 shrink-0">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2 text-base font-bold">
-                      <TrendingUp className="h-4 w-4 text-green-600" />
-                      Gastos Mensais
-                    </CardTitle>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Comparativo mensal (Serviços vs Produtos)
-                  </p>
-                </CardHeader>
-                <CardContent className="flex-1 p-2 min-h-0 w-full">
-                  {loadingFinancial ? (
-                    <div className="h-full flex items-center justify-center">
-                      <Loader2 className="w-6 h-6 animate-spin text-green-500" />
-                    </div>
-                  ) : (
-                    <div className="w-full h-full min-h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={financialData}
-                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.5} />
-                          <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{fill: "hsl(var(--muted-foreground))", fontSize: 13}} 
-                            dy={10}
-                          />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tickFormatter={(value) => `R$${(value/1000).toFixed(0)}k`} 
-                            tick={{fill: "hsl(var(--muted-foreground))", fontSize: 11}} 
-                            width={40}
-                          />
-                          <Tooltip
-                            cursor={{fill: "hsl(var(--muted)/0.3)"}}
-                            contentStyle={{
-                              backgroundColor: "hsl(var(--card))",
-                              borderColor: "hsl(var(--border))",
-                              borderRadius: "12px",
-                              fontSize: "16px",
-                              fontWeight: "600",
-                              padding: "12px 16px",
-                              boxShadow: "0 10px 25px -5px rgb(0 0 0 / 0.3)",
-                              border: "2px solid hsl(var(--border))"
-                            }}
-                            labelStyle={{
-                              fontSize: "18px",
-                              fontWeight: "700",
-                              color: "hsl(var(--foreground))",
-                              marginBottom: "8px"
-                            }}
-                            formatter={(value: number, name: string) => [
-                              new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value),
-                              name
-                            ]}
-                            labelFormatter={(label) => {
-                              // Converte abreviação para nome completo do mês no tooltip
-                              const monthMap: Record<string, string> = {
-                                'Jan': 'Janeiro', 'Fev': 'Fevereiro', 'Mar': 'Março', 'Abr': 'Abril',
-                                'Mai': 'Maio', 'Jun': 'Junho', 'Jul': 'Julho', 'Ago': 'Agosto',
-                                'Set': 'Setembro', 'Out': 'Outubro', 'Nov': 'Novembro', 'Dez': 'Dezembro'
-                              };
-
-                              // Remove o ano se estiver presente (ex: "Jan/25" -> "Jan")
-                              const monthAbbrev = label.split('/')[0];
-                              const fullMonth = monthMap[monthAbbrev] || monthAbbrev;
-
-                              // Adiciona o ano se estava presente
-                              const yearPart = label.includes('/') ? `/${label.split('/')[1]}` : '';
-                              return `${fullMonth}${yearPart}`;
-                            }}
-                          />
-                          <Legend 
-                            wrapperStyle={{fontSize: "11px", paddingTop: "10px"}} 
-                            iconSize={8}
-                          />
-                          <Bar 
-                            dataKey="servicos" 
-                            name="Serviços" 
-                            fill="#3b82f6" 
-                            stackId="a" 
-                            radius={[0, 0, 4, 4]} 
-                            barSize={30}
-                          />
-                          <Bar
-                            dataKey="produtos"
-                            name="Produtos"
-                            fill="#a855f7"
-                            stackId="a"
-                            radius={[4, 4, 0, 0]}
-                            barSize={30}
-                          />
-
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
 
         </div>
 

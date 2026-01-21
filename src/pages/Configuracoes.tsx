@@ -84,7 +84,6 @@ const PAGINAS_DISPONIVEIS = [
   // ADIÇÕES VALIDADAS:
   { path: '/ramais', nome: 'Ramais', icon: '☎️' },
   { path: '/impressoras', nome: 'Impressoras', icon: '🖨️' },
-  { path: '/solicitacoes', nome: 'Solicitações', icon: '📝' },
   
   // CORREÇÃO DE PATH (para bater com App.tsx):
   { path: '/teste-de-seguranca', nome: 'Pentest', icon: '🛡️' },

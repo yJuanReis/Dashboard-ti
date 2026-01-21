@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { visualizer } from "rollup-plugin-visualizer";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -18,25 +19,47 @@ export default defineConfig(({ mode }) => ({
       "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
     },
   },
-  plugins: [react()],
+  plugins: [
+    react(),
+    ...(mode === 'analyze' ? [visualizer({ filename: 'dist/bundle-analysis.html', open: true })] : []),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // 👇 SUA CONFIGURAÇÃO DE BUILD MANTIDA AQUI
+  // 👇 CONFIGURAÇÃO DE BUILD OTIMIZADA PARA PERFORMANCE
   build: {
     // Aumenta o limite do aviso para 1000kb
-    chunkSizeWarningLimit: 1000, 
+    chunkSizeWarningLimit: 1000,
+    // Habilita minificação e compressão
+    minify: 'esbuild',
+    sourcemap: false, // Desabilita sourcemaps em produção para reduzir tamanho
     rollupOptions: {
       output: {
+        // Otimiza chunks para melhor cache
         manualChunks(id) {
-          // Se o arquivo vier de node_modules, cria um chunk separado
+          // Agrupa bibliotecas grandes separadamente
           if (id.includes('node_modules')) {
-            return id.toString().split('node_modules/')[1].split('/')[0].toString();
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('@radix-ui') || id.includes('lucide-react')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('@supabase') || id.includes('@tanstack')) {
+              return 'data-vendor';
+            }
+            return 'vendor';
           }
         },
+        // Nomes de arquivos otimizados
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
+    // Habilita compressão automática
+    reportCompressedSize: false, // Desabilita relatório para builds mais rápidos
   },
 }));
