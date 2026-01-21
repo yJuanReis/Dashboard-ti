@@ -60,50 +60,34 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: "Senhas",
+    title: "Base de Conhecimento",
     url: "/senhas",
     icon: Key,
   },
-
   {
-    title: "Crachás",
-    url: "/crachas",
-    icon: IdCard,
-  },
-  {
-    title: "Assinaturas",
-    url: "/assinaturas",
-    icon: Mail,
-  },
-  {
-    title: "Controle NVR",
-    url: "/controle-nvr",
-    icon: Video,
-  },
-  {
-    title: "Controle de HDs",
-    url: "/controle-hds",
-    icon: HardDrive,
-  },
-  {
-    title: "Termo de Responsabilidade",
+    title: "Termos de Responsabilidade",
     url: "/termos",
     icon: FileText,
   },
   {
-    title: "Gestão de Rede",
-    url: "/gestaorede",
-    icon: Network,
+    title: "Criação de Crachás",
+    url: "/crachas",
+    icon: IdCard,
   },
   {
-    title: "Servidores",
-    url: "/servidores",
-    icon: Server,
+    title: "Gerador de Assinaturas",
+    url: "/assinaturas",
+    icon: Mail,
   },
   {
-    title: "Chamados",
-    url: "/chamados",
-    icon: Wrench,
+    title: "Controle NVRs",
+    url: "/controle-nvr",
+    icon: Video,
+  },
+  {
+    title: "Controle HDs",
+    url: "/controle-hds",
+    icon: HardDrive,
   },
   {
     title: "Impressoras",
@@ -116,17 +100,20 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
     icon: Phone,
   },
   {
-    title: "Logs",
-    url: "/logs",
-    icon: ClipboardList,
+    title: "Chamados",
+    url: "/chamados",
+    icon: Wrench,
   },
-
- {    title: "Pentest",
-    url: "/teste-de-seguranca",
-    icon: ShieldCheck,
+  {
+    title: "Gestão de Rede",
+    url: "/gestaorede",
+    icon: Network,
   },
-
-
+  {
+    title: "Servidores",
+    url: "/servidores",
+    icon: Server,
+  },
   {
     title: "Configurações",
     url: "/configuracoes",
