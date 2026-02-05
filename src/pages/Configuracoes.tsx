@@ -1838,6 +1838,207 @@ export default function Configuracoes() {
               )}
             </Card>
 
+            {/* Controle de Acesso - Authorized Emails Card (Only for Admin) */}
+            {realRole === 'admin' && (
+              <Card className="hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="border-b">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-muted-foreground" />
+                      <CardTitle className="text-base">Controle de Acesso</CardTitle>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Gerencie quais emails podem acessar o sistema via Google OAuth.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-6">
+                  <div>
+                    <h4 className="font-semibold text-foreground mb-4">Gerenciar Emails Autorizados</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Apenas usuários com emails autorizados podem fazer login via Google OAuth. <br />
+                      Emails não autorizados serão bloqueados automaticamente.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                      <Input
+                        type="email"
+                        placeholder="E-mail para autorizar"
+                        value={novoUsuario.email}
+                        onChange={(e) => setNovoUsuario({...novoUsuario, email: e.target.value})}
+                        autoComplete="off"
+                        disabled={loadingUsuarios}
+                        className="md:col-span-1"
+                      />
+                      <Select
+                        value={novoUsuario.role}
+                        onValueChange={(value: "admin" | "user") => setNovoUsuario({...novoUsuario, role: value})}
+                        disabled={loadingUsuarios}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Tipo de utilizador" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">Usuário</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        onClick={handleEnviarResetPassword}
+                        className="md:col-span-1"
+                        disabled={loadingUsuarios}
+                      >
+                        {loadingUsuarios ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <span className="hidden sm:inline">Processando...</span>
+                            <span className="sm:hidden">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            <span className="hidden sm:inline">Autorizar Email</span>
+                            <span className="sm:hidden">Autorizar</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    {statusMessage && (
+                      <p className={`text-sm mt-2 ${statusMessage.includes("Erro") || statusMessage.includes("não encontrado") ? "text-red-600" : "text-green-600"}`}>
+                        {statusMessage}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-foreground">Emails Autorizados</h4>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={carregarUsuarios}
+                        disabled={loadingUsuarios}
+                      >
+                        <RefreshCw className={`w-4 h-4 mr-2 ${loadingUsuarios ? 'animate-spin' : ''}`} />
+                        Atualizar
+                      </Button>
+                    </div>
+                    {loadingUsuarios ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Carregando emails autorizados...
+                      </div>
+                    ) : usuarios.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Nenhum email autorizado encontrado.
+                      </div>
+                    ) : (
+                      // Modificação solicitada: Substituição do ScrollArea por div nativa e ajuste no header
+                      <div className="max-h-[500px] w-full overflow-y-auto border rounded-md">
+                        {/* Desktop Table */}
+                        <div className="hidden md:block">
+                          <Table>
+                            <TableHeader className="sticky top-0 z-10 bg-background">
+                              <TableRow>
+                                <TableHead className="bg-background">Email</TableHead>
+                                <TableHead className="bg-background">Nome</TableHead>
+                                <TableHead className="bg-background">Role</TableHead>
+                                <TableHead className="text-right bg-background">Ações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {usuarios.map((usuario) => (
+                                <TableRow key={usuario.id}>
+                                  <TableCell className="font-medium">
+                                    {usuario.email}
+                                  </TableCell>
+                                  <TableCell>
+                                    {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline">
+                                      {usuario.role === 'admin' ? 'Admin' : 'User'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {usuario.user_id !== user?.id && (
+                                      <div className="flex justify-end gap-1">
+                                        <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          onClick={() => abrirModalEditarUsuario(usuario)}
+                                          title="Editar Usuário"
+                                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </Button>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          onClick={() => abrirModalSenha(usuario)}
+                                          title="Alterar Senha"
+                                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                        >
+                                          <Lock className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        {/* Mobile Cards */}
+                        <div className="md:hidden space-y-3 p-3">
+                          {usuarios.map((usuario) => (
+                            <Card key={usuario.id} className="p-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">
+                                      {usuario.email}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {usuario.nome || usuario.email.split('@')[0] || 'Sem nome'}
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="ml-2 flex-shrink-0">
+                                    {usuario.role === 'admin' ? 'Admin' : 'User'}
+                                  </Badge>
+                                </div>
+                                {usuario.user_id !== user?.id && (
+                                  <div className="flex gap-2 pt-2 border-t">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => abrirModalEditarUsuario(usuario)}
+                                      className="flex-1 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" />
+                                      Editar
+                                    </Button>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => abrirModalSenha(usuario)}
+                                      className="flex-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                    >
+                                      <Lock className="w-4 h-4 mr-2" />
+                                      Senha
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* User Management Card (Only for Admin) */}
             {realRole === 'admin' && (
               <Card>

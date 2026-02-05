@@ -260,6 +260,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         if (session?.user) {
+          const userEmail = session.user.email;
+          
+          // Verifica se o usuário está autorizado (apenas para emails do domínio brmarinas.com.br)
+          if (userEmail && userEmail.includes('@brmarinas.com.br')) {
+            const { data: isAuthorized, error: authError } = await supabase
+              .rpc('is_user_authorized', { user_email: userEmail });
+
+            if (authError) {
+              logger.error('Erro ao verificar autorização:', authError);
+              // Desloga o usuário se houver erro na verificação
+              await supabase.auth.signOut();
+              toast.error('Erro ao verificar autorização. Tente novamente.');
+              return;
+            }
+
+            if (!isAuthorized) {
+              // Usuário não autorizado - desloga e mostra mensagem
+              await supabase.auth.signOut();
+              toast.error('Acesso negado: usuário não autorizado');
+              return;
+            }
+          }
+
+          // Se chegou aqui, o usuário está autorizado
           // Só atualizar se realmente mudou
           setSession(prev => {
             if (prev?.access_token === session.access_token) {
