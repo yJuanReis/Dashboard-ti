@@ -22,10 +22,10 @@ let cachedUserId: string | null = null;
 let roleCheckInProgress: Promise<boolean> | null = null;
 
 /**
- * Verifica se o usuário atual é admin (com cache)
+ * Verifica se o usuário atual é admin (com cache) - SILENCIOSO
  * Retorna false por padrão até verificar
  */
-async function checkIsAdmin(): Promise<boolean> {
+async function checkIsAdminSilent(): Promise<boolean> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -52,7 +52,7 @@ async function checkIsAdmin(): Promise<boolean> {
       return await roleCheckInProgress;
     }
 
-    // Iniciar nova verificação
+    // Iniciar nova verificação - SILENCIOSA
     roleCheckInProgress = (async () => {
       try {
         // Buscar role do banco
@@ -120,7 +120,7 @@ const originalConsole = {
 
 /**
  * Desabilita console em produção para não-admins
- * BLOQUEIA TUDO por padrão até verificar se é admin
+ * BLOQUEIA TUDO imediatamente e verifica admin de forma silenciosa
  */
 export function disableConsoleInProduction() {
   if (!isProduction) {
@@ -128,77 +128,53 @@ export function disableConsoleInProduction() {
     return;
   }
 
-  // Substituir console.log - BLOQUEADO por padrão
-  console.log = (...args: any[]) => {
-    // Bloquear imediatamente, verificar depois
-    checkIsAdmin().then((isAdmin) => {
-      if (isAdmin) {
-        originalConsole.log(...args);
-      }
-      // Se não for admin, não fazer nada (bloqueado)
-    }).catch(() => {
-      // Em caso de erro, não fazer log (bloqueado)
-    });
-  };
-
-  // Substituir console.info - BLOQUEADO por padrão
-  console.info = (...args: any[]) => {
-    checkIsAdmin().then((isAdmin) => {
-      if (isAdmin) {
-        originalConsole.info(...args);
-      }
-    }).catch(() => {});
-  };
-
-  // Substituir console.debug - BLOQUEADO por padrão
-  console.debug = (...args: any[]) => {
-    checkIsAdmin().then((isAdmin) => {
-      if (isAdmin) {
-        originalConsole.debug(...args);
-      }
-    }).catch(() => {});
-  };
+  // BLOQUEAR IMEDIATAMENTE - sem esperar verificação
+  console.log = () => {};
+  console.info = () => {};
+  console.debug = () => {};
 
   // console.warn - BLOQUEADO por padrão, exceto erros críticos
   console.warn = (...args: any[]) => {
     const isCritical = isCriticalError(args);
     
-    checkIsAdmin().then((isAdmin) => {
-      if (isAdmin) {
-        originalConsole.warn(...args);
-      } else if (isCritical) {
-        // Apenas erros críticos de permissão são mostrados
-        originalConsole.warn('Aviso: Você não tem permissão para realizar esta operação.');
-      }
-      // Se não for admin e não for crítico, não mostrar nada
-    }).catch(() => {
-      // Em caso de erro, não mostrar nada
-    });
+    if (isCritical) {
+      // Apenas erros críticos de permissão são mostrados
+      originalConsole.warn('Aviso: Você não tem permissão para realizar esta operação.');
+    }
+    // Se não for crítico, não mostrar nada
   };
 
   // console.error - BLOQUEADO por padrão, exceto erros críticos
   console.error = (...args: any[]) => {
     const isCritical = isCriticalError(args);
     
-    checkIsAdmin().then((isAdmin) => {
-      if (isAdmin) {
-        originalConsole.error(...args);
-      } else if (isCritical) {
-        // Apenas erros críticos de permissão/segurança são mostrados
-        originalConsole.error('Erro: Você não tem permissão para realizar esta operação ou ocorreu um erro de segurança.');
-      } else {
-        // Para outros erros, mostrar mensagem genérica apenas se for realmente crítico
-        // (quebras de site, erros de rede, etc)
-        const errorStr = args.join(' ').toLowerCase();
-        const siteBreakingErrors = ['network', 'rede', 'connection', 'conexão', 'failed', 'falhou'];
-        if (siteBreakingErrors.some(keyword => errorStr.includes(keyword))) {
-          originalConsole.error('Ocorreu um erro. Por favor, recarregue a página ou entre em contato com o administrador.');
-        }
+    if (isCritical) {
+      // Apenas erros críticos de permissão/segurança são mostrados
+      originalConsole.error('Erro: Você não tem permissão para realizar esta operação ou ocorreu um erro de segurança.');
+    } else {
+      // Para outros erros, mostrar mensagem genérica apenas se for realmente crítico
+      // (quebras de site, erros de rede, etc)
+      const errorStr = args.join(' ').toLowerCase();
+      const siteBreakingErrors = ['network', 'rede', 'connection', 'conexão', 'failed', 'falhou'];
+      if (siteBreakingErrors.some(keyword => errorStr.includes(keyword))) {
+        originalConsole.error('Ocorreu um erro. Por favor, recarregue a página ou entre em contato com o administrador.');
       }
-    }).catch(() => {
-      // Em caso de erro na verificação, não mostrar detalhes
-    });
+    }
   };
+
+  // Verificar admin de forma silenciosa e liberar console se for admin
+  checkIsAdminSilent().then((isAdmin) => {
+    if (isAdmin) {
+      // LIBERAR console apenas para admins
+      console.log = originalConsole.log;
+      console.info = originalConsole.info;
+      console.warn = originalConsole.warn;
+      console.error = originalConsole.error;
+      console.debug = originalConsole.debug;
+    }
+  }).catch(() => {
+    // Em caso de erro na verificação, manter bloqueado
+  });
 }
 
 /**
