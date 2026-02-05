@@ -25,7 +25,8 @@ import {
   ArrowRight,
   X,
   ChevronDown,
-  HelpCircle
+  HelpCircle,
+  Copy
 } from "lucide-react";
 
 // --- MOCKS E UTILITÁRIOS (Para substituir dependências externas) ---
@@ -183,9 +184,36 @@ const SectionCard = ({ title, icon, count, onClick, className = "" }: any) => (
 
 // Componente SimpleModal (Para conteúdo geral)
 const SimpleModal = ({ open, onOpenChange, title, children }: any) => {
+  // Event listener para fechar modal com ESC
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && open) {
+        onOpenChange(false);
+      }
+    };
+
+    if (open) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onOpenChange]);
+
+  // Handler para clique fora
+  const handleBackdropClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) {
+      onOpenChange(false);
+    }
+  };
+
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-200"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-white dark:bg-slate-950 w-full max-w-4xl rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
           <h2 className="text-lg font-semibold">{title}</h2>
@@ -425,8 +453,14 @@ export default function Home() {
       return acc;
     }, {} as Record<string, Ramal[]>);
 
-  const handleCopyIP = (ip: string, local: string) => {
-    toast.success(`IP ${ip} copiado! (${local})`);
+  const handleCopyIP = async (ip: string, local: string) => {
+    try {
+      await navigator.clipboard.writeText(ip);
+      toast.success(`IP ${ip} copiado para a área de transferência!`);
+    } catch (error) {
+      logger.error('Erro ao copiar IP:', error);
+      toast.error("Erro ao copiar IP");
+    }
   };
 
   const getHDSizeClass = (size: number) => {
@@ -818,17 +852,39 @@ export default function Home() {
                         <div
                           key={imp.id}
                           className={`p-3 border rounded-lg bg-white dark:bg-slate-900 transition-all ${
-                              imp.ip 
-                              ? "cursor-pointer hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-md hover:bg-purple-50/50 dark:hover:bg-purple-900/20" 
+                              imp.ip
+                              ? "hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-md hover:bg-purple-50/50 dark:hover:bg-purple-900/20"
                               : "opacity-75"
                           }`}
-                          onClick={() => imp.ip && handleCopyIP(imp.ip, imp.local || "Impressora")}
                         >
                           <div className="text-xs font-bold text-center truncate mb-2 text-slate-700 dark:text-slate-300">{imp.local}</div>
                           {imp.ip ? (
-                            <div className="text-center px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200 rounded text-[11px] font-mono tracking-wide">
-                              {imp.ip}
-                            </div>
+                            <>
+                              <div className="px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200 rounded text-[11px] font-mono tracking-wide text-center mb-2">
+                                {imp.ip}
+                              </div>
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                                  onClick={() => window.open(`http://${imp.ip}`, '_blank')}
+                                  title={`Abrir ${imp.ip} em nova aba`}
+                                >
+                                  Abrir
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                                  onClick={() => handleCopyIP(imp.ip, imp.local || "Impressora")}
+                                  title={`Copiar IP ${imp.ip}`}
+                                >
+                                  <Copy className="w-3 h-3 mr-1" />
+                                  Copiar
+                                </Button>
+                              </div>
+                            </>
                           ) : (
                             <div className="text-[10px] text-slate-400 text-center mt-1 italic border border-dashed border-slate-300 rounded px-2 py-0.5">Sem IP</div>
                           )}

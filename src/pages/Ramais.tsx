@@ -78,6 +78,27 @@ export default function Ramais() {
     loadRamais();
   }, []);
 
+  // Event listener para fechar dialogs com ESC
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showDialog) {
+          setShowDialog(false);
+        } else if (showDeleteDialog) {
+          setShowDeleteDialog(false);
+        }
+      }
+    };
+
+    if (showDialog || showDeleteDialog) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showDialog, showDeleteDialog]);
+
   // Integração com busca do header
   useEffect(() => {
     const handleSearchFromHeader = (event: Event) => {

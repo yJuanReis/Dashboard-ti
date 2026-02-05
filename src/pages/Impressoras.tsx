@@ -37,6 +37,8 @@ import {
   ArrowUp,
   ArrowDown,
   Printer,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -188,6 +190,27 @@ export default function Impressoras() {
     loadImpressoras();
   }, []);
 
+  // Event listener para fechar dialogs com ESC
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (showDialog) {
+          setShowDialog(false);
+        } else if (showDeleteDialog) {
+          setShowDeleteDialog(false);
+        }
+      }
+    };
+
+    if (showDialog || showDeleteDialog) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showDialog, showDeleteDialog]);
+
   // Integração com busca e filtros do header
   useEffect(() => {
     const handleSearchFromHeader = (event: Event) => {
@@ -243,6 +266,17 @@ export default function Impressoras() {
       toast.error("Erro ao carregar impressoras");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Função para copiar IP
+  const handleCopyIP = async (ip: string) => {
+    try {
+      await navigator.clipboard.writeText(ip);
+      toast.success(`IP ${ip} copiado para a área de transferência!`);
+    } catch (error) {
+      logger.error('Erro ao copiar IP:', error);
+      toast.error("Erro ao copiar IP");
     }
   };
 
@@ -529,19 +563,32 @@ export default function Impressoras() {
                       {impressora.numero_serie || "-"}
                     </TableCell>
                     <TableCell className="text-center text-xs md:text-sm font-mono">
-                      {impressora.ip && impressora.ip.toLowerCase() !== "wi-fi" ? (
-                        <a
-                          href={`http://${impressora.ip}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
-                          title={`Abrir ${impressora.ip} em nova aba`}
-                        >
-                          {impressora.ip}
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">{impressora.ip || "-"}</span>
-                      )}
+                      <div className="flex items-center justify-center gap-1">
+                        {impressora.ip && impressora.ip.toLowerCase() !== "wi-fi" ? (
+                          <>
+                            <a
+                              href={`http://${impressora.ip}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80 hover:underline transition-colors cursor-pointer"
+                              title={`Abrir ${impressora.ip} em nova aba`}
+                            >
+                              {impressora.ip}
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5"
+                              onClick={() => handleCopyIP(impressora.ip)}
+                              title={`Copiar IP ${impressora.ip}`}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">{impressora.ip || "-"}</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-center text-xs md:text-sm">
                       {impressora.observacao || "-"}
