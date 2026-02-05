@@ -75,6 +75,109 @@ const marinasList = [
 ];
 
 // === FUNÇÕES AUXILIARES ===
+
+// Função para normalizar texto (remover acentos e converter para minúsculas)
+function normalizeText(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+}
+
+// Função para buscar palavras em texto
+function searchWordsInText(searchTerm: string, text: string): boolean {
+  if (!searchTerm || !text) return false;
+  
+  const normalizedSearch = normalizeText(searchTerm);
+  const normalizedText = normalizeText(text);
+  
+  // Divide o termo de busca em palavras
+  const searchWords = normalizedSearch.split(/\s+/).filter(word => word.length > 0);
+  
+  // Verifica se todas as palavras do termo de busca estão presentes no texto
+  return searchWords.every(word => normalizedText.includes(word));
+}
+
+// Função de busca avançada que prioriza resultados por relevância
+function enhancedSearch(searchTerm: string, passwords: PasswordEntry[]): PasswordEntry[] {
+  if (!searchTerm || searchTerm.trim() === '') return passwords;
+  
+  const normalizedSearch = normalizeText(searchTerm.trim());
+  const searchWords = normalizedSearch.split(/\s+/).filter(word => word.length > 0);
+  
+  // Campos que serão pesquisados
+  const searchFields = [
+    'service',
+    'description', 
+    'username',
+    'password',
+    'url',
+    'marina',
+    'local',
+    'tipo',
+    'cloud_intelbras',
+    'contas_compartilhadas_info',
+    'winbox',
+    'www',
+    'ssh',
+    'link_rtsp'
+  ];
+  
+  // Calcula a relevância de cada senha
+  const results = passwords
+    .map(password => {
+      let matchCount = 0;
+      let totalWordsFound = 0;
+      
+      // Verifica cada campo de busca
+      for (const field of searchFields) {
+        const fieldValue = password[field as keyof PasswordEntry];
+        if (fieldValue && typeof fieldValue === 'string') {
+          const normalizedField = normalizeText(fieldValue);
+          
+          // Conta quantas palavras do termo foram encontradas neste campo
+          const wordsFound = searchWords.filter(word => normalizedField.includes(word)).length;
+          totalWordsFound += wordsFound;
+          
+          if (wordsFound > 0) {
+            matchCount++;
+          }
+        }
+      }
+      
+      return {
+        password,
+        matchCount,
+        totalWordsFound,
+        hasFullMatch: totalWordsFound === searchWords.length
+      };
+    })
+    .filter(result => result.matchCount > 0) // Mantém apenas resultados com correspondência
+    .sort((a, b) => {
+      // Prioriza resultados que encontram todas as palavras
+      if (a.hasFullMatch !== b.hasFullMatch) {
+        return a.hasFullMatch ? -1 : 1;
+      }
+      
+      // Prioriza resultados com mais palavras encontradas
+      if (a.totalWordsFound !== b.totalWordsFound) {
+        return b.totalWordsFound - a.totalWordsFound;
+      }
+      
+      // Prioriza resultados com mais campos correspondentes
+      if (a.matchCount !== b.matchCount) {
+        return b.matchCount - a.matchCount;
+      }
+      
+      // Ordena alfabeticamente por serviço
+      return a.password.service.localeCompare(b.password.service);
+    })
+    .map(result => result.password);
+  
+  return results;
+}
+
 function getTypeDisplayName(type: string | null | undefined): string {
   if (!type) return 'Outros';
 
@@ -707,27 +810,7 @@ export default function SenhasTeste() {
   };
 
   // Filtrar e ordenar senhas baseado no termo de busca e ordenação
-  const filteredPasswords = passwords
-    .filter(password => {
-      // Filtro por busca
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const searchableFields = [
-          password.service,
-          password.username,
-          password.password,
-          password.description,
-          password.url,
-          password.tipo
-        ];
-
-        return searchableFields.some(field =>
-          field && typeof field === 'string' && field.toLowerCase().includes(searchLower)
-        );
-      }
-
-      return true;
-    })
+  const filteredPasswords = enhancedSearch(searchTerm, passwords)
     .sort((a, b) => {
       if (!sortColumn) return 0;
 
@@ -1181,25 +1264,7 @@ export default function SenhasTeste() {
   });
 
   // Aplicar filtro de busca e ordenação
-  const finalFilteredPasswords = filteredPasswordsByTab
-    .filter(password => {
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        const searchableFields = [
-          password.service,
-          password.username,
-          password.password,
-          password.description,
-          password.url,
-          password.tipo
-        ];
-
-        return searchableFields.some(field =>
-          field && typeof field === 'string' && field.toLowerCase().includes(searchLower)
-        );
-      }
-      return true;
-    })
+  const finalFilteredPasswords = enhancedSearch(searchTerm, filteredPasswordsByTab)
     .sort((a, b) => {
       if (!sortColumn) return 0;
 
