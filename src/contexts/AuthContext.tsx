@@ -23,6 +23,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   passwordTemporary: boolean | null; // null = não verificado ainda, true/false = resultado
+  isUnauthorizedDomain: boolean; // true quando domínio não autorizado é detectado
+  setIsUnauthorizedDomain: (value: boolean) => void; // função para resetar o estado
   signIn: (email: string, password: string, captchaToken?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [passwordTemporary, setPasswordTemporary] = useState<boolean | null>(null);
+  const [isUnauthorizedDomain, setIsUnauthorizedDomain] = useState(false);
 
   // Função para verificar e criar perfil se não existir
   const checkUserExists = useCallback(async (userId: string, userEmail?: string): Promise<boolean> => {
@@ -263,7 +266,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const userEmail = session.user.email;
           
           // Verifica se o usuário está autorizado (apenas para emails do domínio brmarinas.com.br)
-          if (userEmail && userEmail.includes('@brmarinas.com.br')) {
+          if (userEmail) {
+            // Primeiro, validar o domínio do email
+            const emailDomain = userEmail.split('@')[1]?.toLowerCase();
+            const allowedDomains = ['brmarinas.com.br'];
+            
+            if (!emailDomain || !allowedDomains.includes(emailDomain)) {
+              logger.error('Domínio não autorizado:', emailDomain, 'para email:', userEmail);
+              // Setar flag de domínio não autorizado e fazer logout
+              setIsUnauthorizedDomain(true);
+              await supabase.auth.signOut();
+              toast.error('Acesso negado: apenas emails do domínio brmarinas.com.br são permitidos');
+              return;
+            }
+
+            // Depois, verificar se o email está na tabela authorized_emails
             const { data: isAuthorized, error: authError } = await supabase
               .rpc('is_user_authorized', { user_email: userEmail });
 
@@ -591,6 +608,8 @@ const signInWithGoogle = useCallback(async () => {
         session,
         loading,
         passwordTemporary,
+        isUnauthorizedDomain,
+        setIsUnauthorizedDomain,
         signIn,
         signInWithGoogle,
         signOut,

@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, isUnauthorizedDomain } = useAuth();
 
   if (loading) {
     return (
@@ -19,6 +19,15 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         </div>
       </div>
     );
+  }
+
+  // Redirecionar para login se domínio não autorizado (com mensagem de erro)
+  if (isUnauthorizedDomain) {
+    // Limpar localStorage e redirecionar
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('supabase.auth.token');
+    }
+    return <Navigate to="/login?error=unauthorized_domain" replace />;
   }
 
   if (!user) {

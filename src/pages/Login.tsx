@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,17 @@ export default function Login() {
   
   const { signIn, signUp, signInWithGoogle, requiresCaptcha } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  // Verificar se veio de domínio não autorizado
+  useEffect(() => {
+    const errorType = searchParams.get('error');
+    if (errorType === 'unauthorized_domain') {
+      setError('Acesso negado: apenas emails do domínio brmarinas.com.br são permitidos.');
+      // Limpar a URL para não mostrar o erro novamente
+      navigate('/login', { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   // Verifica conexão com Supabase
   useEffect(() => {
@@ -518,10 +529,7 @@ export default function Login() {
                 <span>Continuar com Google</span>
               </a>
             </div>
-            
-            <span className="text-xs text-slate-500 mb-4">ou use sua conta</span>
-            
-            {/* Aviso de erro se houver */}
+                     
             {/* Aviso de erro se houver */}
             {error && (
               <div className="w-full p-2 mb-2 text-xs text-red-600 bg-red-50 rounded border border-red-200 flex items-center gap-2">
